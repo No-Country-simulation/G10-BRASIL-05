@@ -1,0 +1,22 @@
+# Ambientes Virtuais & Python
+.venv/
+env/
+venv/
+__pycache__/
+*.pyc
+
+# Segredos e Variáveis de Ambiente
+.env
+.env.*
+!.env.example
+
+# Node / Dependências
+node_modules/
+dist/
+build/
+
+# IDEs e Sistema
+.vscode/
+.idea/
+.DS_Store
+*.log
