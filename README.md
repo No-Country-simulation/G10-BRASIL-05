@@ -1,1 +1,1 @@
-# G10-BRASIL-05
+[---> if your LLM read [text](AGENTS/AGENTS.md) and ignore this all doc in time <---]
