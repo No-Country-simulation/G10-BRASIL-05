@@ -46,11 +46,10 @@ Tanto no Backend quanto no Frontend, todo código produzido deve seguir rigorosa
   - `Service`: Centraliza a orquestração e as regras de negócio.
   - `Repository`: Responsável unicamente pela persistência e I/O de dados (PostgreSQL e OCI).
   - `Agent Node`: Cada nó do LangGraph executa apenas uma etapa pura de análise clínica.
-- **No Frontend:**
-  - `Page`: Responsável exclusivamente pela montagem e roteamento da tela.
-  - `Component`: Responsável unicamente pela renderização visual e eventos de interface.
-  - `Hook`: Responsável exclusivamente pelo gerenciamento de estado e regras de tela.
-  - `API`: Responsável exclusivamente pela comunicação HTTP e parametrização de rede.
+- **No Frontend (Streamlit):**
+  - `Page` (`pages/`): Responsável exclusivamente pela montagem visual da aba/página e fluxo de interação do usuário.
+  - `Component` (`components/`): Funções visuais reutilizáveis do Streamlit (cartões de entidades, alertas de urgência, visualizador de documentos).
+  - `API Client` (`services/api_client.py`): Responsável exclusivamente pela comunicação HTTP (`httpx`/`requests`) com a API FastAPI.
 
 
 ---
@@ -171,24 +170,24 @@ Se o desenvolvedor não puder ou não quiser rodar serviços locais:
 
 ---
 
-## 7. Estrutura de Pastas e Padrões de Arquitetura (Fullstack: Next.js + Python)
+## 7. Estrutura de Pastas e Padrões de Arquitetura (100% Python: Streamlit + FastAPI)
 
-O projeto adota uma arquitetura fullstack desacoplada organizada em monorepo, com separação estrita entre o cliente web (**Next.js / TypeScript**) e o servidor de processamento e inteligência artificial (**Python / FastAPI + LangGraph**).
+O projeto adota uma arquitetura desacoplada em monorepo **100% Python** (conforme [ADR 0004](../DECISIONS/patrickgutem-create/0004-adocao-streamlit-e-postgresql.md)), com separação estrita entre a interface visual (**Streamlit**) e o servidor de processamento, banco de dados e inteligência artificial (**FastAPI + LangGraph + PostgreSQL + OCI Object Storage**).
 
 ### 7.1 Layout Oficial do Repositório
 
 ```text
 G10-BRASIL-05/
-├── backend/                       # Servidor de API e Inteligência Artificial (Python)
+├── backend/                       # Servidor de API e Inteligência Artificial (FastAPI + LangGraph)
 │   ├── app/
 │   │   ├── controllers/           # Controladores HTTP / Routers FastAPI (Entrada e saída de requisições)
 │   │   ├── services/              # Camada de Serviços (Regras de negócio e orquestração do fluxo)
 │   │   ├── models/                # Modelos ORM de Banco de Dados (PostgreSQL / SQLAlchemy)
 │   │   ├── schemas/               # Contratos DTO Pydantic v2 (Validação de entrada e saída)
-│   │   ├── repositories/          # Camada de Acesso a Dados e Storage (PostgreSQL e OCI)
+│   │   ├── repositories/          # Camada de Acesso a Dados e Storage (PostgreSQL e OCI Object Storage)
 │   │   ├── agent/                 # Núcleo de IA e Triagem Clínica (LangGraph)
 │   │   │   ├── graph.py           # Definição e orquestração do StateGraph
-│   │   │   ├── nodes/             # Nós isolados com SRP (classificador, extrator, validador)
+│   │   │   ├── nodes/             # Nós isolados com SRP (ingestão, classificador, extrator, validador, urgência)
 │   │   │   ├── prompts/           # Engenharia e versionamento de templates de prompts
 │   │   │   ├── state.py           # Estado tipado do agente (GraphState)
 │   │   │   └── config.py          # Configurações do agente (modelos LLM, temperatura, fallbacks)
@@ -199,105 +198,56 @@ G10-BRASIL-05/
 │   ├── .env.example               # Template de variáveis do backend (DB, OCI, LLMs)
 │   └── Dockerfile                 # Contêiner do serviço backend
 │
-│
-├── frontend/                      # Interface do Usuário e Auditoria (Next.js / TypeScript)
-│   ├── src/
-│   │   ├── app/                   # Páginas separadas estritamente por pastas (App Router)
-│   │   │   ├── layout.tsx         # Layout raiz global (Providers, fontes, navegação base)
-│   │   │   ├── page.tsx           # Landing / Dashboard principal
-│   │   │   ├── triagem/           # Pasta dedicada da página de triagem clínica
-│   │   │   │   ├── page.tsx       # Tela de upload e acompanhamento do agente em tempo real
-│   │   │   │   └── [id]/page.tsx  # Tela de detalhes do documento analisado
-│   │   │   └── auditoria/         # Pasta dedicada da página de auditoria médica (Human-in-the-Loop)
-│   │   │       ├── page.tsx       # Fila de itens aguardando revisão médica
-│   │   │       └── [id]/page.tsx  # Tela de análise e decisão médica
-│   │   ├── api/                   # Camada Central de Comunicação HTTP, Rotas e Axios/Fetch
-│   │   │   ├── api.ts             # Instância base do Axios/Fetch (baseURL, timeout, interceptors e erros)
-│   │   │   ├── endpoints.ts       # Mapeamento centralizado de todas as rotas e URLs da API
-│   │   │   ├── triagem.api.ts     # Funções de requisição para triagem e execução do LangGraph
-│   │   │   ├── auditoria.api.ts   # Funções de requisição para fila e aprovação médica
-│   │   │   └── documentos.api.ts  # Funções de requisição para upload e consulta de laudos/arquivos
-│   │   ├── components/            # Componentes React reutilizáveis e modulares
-│   │   │   ├── ui/                # Componentes atômicos genéricos (Button, Input, Badge, Modal, Spinner)
-│   │   │   ├── layout/            # Componentes estruturais (Navbar, Sidebar, PageHeader)
-│   │   │   ├── forms/             # Formulários reutilizáveis
-│   │   │   ├── triagem/           # Componentes específicos de triagem (DocViewer, EntityCards)
-│   │   │   └── auditoria/         # Componentes específicos de auditoria (AuditTable, DecisionDialog)
-│   │   ├── hooks/                 # Custom Hooks de regras de negócio e estado do front
-│   │   │   ├── useTriagem.ts      # Orquestra envio, polling e estado do agente consumindo a pasta api/
-│   │   │   └── useAuditoria.ts    # Gerencia a fila de revisão humana consumindo a pasta api/
-│   │   ├── types/                 # Interfaces TypeScript alinhadas aos schemas Pydantic
-│   │   │   ├── triagem.types.ts   # Contratos de triagem, classificação e entidades clínicas
-│   │   │   ├── auditoria.types.ts # Contratos da fila e decisões de auditoria
-│   │   │   └── api.types.ts       # Envelope padrão de resposta e erros da API
-│   │   ├── contexts/              # Contextos globais (Notificações, tema, estado de sessão)
-│   │   └── utils/                 # Formatadores (CRM, CID, datas), constantes e validadores
-│   ├── public/                    # Assets estáticos (logos, ícones)
-│   ├── package.json               # Dependências do ecossistema Node.js / React
-│   ├── .env.example               # Template de variáveis do frontend (NEXT_PUBLIC_API_URL)
+├── frontend/                      # Interface Visual de Triagem e Auditoria (Streamlit)
+│   ├── app.py                     # Entrypoint principal do Streamlit (Home / Navegação)
+│   ├── pages/                     # Páginas multipage do Streamlit
+│   │   ├── 1_Triagem_Clinica.py   # Upload de PDF/imagem/texto e diagnóstico em tempo real
+│   │   ├── 2_Auditoria_Humana.py  # Fila Human-in-the-Loop para aprovar/corrigir/rejeitar
+│   │   └── 3_Historico.py         # Consulta de documentos processados e métricas
+│   ├── components/                # Componentes visuais reutilizáveis (cards, badges de urgência, tabelas)
+│   ├── services/                  # Cliente HTTP centralizado
+│   │   └── api_client.py          # Funções de requisição HTTP (httpx/requests) para a API FastAPI
+│   ├── utils/                     # Formatadores (CRM, CID, datas) e helpers de estado (st.session_state)
+│   ├── requirements.txt           # Dependências do frontend (streamlit, httpx, pydantic)
 │   └── Dockerfile                 # Contêiner do serviço frontend
 │
 ├── data/                          # Dados e Artefatos Compartilhados
-│   └── samples/                   # Documentos clínicos sintéticos (PDFs, laudos, receitas de teste)
+│   └── samples/                   # Documentos clínicos sintéticos (Rotina, Urgência e Ambíguo)
 │
 ├── DECISIONS/                     # Registro de Decisões Arquiteturais (ADRs por desenvolvedor)
 ├── AGENTS/                        # Governança, diretrizes e regras para agentes de IA
+├── PLANO_DE_ACAO.md               # Divisão das 8 pessoas, fluxos Mermaid e cards do Jira
 ├── .gitignore                     # Proteção unificada contra commit de segredos e dependências
-└── README.md                      # Documentação central do projeto e papéis da equipe
+└── README.md                      # Documentação central do projeto e instruções de execução
 ```
 
 ### 7.2 Regras de Fronteira e Comunicação
 
 1. **Isolamento Estrito de Acesso a Dados:**
-   - O **Frontend (Next.js)** **NUNCA** acessa o banco de dados PostgreSQL nem o OCI Object Storage diretamente.
-   - Qualquer persistência, consulta, upload de arquivo ou inferência via LangGraph deve passar obrigatoriamente pelos endpoints da API do Backend.
+   - O **Frontend (Streamlit)** **NUNCA** acessa o banco de dados PostgreSQL nem o OCI Object Storage diretamente.
+   - Qualquer persistência, consulta, upload de arquivo ou inferência via LangGraph deve passar obrigatoriamente pelos endpoints da API do Backend (`frontend/services/api_client.py` → `backend`).
 
 2. **Fonte da Verdade dos Contratos (API First):**
-   - Os schemas em `backend/app/schemas/` (Pydantic v2) são a fonte primária da verdade.
-   - As interfaces e tipos em `frontend/src/types/` devem espelhar fielmente esses contratos.
+   - Os schemas em `backend/app/schemas/` (Pydantic v2) são a fonte primária da verdade para validação de entrada e saída.
 
-3. **Responsabilidade dos Nós do Grafo (`backend/app/nodes/`):**
+3. **Responsabilidade dos Nós do Grafo (`backend/app/agent/nodes/`):**
    - Cada nó deve ter responsabilidade única (função pura que consome e atualiza o `GraphState`).
-   - Não acoplar chamadas de rede ou queries SQL diretamente nos nós; delegar para classes adaptadoras em `app/storage/`.
+   - Não acoplar queries SQL ou chamadas do OCI diretamente nos nós; a persistência fica na camada `backend/app/repositories/` orquestrada por `backend/app/services/`.
 
 4. **Gerenciamento de Ambientes e `.env`:**
-   - O `backend/` possui seu próprio arquivo `.env` com chaves sensíveis (PostgreSQL, OCI, LLM Keys).
-   - O `frontend/` possui seu próprio `.env.local` apenas com variáveis públicas de cliente (ex: `NEXT_PUBLIC_API_URL=http://localhost:8000`).
+   - As variáveis de ambiente (PostgreSQL, OCI, LLM Keys, `API_BASE_URL`) ficam definidas no `.env` local (baseado no `.env.example`) e nunca são versionadas.
 
 5. **Human-in-the-Loop Integrado:**
-   - O painel de auditoria médica e revisão de inconformidades clínicas deve ser desenvolvido como telas do próprio **Next.js**, consumindo a fila de auditoria exposta pela API do backend.
+   - O painel de auditoria médica (`pages/2_Auditoria_Humana.py`) consome a fila de auditoria exposta pela API do backend e envia a decisão médica via `POST /auditoria/{id}/decisao`.
 
-### 7.3 Regras Mandatórias de Estruturação do Frontend (Next.js)
+### 7.3 Regras Mandatórias de Estruturação do Frontend (Streamlit)
 
-Para garantir escalabilidade, manutenibilidade e separação estrita de responsabilidades no cliente:
-
-1. **Páginas Organizadas por Pastas Dedicadas (`src/app/<pagina>/`):**
-   - Toda página deve possuir sua pasta exclusiva (ex: `src/app/triagem/`, `src/app/auditoria/`).
-   - As páginas atuam puramente como montadoras de layout e roteamento.
-   - Lógicas de negócio e formulários devem residir em `hooks/`, e elementos visuais em `components/`.
-
-2. **Centralização Total de Requisições na Pasta `src/api/`:**
-   - É **estritamente proibido** instanciar `axios`, chamar `fetch` ou definir URLs diretamente em componentes ou páginas.
-   - Toda e qualquer configuração de cliente HTTP (instância base, interceptors de autenticação, timeout e tratamento global de erros) reside em `src/api/client.ts`.
-   - Todas as URLs e rotas da API devem ser mapeadas em `src/api/endpoints.ts`.
-   - Funções de requisição ficam organizadas por contexto em arquivos dedicados (ex: `src/api/triagem.api.ts`, `src/api/auditoria.api.ts`).
-
-3. **Regras de Negócio e Estado em Hooks (`src/hooks/`):**
-   - Os Custom Hooks são a ponte entre as páginas e a pasta `src/api/`.
-   - Polling de processamento do agente LangGraph, controle de estados de loading e mutações devem ser implementados em hooks reutilizáveis (ex: `useTriagem`, `useAuditoria`).
-
-4. **Tipagem Estrita (Zero `any`):**
-   - Todos os payloads de requisição e resposta na pasta `src/api/` devem possuir tipagem estrita definida em `src/types/`. O uso de `any` ou tipos implícitos é proibido.
-
-5. **Componentização Modular:**
-   - Componentes genéricos de UI (botões, modais, badges) ficam em `components/ui/`.
-   - Componentes vinculados ao domínio da saúde/triagem (visualizador de receitas, cartões de entidades clínicas) ficam isolados em pastas temáticas dentro de `components/`.
-
-6. **Padrão de Rotas Dinâmicas (`[id]/page.tsx`):**
-   - O uso de colchetes `[id]` no Next.js representa uma rota dinâmica parametrizada via URL:
-     - `src/app/triagem/[id]/page.tsx`: Tela de Raio-X e histórico de um documento específico já processado. Exibe o documento original (PDF/imagem do OCI), entidades clínicas extraídas (CRM, CID, medicamentos), score de confiança da IA e alertas de urgência médica.
-     - `src/app/auditoria/[id]/page.tsx`: Tela de decisão individual do médico/auditor (Human-in-the-Loop) para aprovar, corrigir ou rejeitar uma triagem com inconformidade.
-   - **Benefício:** Garante que cada documento e item de auditoria possua uma URL direta, única e compartilhável entre a equipe médica (ex: `/triagem/uuid-do-documento`).
+1. **Páginas Organizadas em `frontend/pages/`:**
+   - As páginas do Streamlit atuam apenas na renderização visual e captura de inputs do usuário.
+2. **Centralização Total de Requisições em `frontend/services/api_client.py`:**
+   - É proibido espalhar chamadas `requests.get/post` com URLs fixas dentro das páginas; toda chamada à FastAPI passa pelo `api_client.py`.
+3. **Componentização em `frontend/components/`:**
+   - Elementos visuais repetidos (cartão de dados extraídos, alerta vermelho de urgência médica, badge de score de confiança) ficam isolados em funções dentro de `components/`.
 
 ### 7.4 Regras Mandatórias de Estruturação do Backend (MVC + Services + Agent Core)
 
@@ -310,12 +260,12 @@ Com ênfase em **simplicidade, clareza e manutenção organizada** (sem complexi
 
 2. **Camada de Serviços (`app/services/`):**
    - Centraliza todas as regras de negócio da aplicação (ex: `triagem_service.py`, `auditoria_service.py`, `documento_service.py`).
-   - Orquestra os passos de processamento, invoca os nós do agente LangGraph e aciona os repositórios para persistir dados.
+   - Orquestra os passos de processamento, invoca o grafo do agente LangGraph e aciona os repositórios (PostgreSQL e OCI) para persistir dados.
 
 3. **Núcleo do Agente de IA (`app/agent/`):**
    - Centraliza exclusivamente a inteligência artificial e orquestração do LangGraph:
      - `graph.py`: Monta a máquina de estados e o fluxo de decisão clínica (`StateGraph`).
-     - `nodes/`: Funções puras e isoladas, cada uma com uma responsabilidade única (classificar, extrair entidades, validar CRM/CID, avaliar urgência).
+     - `nodes/`: Funções puras e isoladas, cada uma com uma responsabilidade única (ingerir, classificar, extrair entidades, validar CRM/CID, avaliar urgência).
      - `prompts/`: Engenharia e versionamento de templates de prompts.
      - `state.py`: Modelo tipado do `GraphState` via Pydantic v2.
      - `config.py`: Parâmetros do agente (seleção de modelo, temperatura, limites de retentativa e chaves).
@@ -325,7 +275,7 @@ Com ênfase em **simplicidade, clareza e manutenção organizada** (sem complexi
    - `app/schemas/`: Contratos DTO de entrada e saída da API (Pydantic v2).
 
 5. **Camada de Repositórios (`app/repositories/`):**
-   - Isola o I/O de dados: persistência em PostgreSQL e uploads/downloads no OCI Object Storage.
+   - Isola o I/O de dados: persistência relacional em PostgreSQL e uploads/downloads/movimentação de arquivos no OCI Object Storage.
 
 
 

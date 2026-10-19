@@ -2,7 +2,7 @@
 
 - **Data:** 2026-10-14
 - **Autor(es):** @patrickgutem-create (via Assistente IA)
-- **Status:** Aprovado
+- **Status:** Parcialmente substituído pela [ADR 0004](0004-adocao-streamlit-e-postgresql.md) (Frontend alterado de Next.js para Streamlit; mantido o monorepo desacoplado com FastAPI + PostgreSQL + OCI)
 
 ---
 
