@@ -5,13 +5,13 @@ Este documento define as regras, restrições e padrões obrigatórios para qual
 ---
 
 ## 1. Escopo e Papel da IA
-- **SKILLS Obrigatórias:** Consultar e aplicar rigorosamente [Grill-Me Protocol](AGENTS/SKILLS/GRILL-ME.MD).
+- **SKILLS Obrigatórias:** Consultar e aplicar rigorosamente [Grill-Me Protocol](SKILLS/GRILL-ME.MD).
 - **Modo de Operação:** Co-piloto e assistente técnico.
 - **Autoridade Final:** Toda alteração de código deve ser validada e compreendida por um desenvolvedor humano da equipe antes de ser integrada à branch principal.
 - **Registro de Decisões:** Toda decisão técnica/arquitetural tomada ao final da entrevista deve ser documentada antes de qualquer código ser escrito:
   - **Local:** `DECISIONS/<nome_do_usuario>/` (onde `<nome_do_usuario>` é obtido automaticamente via `git config user.name`).
   - **Nomenclatura:** Sequencial e descritiva (`0001-nome-da-decisao.md`).
-  - **Estrutura:** Deve seguir estritamente o [DECISIONS/TEMPLATE.md](DECISIONS/TEMPLATE.md), respondendo obrigatoriamente: **Por quê**, **Para quê**, **Como** e **Onde**.
+  - **Estrutura:** Deve seguir estritamente o [DECISIONS/TEMPLATE.md](../DECISIONS/TEMPLATE.md), respondendo obrigatoriamente: **Por quê**, **Para quê**, **Como** e **Onde**.
   - **Regra de Ouro:** *Documente a decisão primeiro e depois faça o código, nunca o inverso.* 
 
 
@@ -62,6 +62,8 @@ Tanto no Backend quanto no Frontend, todo código produzido deve seguir rigorosa
 ## 5. Integração com Jira & Gestão de Tarefas (MCP)
 
 O agente de IA deve operar orientado a tarefas, utilizando obrigatoriamente a integração com o Jira via **MCP (Model Context Protocol)** para manter rastreabilidade, contexto e alinhamento com o backlog do time.
+
+> 📘 **Configuração para qualquer cliente de IA** (Antigravity, Gemini, Cursor, Claude Desktop/Code, VS Code Copilot, Codex): ver [JIRA_MCP_SETUP.md](./JIRA_MCP_SETUP.md).
 
 ### 5.1 Regra de Ouro do Fluxo de Trabalho
 - **Trabalho Orientado a Cards:** Nenhuma linha de código ou refatoração deve ser iniciada sem estar vinculada a um card do Jira.
