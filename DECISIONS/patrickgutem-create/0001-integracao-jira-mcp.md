@@ -40,3 +40,10 @@ Permitir consulta instantânea e manipulação de issues, sprints e requisitos d
 - **Pontos Positivos:** Acesso direto a todas as 64 tarefas do projeto, zero risco de vazamento de segredos no Git.
 - **Riscos / Trade-offs:** Requer Node.js no ambiente e validade ativa do token de acesso pessoal Atlassian.
 - **Validação / Testes:** Testado com sucesso via JSON-RPC stdio e autenticação validada diretamente na API do Jira Cloud (`https://no-country.atlassian.net`).
+
+---
+
+## 6. Nota de Correção (2026-10-19)
+- O servidor MCP utilizado é o pacote npm **`ff-mcp-jira`**, executado via `npx -y ff-mcp-jira`. **Não** é um servidor Node local versionado.
+- O diretório `~/.gemini/antigravity-cli/mcp/jira/` citado acima contém apenas as definições (schemas) das ferramentas que o cliente Antigravity armazena em cache, e não o servidor em si.
+- Para configurar o MCP em qualquer cliente de IA (Antigravity, Gemini, Cursor, Claude, VS Code Copilot, Codex), consultar [AGENTS/JIRA_MCP_SETUP.md](../../AGENTS/JIRA_MCP_SETUP.md).
