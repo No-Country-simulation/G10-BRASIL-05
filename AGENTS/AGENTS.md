@@ -54,8 +54,11 @@ Tanto no Backend quanto no Frontend, todo código produzido deve seguir rigorosa
 
 ---
 
-## 4. Rastreabilidade e Fiscalização
-- **Commits:** Mensagens de commit claras e sem textos genéricos gerados automaticamente.
+## 4. Rastreabilidade, Branches e Fiscalização
+- **Commits:** Mensagens de commit claras, curtas e diretas (sem textos longos ou genéricos gerados automaticamente).
+- **Política Estrita de Branches e Push:**
+  - **Sempre em Branch Nova:** Cada entrega/push deve ser feita obrigatoriamente em uma **branch nova** criada a partir da `develop` atualizada (padrão: `feature/SCRUM-XX-descricao-curta` ou `fix/SCRUM-XX-descricao`). É proibido fazer push direto na `main` ou na `develop`.
+  - **Exclusão Pós-Merge:** Assim que o Pull Request for revisado, aprovado e o merge for concluído na `develop`, **a branch deve ser excluída imediatamente** (tanto no GitHub via botão *Delete branch* / `git push origin --delete <branch>` quanto localmente via `git branch -d <branch>`).
 - **Revisão Humana:** O autor do Pull Request é 100% responsável pelo código gerado por IA que submeter.
 
 ## 5. Integração com Jira & Gestão de Tarefas (MCP)
