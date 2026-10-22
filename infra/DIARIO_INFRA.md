@@ -1,61 +1,52 @@
 # Diário de Infraestrutura — P5 (OCI Object Storage Always Free)
 
-Registro do que foi feito na infraestrutura OCI, com prints como evidência.
-Os prints ficam nesta mesma pasta (`infra/`).
+Registro do que foi feito na OCI. Os prints de evidência ficam nesta pasta.
 
-> ⚠️ Nunca colocar aqui: chaves `.pem`, fingerprint, OCIDs de usuário, senhas ou tokens.
+> ⚠️ Nunca colocar aqui: chaves `.pem`, fingerprint, OCIDs, senhas ou tokens.
 
 ---
 
-## Resumo do ambiente
+## Ambiente
 
 | Item | Valor |
 |---|---|
-| Provedor | Oracle Cloud Infrastructure (OCI) — Always Free |
-| Serviço | Object Storage |
-| Bucket | `mediflow-documentos-clinicos` |
-| Storage tier | Standard |
-| Visibilidade | Private |
-| Limite gratuito | 20 GiB (Object Storage + Archive somados) |
+| Conta | OCI Always Free |
+| Região | US East (Ashburn) — `us-ashburn-1` |
+| Bucket | `mediflow-documentos-clinicos` (Standard, Private) |
+| Grupo | `mediflow` |
+| Política | `mediflow-devs-bucket` |
+| Limite gratuito | 20 GiB |
 
 ---
 
-## Registro por data
+## 21/10/2026 — Conta e bucket (SCRUM-48, SCRUM-70)
 
-### 21/10/2026 — Conta OCI e bucket (SCRUM-48, SCRUM-70)
-
-**Feito:**
-- [x] Conta OCI criada e usando apenas recursos Always Free (SCRUM-48)
-- [x] Bucket `mediflow-documentos-clinicos` criado — Standard, Private (SCRUM-70)
-- [ ] Criar as pastas `recebidos/`, `processados/` e `auditoria_humana/` dentro do bucket
-
-**Evidência:** `bucket criado.png`
+- [x] Conta OCI criada (Always Free)
+- [x] Bucket criado no compartimento root
 
 ![Bucket criado](bucket%20criado.png)
 
-**Observações:**
-- Uso no momento da criação: 0 bytes de 20 GiB.
-- O bucket está no compartimento raiz (root) da conta.
-
 ---
 
-### 21/10/2026 — Acesso dos colegas ao bucket (em andamento)
+## 22/10/2026 — Pastas e acesso dos colegas (SCRUM-70)
 
-**Objetivo:** dar acesso ao bucket só para quem precisa, com o mínimo de permissão.
+- [x] Pastas criadas:
+  ```
+  recebidos/
+  processados/urgentes/
+  processados/rotina/
+  auditoria_humana/
+  ```
+- [x] Grupo `mediflow` criado e colegas adicionados
+- [x] Política criada, com acesso só a este bucket:
+  ```
+  Allow group mediflow to read objectstorage-namespaces in tenancy
+  Allow group mediflow to read buckets in tenancy
+  Allow group mediflow to manage objects in tenancy where target.bucket.name='mediflow-documentos-clinicos'
+  ```
+- [x] Testado com um usuário do grupo: vê o bucket e não pode criar buckets
 
-**Plano:**
-- [ ] Criar o grupo `mediflow-devs` (Identity & Security → Domains → Default → Groups)
-- [ ] Criar os usuários dos colegas que precisam de acesso e adicioná-los ao grupo
-- [ ] Criar a política de acesso limitada ao bucket (ver abaixo)
-- [ ] Testar com um colega se ele consegue ver o bucket e fazer upload
-
-**Política planejada:**
-```
-Allow group mediflow-devs to read buckets in tenancy
-Allow group mediflow-devs to manage objects in tenancy where target.bucket.name='mediflow-documentos-clinicos'
-```
-
-**Evidência:** _(adicionar prints do grupo e da política)_
+**Aprendido:** o nome do grupo na política tem que ser igual ao do grupo criado.
 
 ---
 
