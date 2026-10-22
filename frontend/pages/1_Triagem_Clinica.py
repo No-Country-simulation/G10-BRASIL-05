@@ -1,24 +1,59 @@
 import streamlit as st
 
+from components.cards import (
+    exibir_alerta_de_roteamento,
+    exibir_classificacao,
+    exibir_dados_extraidos,
+)
 from services.api_client import enviar_documento
 from utils.requisicao import CANAIS_DE_ORIGEM, EXTENSOES_ACEITAS, montar_requisicao
+
+OPCAO_ARQUIVO = "Enviar arquivo"
+OPCAO_TEXTO = "Colar texto"
+
+
+def validar_envio(fonte: str, arquivo, texto_digitado: str, canal_origem: str | None) -> str | None:
+    if fonte == OPCAO_ARQUIVO and arquivo is None:
+        return "Selecione um arquivo para analisar."
+    if fonte == OPCAO_TEXTO and not texto_digitado.strip():
+        return "Cole o texto do documento para analisar."
+    if canal_origem is None:
+        return "Selecione o canal de origem do documento."
+    return None
+
 
 st.title("Triagem Clínica")
 st.write("Envie um documento clínico para análise e roteamento automático.")
 
+arquivo = None
+texto_digitado = ""
+
 coluna_envio, coluna_opcoes = st.columns([2, 1], gap="large")
 
 with coluna_envio:
-    arquivo = st.file_uploader("Documento clínico", type=EXTENSOES_ACEITAS)
-    texto_digitado = st.text_area("Ou cole o texto do documento", height=200)
+    fonte = st.radio(
+        "Como deseja enviar o documento?",
+        [OPCAO_ARQUIVO, OPCAO_TEXTO],
+        horizontal=True,
+    )
+    if fonte == OPCAO_ARQUIVO:
+        arquivo = st.file_uploader("Documento clínico", type=EXTENSOES_ACEITAS)
+    else:
+        texto_digitado = st.text_area("Texto do documento", height=200)
 
 with coluna_opcoes:
-    canal_origem = st.selectbox("Canal de origem", CANAIS_DE_ORIGEM)
+    canal_origem = st.selectbox(
+        "Canal de origem",
+        CANAIS_DE_ORIGEM,
+        index=None,
+        placeholder="Selecione o canal",
+    )
     analisar = st.button("Analisar documento", type="primary")
 
 if analisar:
-    if arquivo is None and not texto_digitado.strip():
-        st.warning("Envie um arquivo ou cole o texto do documento.")
+    problema = validar_envio(fonte, arquivo, texto_digitado, canal_origem)
+    if problema:
+        st.warning(problema)
         st.stop()
 
     try:
@@ -30,4 +65,14 @@ if analisar:
     with st.spinner("Analisando documento..."):
         resposta = enviar_documento(requisicao)
 
-    st.json(resposta)
+    st.caption(
+        f"Documento analisado: {resposta.get('documento_id', 'sem identificação')}"
+        f" · Canal de origem: {requisicao['canal_origem']}"
+    )
+    exibir_alerta_de_roteamento(resposta.get("decisao_roteamento", {}))
+    st.subheader("Classificação")
+    exibir_classificacao(resposta.get("classificacao", {}))
+    st.subheader("Dados extraídos")
+    exibir_dados_extraidos(resposta.get("dados_extraidos", {}))
+    with st.expander("Ver resposta completa (JSON)"):
+        st.json(resposta)
