@@ -1,8 +1,8 @@
 # [0001] - Modelagem do Schema RequisicaoDocumento
 
 - **Data:** 2026-10-21
-- **Autor(es):** @TripleA (via Assistente IA)
-- **Status:** Aceito
+- **Autor(es):** @Pedro-Araujo4 (via Assistente IA)
+- **Status:** Aprovado
 
 ---
 
