@@ -21,6 +21,9 @@ def montar_requisicao(arquivo, texto_digitado: str, canal_origem: str) -> dict:
         tipo_arquivo = _identificar_tipo_arquivo(arquivo.name)
         documento_texto = _extrair_texto(arquivo, tipo_arquivo)
 
+    if not documento_texto.strip():
+        raise ValueError("O documento está vazio.")
+
     return {
         "documento_id": _gerar_documento_id(),
         "tipo_arquivo": tipo_arquivo,
