@@ -6,21 +6,14 @@ from components.cards import (
     exibir_dados_extraidos,
 )
 from services.api_client import enviar_documento
-from utils.requisicao import CANAIS_DE_ORIGEM, EXTENSOES_ACEITAS, montar_requisicao
-
-OPCAO_ARQUIVO = "Enviar arquivo"
-OPCAO_TEXTO = "Colar texto"
-
-
-def validar_envio(fonte: str, arquivo, texto_digitado: str, canal_origem: str | None) -> str | None:
-    if fonte == OPCAO_ARQUIVO and arquivo is None:
-        return "Selecione um arquivo para analisar."
-    if fonte == OPCAO_TEXTO and not texto_digitado.strip():
-        return "Cole o texto do documento para analisar."
-    if canal_origem is None:
-        return "Selecione o canal de origem do documento."
-    return None
-
+from utils.requisicao import (
+    CANAIS_DE_ORIGEM,
+    EXTENSOES_ACEITAS,
+    OPCAO_ARQUIVO,
+    OPCAO_TEXTO,
+    montar_requisicao,
+    validar_envio,
+)
 
 st.title("Triagem Clínica")
 st.write("Envie um documento clínico para análise e roteamento automático.")
@@ -66,13 +59,13 @@ if analisar:
         resposta = enviar_documento(requisicao)
 
     st.caption(
-        f"Documento analisado: {resposta.get('documento_id', 'sem identificação')}"
+        f"Documento analisado: {resposta.get('documento_id') or 'sem identificação'}"
         f" · Canal de origem: {requisicao['canal_origem']}"
     )
-    exibir_alerta_de_roteamento(resposta.get("decisao_roteamento", {}))
+    exibir_alerta_de_roteamento(resposta.get("decisao_roteamento") or {})
     st.subheader("Classificação")
-    exibir_classificacao(resposta.get("classificacao", {}))
+    exibir_classificacao(resposta.get("classificacao") or {})
     st.subheader("Dados extraídos")
-    exibir_dados_extraidos(resposta.get("dados_extraidos", {}))
+    exibir_dados_extraidos(resposta.get("dados_extraidos") or {})
     with st.expander("Ver resposta completa (JSON)"):
         st.json(resposta)

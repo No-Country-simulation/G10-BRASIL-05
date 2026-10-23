@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from services.respostas_mock import (
     RESPOSTA_AMBIGUA,
     RESPOSTA_ROTINA,
@@ -9,7 +11,7 @@ TERMOS_DE_AMBIGUIDADE = ("ilegível", "ilegivel", "rasurado", "crm ausente")
 
 
 def enviar_documento(requisicao: dict) -> dict:
-    return _escolher_resposta_mock(requisicao["documento_texto"])
+    return deepcopy(_escolher_resposta_mock(requisicao["documento_texto"]))
 
 
 def _escolher_resposta_mock(documento_texto: str) -> dict:

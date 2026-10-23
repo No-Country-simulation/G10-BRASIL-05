@@ -3,6 +3,9 @@ from datetime import datetime
 CANAIS_DE_ORIGEM = ["Pronto_Socorro", "Ambulatorio", "Laboratorio", "Operadora_de_Saude"]
 EXTENSOES_ACEITAS = ["pdf", "png", "jpg", "jpeg", "txt", "json"]
 
+OPCAO_ARQUIVO = "Enviar arquivo"
+OPCAO_TEXTO = "Colar texto"
+
 TIPO_ARQUIVO_POR_EXTENSAO = {
     "pdf": "PDF",
     "png": "IMAGEM",
@@ -11,6 +14,16 @@ TIPO_ARQUIVO_POR_EXTENSAO = {
     "txt": "TEXTO",
     "json": "JSON",
 }
+
+
+def validar_envio(fonte: str, arquivo, texto_digitado: str, canal_origem: str | None) -> str | None:
+    if fonte == OPCAO_ARQUIVO and arquivo is None:
+        return "Selecione um arquivo para analisar."
+    if fonte == OPCAO_TEXTO and not texto_digitado.strip():
+        return "Cole o texto do documento para analisar."
+    if canal_origem is None:
+        return "Selecione o canal de origem do documento."
+    return None
 
 
 def montar_requisicao(arquivo, texto_digitado: str, canal_origem: str) -> dict:
@@ -41,7 +54,7 @@ def _extrair_texto(arquivo, tipo_arquivo: str) -> str:
     if tipo_arquivo not in ("TEXTO", "JSON"):
         return arquivo.name
     try:
-        return arquivo.getvalue().decode("utf-8")
+        return arquivo.getvalue().decode("utf-8-sig")
     except UnicodeDecodeError as erro:
         raise ValueError("O arquivo de texto precisa estar codificado em UTF-8.") from erro
 
