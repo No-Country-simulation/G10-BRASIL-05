@@ -1,0 +1,19 @@
+# Relatório de Análise de Dados Médicos
+
+## Contexto
+Estudo fictício sobre histórico clínico de pacientes, sem dados reais.
+
+## Escopo
+- Coleta de dados de diagnóstico, sintomas e tratamento.
+- Anonimização de identificadores pessoais.
+
+## Conformidade LGPD
+- **Pseudonimização**: Substituição de CPF por código único.
+- **Consentimento Informado**: Registro de termo de consentimento digital.
+- **Direitos dos Titulares**: Processos definidos para acesso e exclusão.
+
+## Resultados
+- 75% dos pacientes consentiram ao tratamento de dados.
+- 20% dos registros foram revisados para qualidade.
+
+> **Observação**: A análise demonstra boas práticas de proteção de dados, obedecendo à LGPD.
