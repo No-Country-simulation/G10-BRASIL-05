@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 RESPOSTA_ROTINA = {
     "status": "processado",
     "documento_id": "DOC-CLIN-2026-0001",
@@ -99,3 +101,19 @@ RESPOSTA_AMBIGUA = {
         "status_backup": "sucesso",
     },
 }
+
+def _variar_resposta(base: dict, documento_id: str, nome_paciente: str) -> dict:
+    resposta = deepcopy(base)
+    resposta["documento_id"] = documento_id
+    resposta["dados_extraidos"]["paciente"]["nome"] = nome_paciente
+    return resposta
+
+
+HISTORICO_MOCK = [
+    RESPOSTA_URGENCIA,
+    RESPOSTA_ROTINA,
+    RESPOSTA_AMBIGUA,
+    _variar_resposta(RESPOSTA_ROTINA, "DOC-CLIN-2026-0004", "Ana Beatriz Lima"),
+    _variar_resposta(RESPOSTA_ROTINA, "DOC-CLIN-2026-0005", "Roberto Alves Pinto"),
+    _variar_resposta(RESPOSTA_AMBIGUA, "DOC-CLIN-2026-0006", "M. Souza"),
+]

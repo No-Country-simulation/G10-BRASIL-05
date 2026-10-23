@@ -1,10 +1,6 @@
 import streamlit as st
 
-from components.cards import (
-    exibir_alerta_de_roteamento,
-    exibir_classificacao,
-    exibir_dados_extraidos,
-)
+from components.cards import exibir_resultado_da_triagem
 from services.api_client import enviar_documento
 from utils.requisicao import (
     CANAIS_DE_ORIGEM,
@@ -62,10 +58,4 @@ if analisar:
         f"Documento analisado: {resposta.get('documento_id') or 'sem identificação'}"
         f" · Canal de origem: {requisicao['canal_origem']}"
     )
-    exibir_alerta_de_roteamento(resposta.get("decisao_roteamento") or {})
-    st.subheader("Classificação")
-    exibir_classificacao(resposta.get("classificacao") or {})
-    st.subheader("Dados extraídos")
-    exibir_dados_extraidos(resposta.get("dados_extraidos") or {})
-    with st.expander("Ver resposta completa (JSON)"):
-        st.json(resposta)
+    exibir_resultado_da_triagem(resposta)

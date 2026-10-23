@@ -44,6 +44,16 @@ def exibir_dados_extraidos(dados: dict) -> None:
     _exibir_itens_clinicos(dados)
 
 
+def exibir_resultado_da_triagem(resposta: dict) -> None:
+    exibir_alerta_de_roteamento(resposta.get("decisao_roteamento") or {})
+    st.subheader("Classificação")
+    exibir_classificacao(resposta.get("classificacao") or {})
+    st.subheader("Dados extraídos")
+    exibir_dados_extraidos(resposta.get("dados_extraidos") or {})
+    with st.expander("Ver resposta completa (JSON)"):
+        st.json(resposta)
+
+
 def _exibir_campo(rotulo: str, valor) -> None:
     st.caption(rotulo)
     st.markdown(f"**{valor or NAO_INFORMADO}**")
