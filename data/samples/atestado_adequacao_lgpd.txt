@@ -1,0 +1,16 @@
+# Atestado de Adequação à LGPD
+
+## Empresa: Fictícia Saúde Digital
+
+## Objetivo
+Certificar que o tratamento de dados pessoais segue a Lei Geral de Proteção de Dados (LGPD).
+
+## Declaração
+Declaramos que todas as atividades de coleta, armazenamento e processamento de dados pessoais são realizadas com base no consentimento explícito dos titulares, observância dos princípios de finalidade, minimização, qualidade e segurança.
+
+## Compromissos
+- Implementação de medidas técnicas de segurança (criptografia, controle de acesso).
+- Realização de avaliações de impacto à privacidade (PIA) periódicas.
+- Treinamento anual de colaboradores sobre a LGPD.
+
+> **Atestado**: Este atestado tem validade por 12 meses e será renovado mediante reavaliação.

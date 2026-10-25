@@ -1,0 +1,16 @@
+# Guia de Proteção de Dados Pessoais
+
+## 1. Princípios da LGPD
+- **Finalidade**: Dados devem ser coletados para finalidades específicas, explícitas e legítimas.
+- **Consentimento**: O titular deve ser informado e dar consentimento claro.
+- **Minimização**: Coletar apenas os dados necessários.
+
+## 2. Medidas de Segurança
+- Criptografia de dados em trânsito e em repouso.
+- Controle de acesso baseado em papéis (RBAC).
+- Auditoria regular de acessos.
+
+## 3. Direitos dos Titulares
+- Acesso, correção, exclusão, portabilidade e revogação de consentimento.
+
+> **Conclusão**: A implementação desses controles assegura conformidade com a LGPD e protege a privacidade dos indivíduos.
