@@ -18,4 +18,5 @@
 - **Documente a decisão antes de codar** em `DECISIONS/<git config user.name>/`.
 - **Todo código vem com testes.**
 - **Todo trabalho é vinculado a um card do Jira** (projeto `SCRUM`).
+- **Todo push deve ser feito em uma branch nova** (`feature/SCRUM-XX-descricao`) e **quando o merge for aprovado, a branch deve ser excluída imediatamente** (nunca faça push direto na `main` ou `develop`).
 - Em caso de dúvida sobre regra de negócio, **pare e pergunte** ao desenvolvedor.
