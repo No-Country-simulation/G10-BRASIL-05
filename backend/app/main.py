@@ -2,18 +2,26 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import settings
+from app.config.logger import setup_logging, logger
+from app.config.error_handlers import register_error_handlers
 from app.controllers.triagem import router as triagem_router
 from app.repositories.database import init_db
+
+# Inicializa sistema de logging estruturado JSON
+setup_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info(f"Iniciando {settings.APP_NAME} em ambiente [{settings.APP_ENV}]...")
     # Inicializa tabelas se o banco estiver acessível
     try:
         init_db()
+        logger.info("Conexão e inicialização com o banco de dados concluídas.")
     except Exception as e:
-        print(f"[Database Warning] Não foi possível conectar ao banco de dados no startup: {e}")
+        logger.warning(f"Não foi possível conectar ao banco de dados no startup: {e}")
     yield
+    logger.info(f"Encerrando {settings.APP_NAME}...")
 
 
 app = FastAPI(
@@ -33,6 +41,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Registro de Handlers Globais de Erro (RFC / JSON Envelope)
+register_error_handlers(app)
 
 # Registro de Routers
 app.include_router(triagem_router, prefix=settings.API_V1_PREFIX)

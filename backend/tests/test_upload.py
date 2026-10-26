@@ -72,7 +72,9 @@ def test_upload_formato_invalido():
         files={"file": ("arquivo_invalido.txt", b"Texto simples", "text/plain")},
     )
     assert response.status_code == 400
-    assert "não suportado" in response.json()["detail"]
+    dados = response.json()
+    msg = dados.get("erro", {}).get("mensagem") or dados.get("detail", "")
+    assert "não suportado" in msg
 
 
 def test_upload_arquivo_vazio():
@@ -82,16 +84,19 @@ def test_upload_arquivo_vazio():
         files={"file": ("vazio.pdf", b"", "application/pdf")},
     )
     assert response.status_code == 400
-    assert "vazio" in response.json()["detail"]
+    dados = response.json()
+    msg = dados.get("erro", {}).get("mensagem") or dados.get("detail", "")
+    assert "vazio" in msg
 
 
 def test_upload_tamanho_excedido():
     """Valida que arquivos acima de 10 MB são rejeitados com 413."""
-    # Simula conteúdo ligeiramente acima de 10 MB
     conteudo_grande = b"0" * (10 * 1024 * 1024 + 1024)
     response = client.post(
         "/triagem/upload",
         files={"file": ("laudo_gigante.pdf", conteudo_grande, "application/pdf")},
     )
     assert response.status_code == 413
-    assert "limite máximo" in response.json()["detail"]
+    dados = response.json()
+    msg = dados.get("erro", {}).get("mensagem") or dados.get("detail", "")
+    assert "limite máximo" in msg
