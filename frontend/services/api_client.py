@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 from services.respostas_mock import (
+    FILA_AUDITORIA_MOCK,
     HISTORICO_MOCK,
     RESPOSTA_AMBIGUA,
     RESPOSTA_ROTINA,
@@ -17,6 +18,18 @@ def enviar_documento(requisicao: dict) -> dict:
 
 def listar_documentos() -> list[dict]:
     return deepcopy(HISTORICO_MOCK)
+
+
+def listar_fila_auditoria() -> list[dict]:
+    return deepcopy(FILA_AUDITORIA_MOCK)
+
+
+def registrar_decisao(documento_id: str, decisao: dict) -> dict:
+    return {
+        "documento_id": documento_id,
+        "status": "decisao_registrada",
+        "decisao": deepcopy(decisao),
+    }
 
 
 def _escolher_resposta_mock(documento_texto: str) -> dict:

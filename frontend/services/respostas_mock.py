@@ -117,3 +117,25 @@ HISTORICO_MOCK = [
     _variar_resposta(RESPOSTA_ROTINA, "DOC-CLIN-2026-0005", "Roberto Alves Pinto"),
     _variar_resposta(RESPOSTA_AMBIGUA, "DOC-CLIN-2026-0006", "M. Souza"),
 ]
+
+def _montar_item_de_auditoria(
+    documento_id: str,
+    nome_paciente: str,
+    nivel_prioridade: str,
+    score: float,
+) -> dict:
+    item = _variar_resposta(RESPOSTA_AMBIGUA, documento_id, nome_paciente)
+    item["documento_texto"] = (
+        f"RECEITUARIO MEDICO. Paciente: {nome_paciente}. "
+        "Medico: nome ilegivel, CRM ausente. Prescricao: Losartana (trecho ilegivel)."
+    )
+    item["classificacao"]["nivel_prioridade"] = nivel_prioridade
+    item["classificacao"]["score_confianca_classificacao"] = score
+    return item
+
+
+FILA_AUDITORIA_MOCK = [
+    _montar_item_de_auditoria("DOC-CLIN-2026-0003", "João P. Lima", "Indefinido", 0.58),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0006", "M. Souza", "Rotina", 0.66),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0007", "Paulo R. Nunes", "Urgente", 0.62),
+]
