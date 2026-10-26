@@ -1,15 +1,24 @@
 from typing import Generator, List, Optional, Dict, Any
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool
 from app.config.settings import settings
 from app.models.triagem import Base, DocumentoTriagemModel, TrilhaAuditoriaModel
 
-# Engine com pool seguro; suporte a SQLite em memória como fallback para testes locais
-engine = create_engine(
-    settings.DATABASE_URL,
-    echo=False,
-    pool_pre_ping=True if "sqlite" not in settings.DATABASE_URL else False,
-)
+# Engine com pool seguro; suporte a SQLite em memória compartilhado com StaticPool para testes locais
+if "sqlite" in settings.DATABASE_URL:
+    engine = create_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+else:
+    engine = create_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

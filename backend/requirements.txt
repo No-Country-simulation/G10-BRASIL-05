@@ -11,6 +11,7 @@ python-multipart>=0.0.9
 
 # Banco de Dados & ORM
 SQLAlchemy>=2.0.32
+psycopg[binary]>=3.1.0
 psycopg2-binary>=2.9.9
 alembic>=1.13.2
 
