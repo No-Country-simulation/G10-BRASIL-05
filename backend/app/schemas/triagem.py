@@ -80,3 +80,10 @@ class DecisaoAuditoriaRequest(BaseModel):
     auditor_nome: str = Field(..., example="Dr. Roberto Silva")
     justificativa: str = Field(..., example="Dados conferidos e aprovados clinicamente.")
     dados_corrigidos: Optional[Dict[str, Any]] = None
+
+
+class BloqueioAuditoriaRequest(BaseModel):
+    """Contrato para aquisição/liberação de lock distribuído via Redis para revisão médica."""
+    auditor_nome: str = Field(..., example="Dr. Roberto Silva")
+    ttl_segundos: int = Field(300, ge=30, le=1800, example=300)
+

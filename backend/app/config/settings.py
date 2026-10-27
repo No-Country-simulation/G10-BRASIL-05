@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     # Banco de Dados (PostgreSQL)
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/mediflow_db"
 
+    # Cache & Fila de Auditoria (Redis)
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_ENABLED: bool = True
+
+    # Banco Não-Relacional de Auditoria (MongoDB)
+    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_DATABASE: str = "mediflow_auditoria"
+    MONGODB_ENABLED: bool = True
+
     # IA & LLM
     LLM_PROVIDER: str = "gemini"
     GOOGLE_API_KEY: str = ""

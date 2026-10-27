@@ -16,6 +16,8 @@ from app.schemas.triagem import (
 from app.models.triagem import DocumentoTriagemModel
 from app.repositories.database import DatabaseRepository
 from app.repositories.storage import StorageRepository
+from app.repositories.nosql_auditoria import MongoAuditoriaRepository
+from app.services.redis_service import RedisAuditService
 from app.agent.graph import executar_agente_triagem
 
 
@@ -25,6 +27,8 @@ class TriagemService:
     def __init__(self, db: Session):
         self.db_repo = DatabaseRepository(db)
         self.storage_repo = StorageRepository()
+        self.nosql_repo = MongoAuditoriaRepository()
+        self.redis_service = RedisAuditService()
 
     def processar_triagem(self, requisicao: RequisicaoTriagem) -> RespostaTriagem:
         # 1. Execução do Agente Autônomo LangGraph (StateGraph)
@@ -123,6 +127,31 @@ class TriagemService:
         )
         self.db_repo.salvar(model)
 
+        # 6. Registro NoSQL no MongoDB & Publicação de Telemetria no Redis
+        try:
+            self.nosql_repo.gravar_evento(
+                documento_id=requisicao.documento_id,
+                tipo_evento="TRIAGEM_INICIAL",
+                autor="Sistema_IA",
+                payload={
+                    "classificacao": classificacao.model_dump(),
+                    "dados_extraidos": dados_extraidos.model_dump(),
+                    "decisao_roteamento": decisao_roteamento.model_dump(),
+                },
+                justificativa=justificativa,
+            )
+            self.redis_service.publicar_evento(
+                "mediflow:auditoria:eventos",
+                {
+                    "tipo": "TRIAGEM_PROCESSADA",
+                    "documento_id": requisicao.documento_id,
+                    "requer_auditoria": requer_auditoria,
+                    "prioridade": classificacao.nivel_prioridade,
+                },
+            )
+        except Exception:
+            pass
+
         return RespostaTriagem(
             status="processado" if not requer_auditoria else "em_auditoria",
             documento_id=requisicao.documento_id,
@@ -134,10 +163,28 @@ class TriagemService:
 
     def registrar_decisao_medica(self, documento_id: str, payload: DecisaoAuditoriaRequest):
         """Aprova, corrige ou rejeita um item na fila de Human-in-the-Loop."""
-        return self.db_repo.registrar_decisao(
+        doc_atualizado = self.db_repo.registrar_decisao(
             documento_id=documento_id,
             decisao=payload.status_aprovacao,
             auditor_nome=payload.auditor_nome,
             justificativa=payload.justificativa,
             dados_corrigidos=payload.dados_corrigidos,
         )
+
+        if doc_atualizado:
+            try:
+                # Libera lock no Redis
+                self.redis_service.liberar_lock(documento_id, payload.auditor_nome)
+
+                # Grava na trilha imutável NoSQL
+                self.nosql_repo.gravar_evento(
+                    documento_id=documento_id,
+                    tipo_evento=f"DECISAO_MEDICA_{payload.status_aprovacao.upper()}",
+                    autor=payload.auditor_nome,
+                    payload=payload.dados_corrigidos or {},
+                    justificativa=payload.justificativa,
+                )
+            except Exception:
+                pass
+
+        return doc_atualizado
