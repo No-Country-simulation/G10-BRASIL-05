@@ -22,23 +22,23 @@ def _classificar_deterministico(texto_lower: str) -> Dict[str, Any]:
     elif any(k in texto_lower for k in ["receita", "receituario", "prescricao", "uso oral", "posologia", "medicamento"]):
         tipo = "Receituario Medico"
         especialidade = "Clinica Medica"
-        prioridade = "Rotina"
+        prioridade = "Urgente" if is_urgente else "Rotina"
         score = 0.95
     elif any(k in texto_lower for k in ["atestado", "afastamento", "repouso", "dispensa"]):
         tipo = "Atestado Medico"
         especialidade = "Clinica Geral"
-        prioridade = "Rotina"
+        prioridade = "Urgente" if is_urgente else "Rotina"
         score = 0.92
     elif any(k in texto_lower for k in ["guia", "tiss", "autorizacao", "solicitacao"]):
         tipo = "Guia de Solicitacao"
         especialidade = "Auditoria Medica"
-        prioridade = "Rotina"
+        prioridade = "Urgente" if is_urgente else "Rotina"
         score = 0.90
     else:
         tipo = "Documento Nao Identificado"
-        especialidade = "Indeterminada"
-        prioridade = "Rotina"
-        score = 0.45
+        especialidade = "Emergencia / Clinica Medica" if is_urgente else "Indeterminada"
+        prioridade = "Urgente" if is_urgente else "Rotina"
+        score = 0.85 if is_urgente else 0.45
 
     return {
         "tipo_documento": tipo,

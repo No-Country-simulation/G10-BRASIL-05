@@ -146,15 +146,22 @@ class DatabaseRepository:
             ).first()
 
         if not paciente:
-            paciente = PacienteModel(
-                nome=nome.strip() if nome else "Paciente Não Identificado",
-                idade=idade,
-                cpf=cpf,
-                cadastro_provisorio=True if not cpf else False,
-            )
-            self.db.add(paciente)
-            self.db.commit()
-            self.db.refresh(paciente)
+            try:
+                paciente = PacienteModel(
+                    nome=nome.strip() if nome else "Paciente Não Identificado",
+                    idade=idade,
+                    cpf=cpf,
+                    cadastro_provisorio=True if not cpf else False,
+                )
+                self.db.add(paciente)
+                self.db.commit()
+                self.db.refresh(paciente)
+            except Exception:
+                self.db.rollback()
+                if cpf:
+                    paciente = self.db.query(PacienteModel).filter(PacienteModel.cpf == cpf).first()
+                if not paciente and nome:
+                    paciente = self.db.query(PacienteModel).filter(PacienteModel.nome.ilike(nome.strip())).first()
 
         return paciente
 
@@ -192,15 +199,19 @@ class DatabaseRepository:
                 if len(partes) > 1 and len(partes[-1]) == 2:
                     uf = partes[-1]
 
-            medico = MedicoModel(
-                nome=nome.strip() if nome else "Médico Solicitante",
-                crm=crm_formatado,
-                especialidade=especialidade or "Clínica Médica",
-                uf=uf,
-            )
-            self.db.add(medico)
-            self.db.commit()
-            self.db.refresh(medico)
+            try:
+                medico = MedicoModel(
+                    nome=nome.strip() if nome else "Médico Solicitante",
+                    crm=crm_formatado,
+                    especialidade=especialidade or "Clínica Médica",
+                    uf=uf,
+                )
+                self.db.add(medico)
+                self.db.commit()
+                self.db.refresh(medico)
+            except Exception:
+                self.db.rollback()
+                medico = self.db.query(MedicoModel).filter(MedicoModel.crm == crm_formatado).first()
 
         return medico
 
@@ -218,15 +229,21 @@ class DatabaseRepository:
         ).first()
 
         if not hospital:
-            hospital = HospitalModel(
-                nome=nome_limpo,
-                cidade="São Paulo",
-                uf="SP",
-                ativo=True,
-            )
-            self.db.add(hospital)
-            self.db.commit()
-            self.db.refresh(hospital)
+            try:
+                hospital = HospitalModel(
+                    nome=nome_limpo,
+                    cidade="São Paulo",
+                    uf="SP",
+                    ativo=True,
+                )
+                self.db.add(hospital)
+                self.db.commit()
+                self.db.refresh(hospital)
+            except Exception:
+                self.db.rollback()
+                hospital = self.db.query(HospitalModel).filter(
+                    HospitalModel.nome.ilike(nome_limpo)
+                ).first()
 
         return hospital
 
@@ -294,10 +311,36 @@ class DatabaseRepository:
             self.db.refresh(existente)
             return existente
 
-        self.db.add(model)
-        self.db.commit()
-        self.db.refresh(model)
-        return model
+        try:
+            self.db.add(model)
+            self.db.commit()
+            self.db.refresh(model)
+            return model
+        except Exception:
+            self.db.rollback()
+            existente = self.buscar_por_documento_id(model.documento_id)
+            if existente:
+                existente.tipo_arquivo = model.tipo_arquivo
+                existente.canal_origem = model.canal_origem
+                existente.documento_texto = model.documento_texto
+                existente.tipo_documento = model.tipo_documento
+                existente.especialidade = model.especialidade
+                existente.nivel_prioridade = model.nivel_prioridade
+                existente.score_confianca = model.score_confianca
+                existente.destino_principal = model.destino_principal
+                existente.requer_auditoria_humana = model.requer_auditoria_humana
+                existente.status_processamento = model.status_processamento
+                existente.justificativa_roteamento = model.justificativa_roteamento
+                existente.dados_extraidos = model.dados_extraidos
+                existente.bucket_oci = model.bucket_oci
+                existente.caminho_objeto_oci = model.caminho_objeto_oci
+                existente.paciente_id = model.paciente_id
+                existente.medico_id = model.medico_id
+                existente.hospital_id = model.hospital_id
+                self.db.commit()
+                self.db.refresh(existente)
+                return existente
+            raise
 
     def buscar_por_documento_id(self, documento_id: str) -> Optional[DocumentoTriagemModel]:
         return self.db.query(DocumentoTriagemModel).filter(
