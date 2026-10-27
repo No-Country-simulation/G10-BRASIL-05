@@ -16,76 +16,80 @@ from app.schemas.triagem import (
 from app.models.triagem import DocumentoTriagemModel
 from app.repositories.database import DatabaseRepository
 from app.repositories.storage import StorageRepository
-from app.agent.config import (
-    TERMOS_URGENCIA_CRITICA,
-    DESTINO_EMERGENCIA,
-    DESTINO_AUDITORIA_HUMANA,
-    DESTINO_FLUXO_PADRAO,
-)
+from app.agent.graph import executar_agente_triagem
 
 
 class TriagemService:
-    """Orquestrador do fluxo completo de triagem clínica (API -> Grafo -> Banco -> OCI)."""
+    """Orquestrador do fluxo completo de triagem clínica (API -> LangGraph -> Banco -> OCI)."""
 
     def __init__(self, db: Session):
         self.db_repo = DatabaseRepository(db)
         self.storage_repo = StorageRepository()
 
     def processar_triagem(self, requisicao: RequisicaoTriagem) -> RespostaTriagem:
-        texto = requisicao.documento_texto.lower()
+        # 1. Execução do Agente Autônomo LangGraph (StateGraph)
+        estado_inicial = {
+            "documento_id": requisicao.documento_id,
+            "tipo_arquivo": requisicao.tipo_arquivo,
+            "canal_origem": requisicao.canal_origem,
+            "documento_texto": requisicao.documento_texto,
+        }
+        resultado_grafo = executar_agente_triagem(estado_inicial)
 
-        # 1. Detecção de Urgência Médica (ex: TEP agudo, achado crítico)
-        is_urgente = any(termo in texto for termo in TERMOS_URGENCIA_CRITICA)
+        # 2. Extração dos resultados estruturados do grafo
+        tipo_documento = resultado_grafo.get("tipo_documento") or "Documento Clínico"
+        especialidade = resultado_grafo.get("especialidade") or "Clínica Geral"
+        nivel_prioridade = resultado_grafo.get("nivel_prioridade") or "Rotina"
+        score_confianca = float(resultado_grafo.get("score_confianca_classificacao", 0.95))
+        is_urgente = bool(resultado_grafo.get("is_urgente", False))
+        requer_auditoria = bool(resultado_grafo.get("requer_auditoria_humana", False))
+        destino_principal = resultado_grafo.get("destino_principal") or "Fluxo_Padrao"
+        justificativa = resultado_grafo.get("justificativa_roteamento") or "Processamento concluído."
 
-        # 2. Avaliação de Confiança e Ambiguidade (Human-in-the-Loop)
-        # Se faltar identificação mínima ou for caso ambíguo, cai para auditoria
-        score_confianca = 0.99 if ("laudo" in texto or "receita" in texto or is_urgente) else 0.60
-        requer_auditoria = score_confianca < settings.CONFIDENCE_THRESHOLD
+        # Dados clínicos extraídos pelo grafo
+        paciente_dict = resultado_grafo.get("paciente") or {}
+        medico_dict = resultado_grafo.get("medico_solicitante") or {}
 
-        # 3. Definição do Roteamento
-        if is_urgente:
-            destino = DESTINO_EMERGENCIA
-            justificativa = "Achado critico de alta gravidade detectado em paciente sintomatico."
-            notificacao = NotificacaoAlerta(
-                canal="Alerta_Plantao_Medico",
-                mensagem=f"ALERTA URGENTE: Laudo critico detectado para {requisicao.documento_id} no {requisicao.canal_origem}."
-            )
-            prioridade = "Urgente"
-        elif requer_auditoria:
-            destino = DESTINO_AUDITORIA_HUMANA
-            justificativa = "Score de confianca abaixo do limiar seguro. Encaminhado para revisao medica."
-            notificacao = None
-            prioridade = "Rotina"
-        else:
-            destino = DESTINO_FLUXO_PADRAO
-            justificativa = "Documento clinico em conformidade e sem achados criticos de urgencia."
-            notificacao = None
-            prioridade = "Rotina"
-
-        # 4. Estruturação dos Contratos Pydantic
+        # 3. Modelagem dos Contratos Pydantic
         classificacao = ClassificacaoDocumento(
-            tipo_documento="Laudo de Exame de Imagem" if "exame" in texto or "tomografia" in texto else "Receituario Medico",
-            especialidade="Radiologia / Pneumologia" if is_urgente else "Clinica Medica",
-            nivel_prioridade=prioridade,
+            tipo_documento=tipo_documento,
+            especialidade=especialidade,
+            nivel_prioridade=nivel_prioridade,
             score_confianca_classificacao=score_confianca,
         )
 
         dados_extraidos = DadosExtraidos(
-            paciente=Paciente(nome="Carlos Eduardo Mendes" if "carlos" in texto else "Paciente Identificado", idade=52),
-            medico_solicitante=MedicoSolicitante(nome="Dra. Renata Silveira" if "renata" in texto else "Medico Solicitante", crm="145892-SP"),
-            exame_realizado="Tomografia de Torax com contraste" if "tomografia" in texto else "Consulta de Rotina",
-            diagnostico_principal="Tromboembolismo Pulmonar Agudo (TEP)" if is_urgente else "Avaliacao Clinica",
-            cid_sugerido="I26.9" if is_urgente else "Z00.0",
+            paciente=Paciente(
+                nome=paciente_dict.get("nome") or "Paciente Identificado",
+                idade=paciente_dict.get("idade") or 45,
+            ),
+            medico_solicitante=MedicoSolicitante(
+                nome=medico_dict.get("nome") or "Médico Solicitante",
+                crm=medico_dict.get("crm") or "145892-SP",
+            ),
+            exame_realizado=resultado_grafo.get("exame_realizado") or "Avaliação Clínica",
+            diagnostico_principal=resultado_grafo.get("diagnostico_principal") or "Avaliação Clínica",
+            cid_sugerido=resultado_grafo.get("cid_sugerido") or "Z00.0",
+        )
+
+        notificacao_dict = resultado_grafo.get("notificacao_gerada")
+        notificacao_obj = (
+            NotificacaoAlerta(
+                canal=notificacao_dict.get("canal", "Alerta_Plantao_Medico"),
+                mensagem=notificacao_dict.get("mensagem", "Alerta clínico urgente gerado."),
+            )
+            if notificacao_dict
+            else None
         )
 
         decisao_roteamento = DecisaoRoteamento(
-            destino_principal=destino,
+            destino_principal=destino_principal,
             requer_auditoria_humana=requer_auditoria,
             justificativa_roteamento=justificativa,
-            notificacao_gerada=notificacao,
+            notificacao_gerada=notificacao_obj,
         )
 
-        # 5. Persistência no OCI Object Storage
+        # 4. Persistência de Auditoria no OCI Object Storage
         resultado_oci = self.storage_repo.salvar_triagem_json(
             documento_id=requisicao.documento_id,
             dados_resultado={
@@ -99,7 +103,7 @@ class TriagemService:
         )
         armazenamento_oci = ArmazenamentoOCI(**resultado_oci)
 
-        # 6. Persistência no PostgreSQL
+        # 5. Persistência Relacional no PostgreSQL
         model = DocumentoTriagemModel(
             documento_id=requisicao.documento_id,
             tipo_arquivo=requisicao.tipo_arquivo,
@@ -109,7 +113,7 @@ class TriagemService:
             especialidade=classificacao.especialidade,
             nivel_prioridade=classificacao.nivel_prioridade,
             score_confianca=classificacao.score_confianca_classificacao,
-            destino_principal=destino,
+            destino_principal=destino_principal,
             requer_auditoria_humana=requer_auditoria,
             status_processamento="em_auditoria" if requer_auditoria else "processado",
             justificativa_roteamento=justificativa,
