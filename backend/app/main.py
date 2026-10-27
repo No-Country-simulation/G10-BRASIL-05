@@ -5,6 +5,7 @@ from app.config.settings import settings
 from app.config.logger import setup_logging, logger
 from app.config.error_handlers import register_error_handlers
 from app.controllers.triagem import router as triagem_router
+from app.controllers.ecossistema import router as ecossistema_router
 from app.repositories.database import init_db
 
 # Inicializa sistema de logging estruturado JSON
@@ -48,6 +49,8 @@ register_error_handlers(app)
 # Registro de Routers
 app.include_router(triagem_router, prefix=settings.API_V1_PREFIX)
 app.include_router(triagem_router)  # Suporte direto a /triagem sem prefixo para compatibilidade
+app.include_router(ecossistema_router, prefix=settings.API_V1_PREFIX)
+app.include_router(ecossistema_router)  # Suporte direto a /pacientes, /medicos, /hospitais
 
 
 @app.get("/", tags=["Root"])
