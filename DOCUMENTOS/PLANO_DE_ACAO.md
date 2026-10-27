@@ -152,9 +152,16 @@ flowchart TB
    - `P7 (Streamlit)` começa com um JSON mockado antes da API do `P4` ficar pronta.
    - `P4 (FastAPI)` começa retornando um JSON fixo antes do grafo do `P3` ficar pronto.
    - `P3 (LangGraph)` testa as rotas condicionais com funções simuladas antes dos prompts do `P2`.
-5. **Fluxo no Jira e Git**:
+5. **Fluxo Obrigatório no Jira e Git (Branches Limpas)**:
    - Puxar o card no Jira → atribuir para si → mover para **Em andamento (`21`)** (ver [AGENTS/JIRA_MCP_SETUP.md](AGENTS/JIRA_MCP_SETUP.md)).
-   - Criar branch `feature/SCRUM-XX-descricao-curta` → abrir PR para `develop` → **Parceiro da dupla revisa e aprova**.
+   - **Cada push deve ser em uma branch nova:** nunca dê push direto na `main` ou `develop`. Crie sempre uma branch nova a partir da `develop` atualizada:
+     ```bash
+     git checkout develop && git pull origin develop
+     git checkout -b feature/SCRUM-XX-descricao-curta
+     git push -u origin feature/SCRUM-XX-descricao-curta
+     ```
+   - Abrir Pull Request (PR) para a `develop` → **Parceiro da dupla revisa e aprova**.
+   - **Excluir a branch assim que o merge for aprovado:** concluiu o merge no GitHub? Clique em **Delete branch** (ou rode `git push origin --delete feature/SCRUM-XX-...` e `git branch -d feature/SCRUM-XX-...`) para manter o repositório limpo.
 
 ---
 
@@ -301,8 +308,8 @@ flowchart TB
 Uma tarefa só muda para **Concluído (`41`)** no Jira quando:
 - [ ] O código segue a estrutura de pastas do [AGENTS/AGENTS.md](AGENTS/AGENTS.md)
 - [ ] Tem teste automatizado passando (`pytest`)
-- [ ] O Pull Request foi revisado e aprovado pelo **Parceiro da dupla**
-- [ ] Foi integrado na branch `develop` sem quebrar o que já estava funcionando
+- [ ] O Pull Request (aberto a partir de uma branch nova `feature/SCRUM-XX-...`) foi revisado e aprovado pelo **Parceiro da dupla**
+- [ ] Foi integrado na branch `develop` e **a branch da tarefa foi excluída** após o merge
 - [ ] Nenhum segredo (`.env`, chaves de API ou `.pem` da OCI) foi commitado
 
 ---
