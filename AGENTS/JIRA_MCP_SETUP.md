@@ -134,4 +134,5 @@ Ao iniciar **qualquer** tarefa neste repositório:
 **Regras:**
 - Não execute ações no Jira (atribuir, transicionar, comentar, criar ou apagar) sem o desenvolvedor pedir ou sem estar dentro do fluxo acima.
 - Nunca use `jira_delete_issue` sem confirmação explícita.
-- Branch no padrão `feature/SCRUM-XX-descricao`.
+- **Sempre criar uma branch nova** no padrão `feature/SCRUM-XX-descricao` para cada entrega/push (nunca fazer push direto na `main` ou `develop`).
+- **Excluir a branch imediatamente** assim que o Pull Request / Merge for aprovado e concluído.
