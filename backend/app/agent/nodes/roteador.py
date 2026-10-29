@@ -6,6 +6,7 @@ from app.agent.config import (
     DESTINO_FLUXO_PADRAO,
     DESTINO_FARMACIA,
 )
+from app.schemas.classificacao import TipoDocumento
 
 
 def node_roteamento(state: GraphState) -> GraphState:
@@ -29,7 +30,7 @@ def node_roteamento(state: GraphState) -> GraphState:
         destino = DESTINO_AUDITORIA_HUMANA
         motivo = "; ".join(state.get("inconsistencias", [])) or "Score de confiança abaixo do limiar de segurança."
         justificativa = f"Encaminhado para fila médica Human-in-the-Loop: {motivo}"
-    elif tipo_doc == "Receituario Medico":
+    elif tipo_doc == TipoDocumento.RECEITA.value:
         destino = DESTINO_FARMACIA
         justificativa = "Receituário médico em conformidade encaminhado para dispensação farmacêutica."
     else:
