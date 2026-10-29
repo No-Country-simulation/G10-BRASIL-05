@@ -22,6 +22,12 @@ class ClienteOCIFalso:
             raise oci.exceptions.ServiceError(404, "ObjectNotFound", {}, "Objeto não encontrado")
         return SimpleNamespace(data=SimpleNamespace(content=self.objetos[object_name]["conteudo"]))
 
+    def rename_object(self, namespace_name, bucket_name, rename_object_details):
+        origem = rename_object_details.source_name
+        if origem not in self.objetos:
+            raise oci.exceptions.ServiceError(404, "ObjectNotFound", {}, "Objeto não encontrado")
+        self.objetos[rename_object_details.new_name] = self.objetos.pop(origem)
+
 
 @pytest.fixture
 def repo_sem_oci(monkeypatch):
@@ -77,3 +83,37 @@ def test_sem_oci_upload_e_simulado(repo_sem_oci):
 def test_sem_oci_leitura_gera_erro_claro(repo_sem_oci):
     with pytest.raises(RuntimeError):
         repo_sem_oci.ler_arquivo("recebidos/DOC-004.txt")
+
+
+@pytest.mark.parametrize(
+    "is_urgente, requer_auditoria, destino",
+    [
+        (True, False, "processados/urgentes/DOC-005.pdf"),
+        (False, True, "auditoria_humana/DOC-005.pdf"),
+        (True, True, "auditoria_humana/DOC-005.pdf"),
+        (False, False, "processados/rotina/DOC-005.pdf"),
+    ],
+)
+def test_mover_por_status_envia_para_pasta_certa(repo, is_urgente, requer_auditoria, destino):
+    repo.salvar_arquivo_original("DOC-005", b"%PDF-1.4", "laudo.pdf", "application/pdf")
+
+    resultado = repo.mover_por_status("recebidos/DOC-005.pdf", is_urgente, requer_auditoria)
+
+    assert resultado["caminho_objeto"] == destino
+    assert resultado["status_backup"] == "sucesso"
+    assert "recebidos/DOC-005.pdf" not in repo.client.objetos
+    assert repo.client.objetos[destino]["conteudo"] == b"%PDF-1.4"
+
+
+def test_mover_arquivo_inexistente_retorna_falha(repo):
+    resultado = repo.mover_por_status("recebidos/nao-existe.pdf", is_urgente=True)
+
+    assert resultado["status_backup"].startswith("falha")
+    assert resultado["caminho_objeto"] == "recebidos/nao-existe.pdf"
+
+
+def test_sem_oci_mover_e_simulado(repo_sem_oci):
+    resultado = repo_sem_oci.mover_por_status("recebidos/DOC-006.txt")
+
+    assert resultado["caminho_objeto"] == "processados/rotina/DOC-006.txt"
+    assert resultado["status_backup"] == "sucesso (local_simulado)"

@@ -73,3 +73,54 @@ class ArquivosOCIRepository(StorageRepository):
     def ler_triagem_json(self, caminho_objeto: str) -> Dict[str, Any]:
         """Lê e decodifica um JSON de triagem salvo no Bucket OCI."""
         return json.loads(self.ler_arquivo(caminho_objeto).decode("utf-8"))
+
+    def mover_por_status(
+        self,
+        caminho_atual: str,
+        is_urgente: bool = False,
+        requer_auditoria: bool = False,
+    ) -> Dict[str, str]:
+        """Move o arquivo original de recebidos/ para a pasta do resultado da triagem (SCRUM-73).
+
+        Usa a mesma prioridade do salvar_triagem_json: auditoria > urgente > rotina.
+        """
+        if requer_auditoria:
+            prefixo = "auditoria_humana"
+        elif is_urgente:
+            prefixo = "processados/urgentes"
+        else:
+            prefixo = "processados/rotina"
+
+        caminho_destino = f"{prefixo}/{os.path.basename(caminho_atual)}"
+
+        # Se o cliente OCI estiver ativo, renomeia o objeto na nuvem Oracle (equivale a mover)
+        if self.client and settings.OCI_NAMESPACE:
+            import oci
+            try:
+                self.client.rename_object(
+                    namespace_name=settings.OCI_NAMESPACE,
+                    bucket_name=self.bucket_name,
+                    rename_object_details=oci.object_storage.models.RenameObjectDetails(
+                        source_name=caminho_atual,
+                        new_name=caminho_destino,
+                    ),
+                )
+                return {
+                    "bucket": self.bucket_name,
+                    "caminho_objeto": caminho_destino,
+                    "status_backup": "sucesso",
+                }
+            except Exception as e:
+                print(f"[OCI Storage Error] Falha ao mover {caminho_atual}: {e}")
+                return {
+                    "bucket": self.bucket_name,
+                    "caminho_objeto": caminho_atual,
+                    "status_backup": f"falha: {str(e)}",
+                }
+
+        # Modo fallback local: simula o caminho OCI
+        return {
+            "bucket": self.bucket_name,
+            "caminho_objeto": caminho_destino,
+            "status_backup": "sucesso (local_simulado)",
+        }
