@@ -26,9 +26,9 @@ def listar_fila_auditoria() -> list[dict]:
 
 def registrar_decisao(documento_id: str, decisao: dict) -> dict:
     return {
+        "mensagem": "Decisão de auditoria registrada com sucesso.",
         "documento_id": documento_id,
-        "status": "decisao_registrada",
-        "decisao": deepcopy(decisao),
+        "novo_status": f"auditoria_{decisao['status_aprovacao']}",
     }
 
 

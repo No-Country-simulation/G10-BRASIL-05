@@ -1,9 +1,12 @@
+from copy import deepcopy
+
 import pytest
 
 from utils.auditoria import (
     DECISAO_APROVAR,
     DECISAO_CORRIGIR,
     DECISAO_REJEITAR,
+    aplicar_correcoes,
     calcular_correcoes,
     extrair_valores_editaveis,
     montar_decisao,
@@ -12,14 +15,20 @@ from utils.auditoria import (
 
 ACOES = [DECISAO_APROVAR, DECISAO_REJEITAR, DECISAO_CORRIGIR]
 CORRECAO = {"crm": "145892-SP"}
+DADOS = {
+    "paciente": {"nome": "Maria", "idade": 34},
+    "medico_solicitante": {"nome": "Dr. Paulo", "crm": None},
+    "diagnostico_principal": "Faringite aguda",
+    "cid_sugerido": "J02.9",
+}
 
 
 def _correcoes_para(acao: str) -> dict:
     return CORRECAO if acao == DECISAO_CORRIGIR else {}
 
 
-def test_extrai_valores_do_formato_do_briefing():
-    documento = {
+def test_extrai_valores_do_formato_do_backend():
+    item = {
         "dados_extraidos": {
             "paciente": {"nome": "Maria", "idade": 34},
             "medico_solicitante": {"nome": "Dr. Paulo", "crm": "123456-SP"},
@@ -28,7 +37,7 @@ def test_extrai_valores_do_formato_do_briefing():
         }
     }
 
-    assert extrair_valores_editaveis(documento) == {
+    assert extrair_valores_editaveis(item) == {
         "paciente_nome": "Maria",
         "medico_nome": "Dr. Paulo",
         "crm": "123456-SP",
@@ -37,24 +46,22 @@ def test_extrai_valores_do_formato_do_briefing():
     }
 
 
-def test_extrai_valores_do_formato_do_schema():
-    documento = {
+def test_extrai_valores_do_formato_do_schema_do_p1():
+    item = {
         "dados_extraidos": {
             "paciente": "Maria Silva",
             "medico_solicitante": {"nome": "João Souza", "crm_uf": "12345-SP"},
         }
     }
 
-    valores = extrair_valores_editaveis(documento)
+    valores = extrair_valores_editaveis(item)
 
     assert valores["paciente_nome"] == "Maria Silva"
     assert valores["crm"] == "12345-SP"
 
 
 def test_extrai_valores_vazios_quando_os_dados_estao_ausentes():
-    valores = extrair_valores_editaveis({})
-
-    assert set(valores.values()) == {""}
+    assert set(extrair_valores_editaveis({}).values()) == {""}
 
 
 def test_calcula_apenas_os_campos_alterados():
@@ -70,6 +77,38 @@ def test_ignora_espacos_nas_bordas_ao_comparar():
 
 def test_guarda_o_valor_corrigido_sem_espacos_nas_bordas():
     assert calcular_correcoes({"crm": ""}, {"crm": "  145892-SP "}) == {"crm": "145892-SP"}
+
+
+def test_aplicar_correcoes_preserva_o_que_nao_mudou():
+    corrigidos = aplicar_correcoes(DADOS, CORRECAO)
+
+    assert corrigidos["medico_solicitante"] == {"nome": "Dr. Paulo", "crm": "145892-SP"}
+    assert corrigidos["paciente"] == {"nome": "Maria", "idade": 34}
+    assert corrigidos["diagnostico_principal"] == "Faringite aguda"
+    assert corrigidos["cid_sugerido"] == "J02.9"
+
+
+def test_aplicar_correcoes_nao_altera_o_original():
+    original = deepcopy(DADOS)
+
+    aplicar_correcoes(DADOS, CORRECAO)
+
+    assert DADOS == original
+
+
+def test_aplicar_correcoes_cria_o_medico_quando_ausente():
+    corrigidos = aplicar_correcoes({}, {"crm": "145892-SP", "medico_nome": "Dra. Ana"})
+
+    assert corrigidos["medico_solicitante"] == {"nome": "Dra. Ana", "crm": "145892-SP"}
+
+
+def test_aplicar_correcoes_atualiza_diagnostico_e_cid():
+    corrigidos = aplicar_correcoes(
+        DADOS, {"diagnostico_principal": "Amigdalite", "cid_sugerido": "J03.9"}
+    )
+
+    assert corrigidos["diagnostico_principal"] == "Amigdalite"
+    assert corrigidos["cid_sugerido"] == "J03.9"
 
 
 @pytest.mark.parametrize("acao", ACOES)
@@ -115,33 +154,43 @@ def test_aceita_decisoes_completas(acao, justificativa, correcoes):
     assert validar_decisao(acao, "Dra. Ana", justificativa, correcoes) is None
 
 
-def test_aprovar_nao_leva_correcoes():
-    decisao = montar_decisao(DECISAO_APROVAR, "Dra. Ana", "", CORRECAO)
+@pytest.mark.parametrize(
+    "acao, status_esperado",
+    [
+        (DECISAO_APROVAR, "aprovado"),
+        (DECISAO_REJEITAR, "rejeitado"),
+        (DECISAO_CORRIGIR, "corrigido"),
+    ],
+)
+def test_status_segue_o_contrato_da_api(acao, status_esperado):
+    decisao = montar_decisao(acao, "Dra. Ana", "motivo", DADOS, _correcoes_para(acao))
 
-    assert decisao == {
-        "decisao": "APROVADO",
-        "dados_corrigidos": {},
-        "justificativa": "",
-        "auditor": "Dra. Ana",
-    }
-
-
-def test_rejeitar_marca_o_documento_como_rejeitado():
-    decisao = montar_decisao(DECISAO_REJEITAR, "Dra. Ana", "Dados ilegíveis", {})
-
-    assert decisao["decisao"] == "REJEITADO"
-    assert decisao["dados_corrigidos"] == {}
+    assert decisao["status_aprovacao"] == status_esperado
 
 
-def test_corrigir_aprova_com_os_dados_corrigidos():
-    decisao = montar_decisao(DECISAO_CORRIGIR, "Dra. Ana", "CRM conferido", CORRECAO)
+@pytest.mark.parametrize("acao", [DECISAO_APROVAR, DECISAO_REJEITAR])
+def test_aprovar_e_rejeitar_nao_enviam_dados_corrigidos(acao):
+    decisao = montar_decisao(acao, "Dra. Ana", "motivo", DADOS, {})
 
-    assert decisao["decisao"] == "APROVADO"
-    assert decisao["dados_corrigidos"] == CORRECAO
+    assert decisao["dados_corrigidos"] is None
+
+
+def test_corrigir_envia_os_dados_extraidos_completos_ja_corrigidos():
+    decisao = montar_decisao(DECISAO_CORRIGIR, "Dra. Ana", "CRM conferido", DADOS, CORRECAO)
+
+    assert decisao["dados_corrigidos"]["medico_solicitante"]["crm"] == "145892-SP"
+    assert decisao["dados_corrigidos"]["paciente"] == {"nome": "Maria", "idade": 34}
+    assert decisao["dados_corrigidos"]["cid_sugerido"] == "J02.9"
+
+
+def test_decisao_tem_exatamente_os_campos_do_contrato():
+    decisao = montar_decisao(DECISAO_APROVAR, "Dra. Ana", "", DADOS, {})
+
+    assert set(decisao) == {"status_aprovacao", "auditor_nome", "justificativa", "dados_corrigidos"}
 
 
 def test_remove_espacos_do_auditor_e_da_justificativa():
-    decisao = montar_decisao(DECISAO_APROVAR, "  Dra. Ana ", "  ok  ", {})
+    decisao = montar_decisao(DECISAO_APROVAR, "  Dra. Ana ", "  ok  ", DADOS, {})
 
-    assert decisao["auditor"] == "Dra. Ana"
+    assert decisao["auditor_nome"] == "Dra. Ana"
     assert decisao["justificativa"] == "ok"

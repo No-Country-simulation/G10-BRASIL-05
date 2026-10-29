@@ -1,6 +1,6 @@
 import streamlit as st
 
-from components.cards import exibir_resultado_da_triagem
+from components.cards import exibir_item_de_auditoria
 from services.api_client import listar_fila_auditoria, registrar_decisao
 from utils.auditoria import (
     CAMPOS_EDITAVEIS,
@@ -46,7 +46,7 @@ with coluna_documento:
         key=f"documento_{escolhido}",
     )
 with coluna_resultado:
-    exibir_resultado_da_triagem(item)
+    exibir_item_de_auditoria(item)
 
 st.subheader("Decisão do auditor")
 valores_atuais = extrair_valores_editaveis(item)
@@ -78,7 +78,8 @@ if problema:
     st.warning(problema)
     st.stop()
 
-confirmacao = registrar_decisao(escolhido, montar_decisao(acao, auditor, justificativa, correcoes))
-st.success(f"Decisão registrada para o documento {escolhido}.")
+decisao = montar_decisao(acao, auditor, justificativa, item.get("dados_extraidos") or {}, correcoes)
+confirmacao = registrar_decisao(escolhido, decisao)
+st.success(f"{confirmacao.get('mensagem', 'Decisão registrada.')} Documento {escolhido}.")
 with st.expander("Ver decisão enviada (JSON)"):
-    st.json(confirmacao)
+    st.json(decisao)

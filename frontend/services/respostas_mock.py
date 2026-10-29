@@ -118,24 +118,26 @@ HISTORICO_MOCK = [
     _variar_resposta(RESPOSTA_AMBIGUA, "DOC-CLIN-2026-0006", "M. Souza"),
 ]
 
-def _montar_item_de_auditoria(
-    documento_id: str,
-    nome_paciente: str,
-    nivel_prioridade: str,
-    score: float,
-) -> dict:
-    item = _variar_resposta(RESPOSTA_AMBIGUA, documento_id, nome_paciente)
-    item["documento_texto"] = (
-        f"RECEITUARIO MEDICO. Paciente: {nome_paciente}. "
-        "Medico: nome ilegivel, CRM ausente. Prescricao: Losartana (trecho ilegivel)."
-    )
-    item["classificacao"]["nivel_prioridade"] = nivel_prioridade
-    item["classificacao"]["score_confianca_classificacao"] = score
-    return item
+def _montar_item_de_auditoria(documento_id: str, nome_paciente: str, score: float) -> dict:
+    dados = deepcopy(RESPOSTA_AMBIGUA["dados_extraidos"])
+    dados["paciente"]["nome"] = nome_paciente
+    return {
+        "documento_id": documento_id,
+        "tipo_documento": RESPOSTA_AMBIGUA["classificacao"]["tipo_documento"],
+        "score_confianca": score,
+        "dados_extraidos": dados,
+        "justificativa_roteamento": RESPOSTA_AMBIGUA["decisao_roteamento"]["justificativa_roteamento"],
+        "caminho_objeto_oci": f"auditoria_humana/{documento_id}.json",
+        "documento_texto": (
+            f"RECEITUARIO MEDICO. Paciente: {nome_paciente}. "
+            "Medico: nome ilegivel, CRM ausente. Prescricao: Losartana (trecho ilegivel)."
+        ),
+        "created_at": "2026-10-27T09:30:00",
+    }
 
 
 FILA_AUDITORIA_MOCK = [
-    _montar_item_de_auditoria("DOC-CLIN-2026-0003", "João P. Lima", "Indefinido", 0.58),
-    _montar_item_de_auditoria("DOC-CLIN-2026-0006", "M. Souza", "Rotina", 0.66),
-    _montar_item_de_auditoria("DOC-CLIN-2026-0007", "Paulo R. Nunes", "Urgente", 0.62),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0003", "João P. Lima", 0.58),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0006", "M. Souza", 0.66),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0007", "Paulo R. Nunes", 0.62),
 ]

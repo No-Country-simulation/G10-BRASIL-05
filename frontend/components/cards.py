@@ -54,6 +54,20 @@ def exibir_resultado_da_triagem(resposta: dict) -> None:
         st.json(resposta)
 
 
+def exibir_item_de_auditoria(item: dict) -> None:
+    motivo = item.get("justificativa_roteamento") or NAO_INFORMADO
+    st.warning(f"**Revisão humana necessária**\n\n{motivo}", icon="👨‍⚕️")
+    campos = (
+        ("Tipo de documento", item.get("tipo_documento")),
+        ("Confiança", _formatar_score(item.get("score_confianca"))),
+    )
+    for coluna, (rotulo, valor) in zip(st.columns(len(campos)), campos):
+        with coluna:
+            _exibir_campo(rotulo, valor)
+    st.subheader("Dados extraídos")
+    exibir_dados_extraidos(item.get("dados_extraidos") or {})
+
+
 def _exibir_campo(rotulo: str, valor) -> None:
     st.caption(rotulo)
     st.markdown(f"**{valor or NAO_INFORMADO}**")
