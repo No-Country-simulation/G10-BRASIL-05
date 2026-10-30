@@ -1,6 +1,5 @@
-from typing import Optional
 from pydantic import BaseModel, Field
-
+from typing import Optional
 
 class NotificacaoAlerta(BaseModel):
     """Notificação gerada pelo agente para envio ao plantão médico ou canais de alerta."""
@@ -35,5 +34,5 @@ class DecisaoRoteamento(BaseModel):
     )
     notificacao_gerada: Optional[NotificacaoAlerta] = Field(
         default=None,
-        description="Alerta emitido caso haja urgência médica detectada",
+        description="Payload da notificação caso o documento requeira alerta imediato",
     )

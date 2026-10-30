@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 
-
 class ArmazenamentoOCI(BaseModel):
     """Metadados e confirmação de persistência segregada no Oracle Cloud Infrastructure Object Storage (SCRUM-52)."""
     bucket: str = Field(

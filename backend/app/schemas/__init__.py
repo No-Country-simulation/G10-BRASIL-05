@@ -1,10 +1,18 @@
-"""Contratos DTO Pydantic v2 (Validação estrita de entrada e saída)."""
+"""Schemas Pydantic para validação e serialização de dados."""
 
 from app.schemas.requisicao_documento import RequisicaoDocumento
 from app.schemas.classificacao import ClassificacaoDocumento, TipoDocumento, NivelPrioridade
 from app.schemas.dados_extraidos import DadosExtraidos
 from app.schemas.roteamento import DecisaoRoteamento, NotificacaoAlerta
 from app.schemas.armazenamento import ArmazenamentoOCI
+from app.schemas.triagem import (
+    RequisicaoTriagem,
+    RespostaTriagem,
+    Paciente,
+    MedicoSolicitante,
+    DecisaoAuditoriaRequest,
+    BloqueioAuditoriaRequest,
+)
 
 __all__ = [
     "RequisicaoDocumento",
@@ -15,4 +23,10 @@ __all__ = [
     "DecisaoRoteamento",
     "NotificacaoAlerta",
     "ArmazenamentoOCI",
+    "RequisicaoTriagem",
+    "RespostaTriagem",
+    "Paciente",
+    "MedicoSolicitante",
+    "DecisaoAuditoriaRequest",
+    "BloqueioAuditoriaRequest",
 ]
