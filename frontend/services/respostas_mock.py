@@ -4,9 +4,9 @@ RESPOSTA_ROTINA = {
     "status": "processado",
     "documento_id": "DOC-CLIN-2026-0001",
     "classificacao": {
-        "tipo_documento": "Receituário Médico",
+        "tipo_documento": "RECEITA",
         "especialidade": "Clínica Geral",
-        "nivel_prioridade": "Rotina",
+        "nivel_prioridade": "ROTINA",
         "score_confianca_classificacao": 0.96,
     },
     "dados_extraidos": {
@@ -39,9 +39,9 @@ RESPOSTA_URGENCIA = {
     "status": "processado",
     "documento_id": "DOC-CLIN-2026-8942",
     "classificacao": {
-        "tipo_documento": "Laudo de Exame de Imagem",
+        "tipo_documento": "LAUDO",
         "especialidade": "Radiologia / Pneumologia",
-        "nivel_prioridade": "Urgente",
+        "nivel_prioridade": "URGENTE",
         "score_confianca_classificacao": 0.99,
     },
     "dados_extraidos": {
@@ -71,9 +71,9 @@ RESPOSTA_AMBIGUA = {
     "status": "processado",
     "documento_id": "DOC-CLIN-2026-0003",
     "classificacao": {
-        "tipo_documento": "Receituário Médico",
+        "tipo_documento": "RECEITA",
         "especialidade": "Não identificada",
-        "nivel_prioridade": "Indefinido",
+        "nivel_prioridade": "ROTINA",
         "score_confianca_classificacao": 0.58,
     },
     "dados_extraidos": {

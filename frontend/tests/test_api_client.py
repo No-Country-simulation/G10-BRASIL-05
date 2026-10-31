@@ -1,6 +1,23 @@
 import pytest
 
-from services.api_client import enviar_documento, listar_documentos
+from services.api_client import (
+    buscar_documento,
+    enviar_documento,
+    listar_documentos,
+    listar_fila_auditoria,
+    registrar_decisao,
+)
+
+CAMPOS_DA_LISTA = {
+    "documento_id",
+    "tipo_documento",
+    "nivel_prioridade",
+    "score_confianca",
+    "destino_principal",
+    "status_processamento",
+    "requer_auditoria_humana",
+    "created_at",
+}
 
 
 def _requisicao_com_texto(texto: str) -> dict:
@@ -39,8 +56,39 @@ def test_enviar_documento_devolve_copia_da_resposta():
     assert segunda["decisao_roteamento"]["destino_principal"] == "Fluxo_Padrao"
 
 
-def test_listar_documentos_devolve_documentos_identificados():
+def test_listar_documentos_segue_o_formato_plano_do_backend():
     documentos = listar_documentos()
 
     assert documentos
-    assert all(documento["documento_id"] for documento in documentos)
+    assert all(set(documento) == CAMPOS_DA_LISTA for documento in documentos)
+
+
+def test_documento_em_auditoria_tem_o_status_de_auditoria():
+    documentos = {documento["documento_id"]: documento for documento in listar_documentos()}
+
+    assert documentos["DOC-CLIN-2026-0003"]["status_processamento"] == "em_auditoria"
+    assert documentos["DOC-CLIN-2026-0001"]["status_processamento"] == "processado"
+
+
+def test_buscar_documento_devolve_a_resposta_completa():
+    documento = buscar_documento("DOC-CLIN-2026-8942")
+
+    assert documento["decisao_roteamento"]["destino_principal"] == "Fila_Emergencia_Medica"
+
+
+def test_buscar_documento_inexistente_devolve_none():
+    assert buscar_documento("DOC-INEXISTENTE") is None
+
+
+def test_listar_fila_auditoria_segue_o_formato_do_backend():
+    fila = listar_fila_auditoria()
+
+    assert fila
+    assert all("dados_extraidos" in item and "score_confianca" in item for item in fila)
+
+
+def test_registrar_decisao_devolve_o_novo_status():
+    resposta = registrar_decisao("DOC-1", {"status_aprovacao": "aprovado"})
+
+    assert resposta["documento_id"] == "DOC-1"
+    assert resposta["novo_status"] == "auditoria_aprovado"
