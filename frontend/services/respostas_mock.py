@@ -4,9 +4,9 @@ RESPOSTA_ROTINA = {
     "status": "processado",
     "documento_id": "DOC-CLIN-2026-0001",
     "classificacao": {
-        "tipo_documento": "Receituário Médico",
+        "tipo_documento": "RECEITA",
         "especialidade": "Clínica Geral",
-        "nivel_prioridade": "Rotina",
+        "nivel_prioridade": "ROTINA",
         "score_confianca_classificacao": 0.96,
     },
     "dados_extraidos": {
@@ -39,9 +39,9 @@ RESPOSTA_URGENCIA = {
     "status": "processado",
     "documento_id": "DOC-CLIN-2026-8942",
     "classificacao": {
-        "tipo_documento": "Laudo de Exame de Imagem",
+        "tipo_documento": "LAUDO",
         "especialidade": "Radiologia / Pneumologia",
-        "nivel_prioridade": "Urgente",
+        "nivel_prioridade": "URGENTE",
         "score_confianca_classificacao": 0.99,
     },
     "dados_extraidos": {
@@ -71,9 +71,9 @@ RESPOSTA_AMBIGUA = {
     "status": "processado",
     "documento_id": "DOC-CLIN-2026-0003",
     "classificacao": {
-        "tipo_documento": "Receituário Médico",
+        "tipo_documento": "RECEITA",
         "especialidade": "Não identificada",
-        "nivel_prioridade": "Indefinido",
+        "nivel_prioridade": "ROTINA",
         "score_confianca_classificacao": 0.58,
     },
     "dados_extraidos": {
@@ -116,4 +116,28 @@ HISTORICO_MOCK = [
     _variar_resposta(RESPOSTA_ROTINA, "DOC-CLIN-2026-0004", "Ana Beatriz Lima"),
     _variar_resposta(RESPOSTA_ROTINA, "DOC-CLIN-2026-0005", "Roberto Alves Pinto"),
     _variar_resposta(RESPOSTA_AMBIGUA, "DOC-CLIN-2026-0006", "M. Souza"),
+]
+
+def _montar_item_de_auditoria(documento_id: str, nome_paciente: str, score: float) -> dict:
+    dados = deepcopy(RESPOSTA_AMBIGUA["dados_extraidos"])
+    dados["paciente"]["nome"] = nome_paciente
+    return {
+        "documento_id": documento_id,
+        "tipo_documento": RESPOSTA_AMBIGUA["classificacao"]["tipo_documento"],
+        "score_confianca": score,
+        "dados_extraidos": dados,
+        "justificativa_roteamento": RESPOSTA_AMBIGUA["decisao_roteamento"]["justificativa_roteamento"],
+        "caminho_objeto_oci": f"auditoria_humana/{documento_id}.json",
+        "documento_texto": (
+            f"RECEITUARIO MEDICO. Paciente: {nome_paciente}. "
+            "Medico: nome ilegivel, CRM ausente. Prescricao: Losartana (trecho ilegivel)."
+        ),
+        "created_at": "2026-10-27T09:30:00",
+    }
+
+
+FILA_AUDITORIA_MOCK = [
+    _montar_item_de_auditoria("DOC-CLIN-2026-0003", "João P. Lima", 0.58),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0006", "M. Souza", 0.66),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0007", "Paulo R. Nunes", 0.62),
 ]
