@@ -1,0 +1,15 @@
+[theme]
+base = "light"
+primaryColor = "#0B3C7A"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#E6F7FB"
+textColor = "#0B2A5B"
+baseRadius = "16px"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+headingFont = "Red Hat Display:https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@600;700;800&display=swap"
+
+[theme.sidebar]
+backgroundColor = "#EAF4F8"
+secondaryBackgroundColor = "#D8EAF2"
+textColor = "#12304A"
+primaryColor = "#009DBB"
