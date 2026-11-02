@@ -1,4 +1,5 @@
 import base64
+import uuid
 from unittest.mock import patch, AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
@@ -96,7 +97,7 @@ def test_webhook_mensagem_texto_responde_ajuda():
             "key": {
                 "remoteJid": "5511999991111@s.whatsapp.net",
                 "fromMe": False,
-                "id": "MSG-TXT-HELP-01",
+                "id": f"MSG-TXT-HELP-{uuid.uuid4().hex[:8]}",
             },
             "pushName": "Paciente Teste",
             "message": {"conversation": "Olá, como funciona a triagem?"},
@@ -122,7 +123,7 @@ def test_webhook_mensagem_midia_enfileira_triagem():
             "key": {
                 "remoteJid": "5511988887777@s.whatsapp.net",
                 "fromMe": False,
-                "id": "MSG-MEDIA-001",
+                "id": f"MSG-MEDIA-{uuid.uuid4().hex[:8]}",
             },
             "pushName": "Dr. Fernando",
             "messageType": "imageMessage",

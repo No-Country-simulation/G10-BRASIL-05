@@ -1,3 +1,4 @@
+import uuid
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,7 +13,7 @@ client = TestClient(app)
 
 def test_lock_distribuido_concorrencia_redis():
     """Valida aquisição de lock exclusivo, bloqueio contra segundo médico (409) e liberação."""
-    doc_id = "DOC-LOCK-TEST-001"
+    doc_id = f"DOC-LOCK-TEST-{uuid.uuid4().hex[:8]}"
 
     # Cria documento prévio no sistema
     res_triagem = client.post(

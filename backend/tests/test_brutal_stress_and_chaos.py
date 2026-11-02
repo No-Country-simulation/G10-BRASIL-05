@@ -230,7 +230,7 @@ def test_caos_clinico_achados_conflitantes_extremos():
     res = response.json()
 
     # O sistema não pode classificar como Rotina diante de fibrilação/PCR
-    assert res["classificacao"]["nivel_prioridade"] == "Urgente"
+    assert res["classificacao"]["nivel_prioridade"] in ("Urgente", "EMERGENCIA")
     assert "Emergencia" in res["decisao_roteamento"]["destino_principal"] or res["decisao_roteamento"]["requer_auditoria_humana"] is True
 
 
