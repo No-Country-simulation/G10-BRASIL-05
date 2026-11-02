@@ -249,7 +249,7 @@ class EvolutionService:
         dados = resposta.dados_extraidos
         roteamento = resposta.decisao_roteamento
 
-        prioridade_icone = "🔴" if classif.nivel_prioridade.lower() == "urgente" else "🟢"
+        prioridade_icone = "🔴" if classif.nivel_prioridade.upper() in ("URGENTE", "EMERGENCIA") else "🟢"
         confianca_pct = int(classif.score_confianca_classificacao * 100)
 
         paciente_nome = dados.paciente.nome or "Não identificado"

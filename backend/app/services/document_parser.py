@@ -117,14 +117,10 @@ class DocumentParserService:
                 img = Image.open(io.BytesIO(conteudo))
                 img.verify()  # Valida integridade da imagem
 
-                # Reabre pois verify() invalida o ponteiro para leitura posterior
-                img = Image.open(io.BytesIO(conteudo))
-                formato = img.format or "IMAGEM"
-                largura, altura = img.size
-
-                texto_imagem = (
-                    f"[Documento Clínico Imagem: {nome_arquivo} | Formato: {formato} | "
-                    f"Dimensões: {largura}x{altura} px - Aguardando OCR / Visão Computacional]"
+                texto_imagem = DocumentParserService.extrair_texto_imagem(
+                    conteudo=conteudo,
+                    extensao=extensao,
+                    nome_arquivo=nome_arquivo,
                 )
                 return texto_imagem, "imagem"
             except Exception as e:
@@ -132,3 +128,74 @@ class DocumentParserService:
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=f"Arquivo de imagem corrompido ou inválido '{nome_arquivo}': {str(e)}",
                 )
+
+    @staticmethod
+    def extrair_texto_imagem(conteudo: bytes, extensao: str, nome_arquivo: str) -> str:
+        """Utiliza visão computacional / LLM multimodal para transcrever com precisão o documento clínico."""
+        import base64
+        from app.config.settings import settings
+        from app.config.logger import logger
+
+        mimetype_map = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+        }
+        mime = mimetype_map.get(extensao.lower(), "image/jpeg")
+
+        # Tenta transcrição via modelo multimodal configurado se as credenciais estiverem disponíveis
+        if settings.OPENROUTER_API_KEY:
+            try:
+                from langchain_openai import ChatOpenAI
+                from langchain_core.messages import HumanMessage
+
+                b64 = base64.b64encode(conteudo).decode("utf-8")
+                modelo = settings.OPENROUTER_MODEL or "google/gemma-3-27b-it"
+                llm = ChatOpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=settings.OPENROUTER_API_KEY,
+                    model=modelo,
+                    temperature=0.0,
+                    timeout=25.0,
+                    default_headers={
+                        "HTTP-Referer": "http://localhost:8000",
+                        "X-Title": "MediFlow OCR",
+                    },
+                )
+                msg = HumanMessage(content=[
+                    {
+                        "type": "text",
+                        "text": (
+                            "Você é um especialista em transcrição e OCR de documentos médicos e laudos clínicos. "
+                            "Transcreva rigorosamente todo o texto legível presente nesta imagem médica "
+                            "(incluindo nomes de paciente e médico, CRM, medicamentos, posologia, exames, diagnósticos e carimbos). "
+                            "Se a imagem não contiver texto legível, retorne uma breve descrição clínica. "
+                            "Retorne apenas o texto transcrito, sem introduções adicionais."
+                        ),
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{mime};base64,{b64}"},
+                    },
+                ])
+                resp = llm.invoke([msg])
+                texto = resp.content if isinstance(resp.content, str) else str(resp.content)
+                if texto and len(texto.strip()) > 3:
+                    logger.info(f"Transcrição visual da imagem '{nome_arquivo}' concluída com sucesso ({len(texto.strip())} chars).")
+                    return texto.strip()
+            except Exception as e:
+                logger.warning(f"Falha ao executar OCR multimodal para '{nome_arquivo}': {e}")
+
+        # Fallback descritivo para casos sem transcrição multimodal ou imagem sem texto
+        try:
+            img = Image.open(io.BytesIO(conteudo))
+            largura, altura = img.size
+            formato = img.format or extensao.replace(".", "").upper()
+        except Exception:
+            largura, altura, formato = 0, 0, "IMAGEM"
+
+        return (
+            f"[Documento Clínico Imagem: {nome_arquivo} | Formato: {formato} | "
+            f"Dimensões: {largura}x{altura} px - Aguardando auditoria médica manual / OCR]"
+        )
