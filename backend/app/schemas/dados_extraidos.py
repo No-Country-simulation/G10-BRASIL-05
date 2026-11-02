@@ -1,4 +1,11 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
+
+
+class PacienteExtraido(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nome: str | None = None
+    idade: StrictInt | None = None
 
 
 class MedicoSolicitante(BaseModel):
@@ -21,7 +28,7 @@ class MedicamentoDosagem(BaseModel):
 class DadosExtraidos(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    paciente: str | None = None
+    paciente: PacienteExtraido | None = None
     medico_solicitante: MedicoSolicitante | None = None
     exame_realizado: str | None = None
     diagnostico_principal: str | None = None
