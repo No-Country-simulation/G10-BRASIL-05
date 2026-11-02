@@ -27,6 +27,12 @@ with coluna_envio:
     )
     if fonte == OPCAO_ARQUIVO:
         arquivo = st.file_uploader("Documento clínico", type=EXTENSOES_ACEITAS)
+        if arquivo is not None:
+            ext = arquivo.name.rsplit(".", 1)[-1].lower()
+            if ext in ("png", "jpg", "jpeg", "webp"):
+                st.image(arquivo, caption=f"Visualização prévia: {arquivo.name}", use_container_width=True)
+            elif ext == "pdf":
+                st.info(f"📄 Arquivo PDF carregado: **{arquivo.name}** ({arquivo.size / 1024:.1f} KB)")
     else:
         texto_digitado = st.text_area("Texto do documento", height=200)
 
@@ -52,7 +58,7 @@ if analisar:
         st.stop()
 
     with st.spinner("Analisando documento..."):
-        resposta = enviar_documento(requisicao)
+        resposta = enviar_documento(requisicao, arquivo=arquivo if fonte == OPCAO_ARQUIVO else None)
 
     st.caption(
         f"Documento analisado: {resposta.get('documento_id') or 'sem identificação'}"

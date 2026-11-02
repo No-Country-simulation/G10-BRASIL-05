@@ -21,6 +21,8 @@ from app.schemas.triagem import (
 from app.repositories.database import get_db, DatabaseRepository
 from app.repositories.nosql_auditoria import MongoAuditoriaRepository
 from app.services.triagem import TriagemService
+from app.repositories.storage import StorageRepository
+from app.config.logger import logger
 from app.services.redis_service import RedisAuditService
 from app.services.document_parser import DocumentParserService
 
@@ -69,6 +71,23 @@ async def processar_upload_triagem(
     )
 
     doc_id = documento_id or f"DOC-UP-{uuid.uuid4().hex[:8].upper()}"
+
+    # Persistência do documento na pasta local Storage (Storage/imagem ou Storage/pdf)
+    try:
+        storage_repo = StorageRepository()
+        info_storage = storage_repo.salvar_arquivo_whatsapp(
+            documento_id=doc_id,
+            conteudo=conteudo,
+            nome_original=file.filename,
+            extensao=extensao,
+            mimetype=file.content_type,
+        )
+        logger.info(
+            f"Arquivo de upload web persistido na pasta Storage: '{info_storage['nome_arquivo']}' "
+            f"({info_storage['tamanho_bytes']} bytes) em {info_storage['caminho_local']}"
+        )
+    except Exception as st_err:
+        logger.warning(f"Aviso ao persistir arquivo de upload no Storage local: {st_err}")
 
     requisicao = RequisicaoTriagem(
         documento_id=doc_id,

@@ -16,7 +16,33 @@ TERMOS_DE_URGENCIA = ("tep", "embolia", "urgente")
 TERMOS_DE_AMBIGUIDADE = ("ilegível", "ilegivel", "rasurado", "crm ausente")
 
 
-def enviar_documento(requisicao: dict) -> dict:
+def enviar_documento(requisicao: dict, arquivo=None) -> dict:
+    # 1. Se um arquivo binário clínico (PDF ou Imagem) foi enviado na interface
+    if arquivo is not None and getattr(arquivo, "name", None):
+        extensao = arquivo.name.rsplit(".", 1)[-1].lower()
+        if extensao in ("pdf", "png", "jpg", "jpeg", "webp"):
+            try:
+                url = f"{BACKEND_URL}/api/v1/triagem/upload"
+                conteudo = arquivo.getvalue() if hasattr(arquivo, "getvalue") else arquivo.read()
+                mimetypes = {
+                    "pdf": "application/pdf",
+                    "png": "image/png",
+                    "jpg": "image/jpeg",
+                    "jpeg": "image/jpeg",
+                    "webp": "image/webp",
+                }
+                mime = getattr(arquivo, "type", None) or mimetypes.get(extensao, "application/octet-stream")
+                files = {"file": (arquivo.name, conteudo, mime)}
+                data = {"canal_origem": requisicao.get("canal_origem", "Pronto_Socorro")}
+                if requisicao.get("documento_id"):
+                    data["documento_id"] = requisicao["documento_id"]
+                resp = httpx.post(url, files=files, data=data, timeout=60.0)
+                if resp.status_code == 200:
+                    return resp.json()
+            except Exception:
+                pass
+
+    # 2. Envio de documento de texto/JSON via endpoint padrão
     try:
         url = f"{BACKEND_URL}/api/v1/triagem"
         resp = httpx.post(url, json=requisicao, timeout=30.0)
@@ -24,7 +50,7 @@ def enviar_documento(requisicao: dict) -> dict:
             return resp.json()
     except Exception:
         pass
-    return deepcopy(_escolher_resposta_mock(requisicao["documento_texto"]))
+    return deepcopy(_escolher_resposta_mock(requisicao.get("documento_texto", "")))
 
 
 def listar_documentos() -> list[dict]:
