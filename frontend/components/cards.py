@@ -1,4 +1,5 @@
 import streamlit as st
+from utils.formatadores import rotular_prioridade, rotular_tipo_documento
 
 NAO_INFORMADO = "Não informado"
 
@@ -6,6 +7,7 @@ ALERTAS_POR_DESTINO = {
     "Fila_Emergencia_Medica": (st.error, "🚨", "URGENTE: encaminhado para a fila de emergência médica"),
     "Auditoria_Humana": (st.warning, "👨‍⚕️", "Revisão humana necessária"),
     "Fluxo_Padrao": (st.success, "✅", "Rotina: aprovado automaticamente"),
+    "Farmacia_Hospitalar": (st.success, "💊", "Rotina: encaminhado para a farmácia hospitalar"),
 }
 ALERTA_DESTINO_DESCONHECIDO = (st.info, "ℹ️", "Destino não reconhecido")
 
@@ -23,9 +25,9 @@ def exibir_alerta_de_roteamento(decisao: dict) -> None:
 
 def exibir_classificacao(classificacao: dict) -> None:
     campos = (
-        ("Tipo de documento", classificacao.get("tipo_documento")),
+        ("Tipo de documento", rotular_tipo_documento(classificacao.get("tipo_documento"))),
         ("Especialidade", classificacao.get("especialidade")),
-        ("Prioridade", classificacao.get("nivel_prioridade")),
+        ("Prioridade", rotular_prioridade(classificacao.get("nivel_prioridade"))),
         ("Confiança", _formatar_score(classificacao.get("score_confianca_classificacao"))),
     )
     for coluna, (rotulo, valor) in zip(st.columns(len(campos)), campos):
@@ -52,6 +54,20 @@ def exibir_resultado_da_triagem(resposta: dict) -> None:
     exibir_dados_extraidos(resposta.get("dados_extraidos") or {})
     with st.expander("Ver resposta completa (JSON)"):
         st.json(resposta)
+
+
+def exibir_item_de_auditoria(item: dict) -> None:
+    motivo = item.get("justificativa_roteamento") or NAO_INFORMADO
+    st.warning(f"**Revisão humana necessária**\n\n{motivo}", icon="👨‍⚕️")
+    campos = (
+        ("Tipo de documento", rotular_tipo_documento(item.get("tipo_documento"))),
+        ("Confiança", _formatar_score(item.get("score_confianca"))),
+    )
+    for coluna, (rotulo, valor) in zip(st.columns(len(campos)), campos):
+        with coluna:
+            _exibir_campo(rotulo, valor)
+    st.subheader("Dados extraídos")
+    exibir_dados_extraidos(item.get("dados_extraidos") or {})
 
 
 def _exibir_campo(rotulo: str, valor) -> None:
