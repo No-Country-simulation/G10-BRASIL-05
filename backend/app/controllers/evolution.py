@@ -19,6 +19,7 @@ from app.services.document_parser import DocumentParserService
 from app.services.triagem import TriagemService
 from app.schemas.triagem import RequisicaoTriagem
 from app.repositories.database import SessionLocal
+from app.repositories.storage import StorageRepository
 
 router = APIRouter(prefix="/webhook/evolution", tags=["WhatsApp (Evolution API)"])
 
@@ -56,6 +57,21 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
             nome_arquivo=dados.get("filename") or "documento_clinico",
             content_type=dados.get("mimetype"),
         )
+
+        # 3.1. Persistência e renomeação do arquivo na pasta local Storage
+        storage_repo = StorageRepository()
+        info_storage = storage_repo.salvar_arquivo_whatsapp(
+            documento_id=doc_id,
+            conteudo=conteudo,
+            nome_original=dados.get("filename"),
+            extensao=extensao,
+            mimetype=dados.get("mimetype"),
+        )
+        logger.info(
+            f"Arquivo do WhatsApp persistido na pasta Storage: '{info_storage['nome_arquivo']}' "
+            f"({info_storage['tamanho_bytes']} bytes) em {info_storage['caminho_local']}"
+        )
+
         texto_extraido, tipo_arquivo = DocumentParserService.extrair_texto(
             conteudo=conteudo,
             extensao=extensao,

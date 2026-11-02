@@ -22,3 +22,8 @@ build/
 .DS_Store
 *.log
 *.pem
+
+# Diretório Local de Armazenamento de Arquivos Clínicos
+Storage/*
+!Storage/.gitkeep
+
