@@ -206,3 +206,29 @@ class RedisAuditService:
 
     def listar_eventos_recentes(self, limit: int = 50) -> List[Dict[str, Any]]:
         return self._in_memory_events[-limit:]
+
+    def registrar_idempotencia(self, chave: str, ttl_segundos: int = 86400) -> bool:
+        """Verifica e registra chave de idempotência de forma atômica.
+
+        Retorna True se for uma mensagem nova (chave registrada com sucesso).
+        Retorna False se a mensagem já tiver sido processada anteriormente.
+        """
+        chave_completa = f"idempotencia:{chave}"
+        if self._conectado and self._client:
+            try:
+                # set nx=True retorna True se a chave não existia e foi criada
+                return bool(self._client.set(chave_completa, "1", nx=True, ex=ttl_segundos))
+            except Exception as e:
+                logger.error(f"Erro ao registrar idempotência no Redis: {e}. Usando fallback.")
+
+        # Fallback em memória
+        agora = time.time()
+        atual = self._in_memory_locks.get(chave_completa)
+        if atual and atual["expira_em"] > agora:
+            return False
+
+        self._in_memory_locks[chave_completa] = {
+            "auditor": "idempotencia",
+            "expira_em": agora + ttl_segundos,
+        }
+        return True

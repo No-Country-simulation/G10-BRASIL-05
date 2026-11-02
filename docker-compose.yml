@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-root}
       POSTGRES_DB: ${DB_NAME:-mediflow_db}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-5434}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -47,7 +47,38 @@ services:
       timeout: 5s
       retries: 5
 
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.2.2
+    container_name: g10-evolution-api
+    restart: unless-stopped
+    ports:
+      - "${EVOLUTION_PORT:-8080}:8080"
+    environment:
+      - SERVER_URL=${EVOLUTION_SERVER_URL:-http://localhost:8080}
+      - DOCKER_ENV=true
+      - LOG_LEVEL=ERROR,WARN,DEBUG,INFO,LOG
+      - LOG_COLOR=true
+      - LOG_BAILEYS=error
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-mediflow_secret_evolution_key}
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-root}@postgres:5432/${DB_NAME:-mediflow_db}
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/1
+      - CACHE_REDIS_PREFIX_KEY=evolution
+      - CACHE_REDIS_SAVE_INSTANCES=true
+    volumes:
+      - evolutiondata:/evolution/store
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   pgdata:
   redisdata:
   mongodata:
+  evolutiondata:

@@ -70,23 +70,10 @@ def node_extracao(state: GraphState) -> GraphState:
     texto = state.get("documento_texto") or ""
 
     dados_extraidos = None
-    if settings.GOOGLE_API_KEY or settings.OPENAI_API_KEY:
+    from app.agent.llm import obter_cliente_llm
+    llm = obter_cliente_llm()
+    if llm:
         try:
-            if settings.GOOGLE_API_KEY:
-                from langchain_google_genai import ChatGoogleGenerativeAI
-                llm = ChatGoogleGenerativeAI(
-                    model="gemini-1.5-flash",
-                    google_api_key=settings.GOOGLE_API_KEY,
-                    temperature=0.0,
-                )
-            else:
-                from langchain_openai import ChatOpenAI
-                llm = ChatOpenAI(
-                    model="gpt-4o-mini",
-                    api_key=settings.OPENAI_API_KEY,
-                    temperature=0.0,
-                )
-
             mensagens = [
                 ("system", PROMPT_EXTRACAO_SYSTEM),
                 ("human", PROMPT_EXTRACAO_USER.format(documento_texto=texto[:4000])),

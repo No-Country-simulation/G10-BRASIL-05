@@ -38,9 +38,11 @@ class Settings(BaseSettings):
     MONGODB_ENABLED: bool = True
 
     # IA & LLM
-    LLM_PROVIDER: str = "gemini"
+    LLM_PROVIDER: str = "openrouter"
     GOOGLE_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_MODEL: str = "google/gemma-3-27b-it"
     CONFIDENCE_THRESHOLD: float = 0.75
 
     # OCI Object Storage Always Free
@@ -51,6 +53,12 @@ class Settings(BaseSettings):
     OCI_REGION: str = "sa-saopaulo-1"
     OCI_NAMESPACE: str = ""
     OCI_BUCKET_NAME: str = "mediflow-documentos-clinicos"
+
+    # WhatsApp & Evolution API
+    EVOLUTION_API_URL: str = "http://localhost:8080"
+    EVOLUTION_API_KEY: str = "mediflow_secret_evolution_key"
+    EVOLUTION_INSTANCE_NAME: str = "mediflow"
+    EVOLUTION_WEBHOOK_SECRET: str = "mediflow_webhook_token"
 
 
 settings = Settings()

@@ -1,6 +1,6 @@
 import io
 import os
-from typing import Tuple
+from typing import Tuple, Optional
 from fastapi import HTTPException, UploadFile, status
 from pypdf import PdfReader
 from PIL import Image
@@ -29,10 +29,18 @@ class DocumentParserService:
     """Serviço responsável pela validação, leitura e extração textual de PDFs e imagens clínicas."""
 
     @staticmethod
-    def validar_arquivo(file: UploadFile, conteudo: bytes) -> str:
-        """Valida extensão, tipo MIME e tamanho do arquivo enviado."""
-        nome_arquivo = file.filename or ""
+    def validar_bytes(
+        conteudo: bytes,
+        nome_arquivo: str = "documento",
+        content_type: Optional[str] = None,
+    ) -> str:
+        """Valida extensão, tipo MIME e tamanho de um buffer de bytes."""
         extensao = os.path.splitext(nome_arquivo.lower())[1]
+
+        # Se o nome do arquivo não tiver extensão mas tiver content_type, deduz extensão
+        if not extensao and content_type:
+            tipo_para_ext = {v: k for k, v in EXTENSOES_PERMITIDAS.items()}
+            extensao = tipo_para_ext.get(content_type.lower(), "")
 
         if extensao not in EXTENSOES_PERMITIDAS:
             raise HTTPException(
@@ -41,14 +49,13 @@ class DocumentParserService:
             )
 
         # Validação do Content-Type informado
-        content_type = file.content_type or EXTENSOES_PERMITIDAS[extensao]
-        if content_type.lower() not in MIME_TYPES_PERMITIDOS:
+        ct = content_type or EXTENSOES_PERMITIDAS.get(extensao)
+        if ct and ct.lower() not in MIME_TYPES_PERMITIDOS:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Content-Type '{content_type}' inválido.",
+                detail=f"Content-Type '{ct}' inválido.",
             )
 
-        # Validação de tamanho
         if len(conteudo) == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -63,6 +70,15 @@ class DocumentParserService:
             )
 
         return extensao
+
+    @staticmethod
+    def validar_arquivo(file: UploadFile, conteudo: bytes) -> str:
+        """Valida extensão, tipo MIME e tamanho do arquivo enviado via UploadFile."""
+        return DocumentParserService.validar_bytes(
+            conteudo=conteudo,
+            nome_arquivo=file.filename or "",
+            content_type=file.content_type,
+        )
 
     @staticmethod
     def extrair_texto(conteudo: bytes, extensao: str, nome_arquivo: str) -> Tuple[str, str]:
