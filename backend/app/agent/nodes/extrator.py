@@ -16,12 +16,20 @@ def _extrair_deterministico(texto: str) -> Dict[str, Any]:
     match_paciente = re.search(r"(?:Paciente|Nome|Para)\s*:\s*([A-Za-zÀ-ÿ\s]{3,40})(?:\n|,|\.|\r|$)", texto, re.IGNORECASE)
     nome_paciente = match_paciente.group(1).strip() if match_paciente else None
 
-    # Idade
+    # Idade (ou cálculo a partir de data de nascimento)
     match_idade = re.search(r"(\d{1,3})\s*(?:anos|ano|a\b)", texto, re.IGNORECASE)
     idade = int(match_idade.group(1)) if match_idade else None
+    if idade is None:
+        match_nasc = re.search(r"(?:nascimento|nasc\.?|dt\.?\s*nasc(?:imento)?)\s*[:.]?\s*(\d{2})[/.-](\d{2})[/.-](\d{4})", texto, re.IGNORECASE)
+        if match_nasc:
+            from datetime import datetime
+            ano_nasc = int(match_nasc.group(3))
+            ano_atual = datetime.now().year
+            if 1900 <= ano_nasc <= ano_atual:
+                idade = ano_atual - ano_nasc
 
     # 2. Médico & CRM
-    match_medico = re.search(r"(?:Dr[a]?\.?|Médico|Solicitante)\s*:\s*([A-Za-zÀ-ÿ\s]{3,40})(?:\n|,|\.|\r|$)", texto, re.IGNORECASE)
+    match_medico = re.search(r"(?:Dr[a]?\.?|Médico|Solicitante|Profissional)\s*:\s*([A-Za-zÀ-ÿ\s]{3,40})(?:\n|,|\.|\r|-|$)", texto, re.IGNORECASE)
     nome_medico = match_medico.group(1).strip() if match_medico else None
 
     match_crm = re.search(r"CRM[^\d]*(\d{4,8}(?:-[A-Za-z]{2})?)", texto, re.IGNORECASE)
@@ -45,6 +53,9 @@ def _extrair_deterministico(texto: str) -> Dict[str, Any]:
         diagnostico = "Hipertensão Arterial Sistêmica (HAS)"
         cid = cid or "I10"
         exame = "Consulta de Rotina"
+    elif "agendamento" in texto_lower or "consulta" in texto_lower:
+        diagnostico = "Consulta Médica / Acompanhamento"
+        exame = "Consulta Ambulatorial / PSF"
     else:
         diagnostico = "Avaliação Clínica em Triagem" if len(texto_lower) > 30 else None
         exame = "Avaliação Clínica"
@@ -83,18 +94,27 @@ def node_extracao(state: GraphState) -> GraphState:
             if isinstance(conteudo, str):
                 conteudo_limpo = conteudo.strip().strip("```json").strip("```").strip()
                 parsed = json.loads(conteudo_limpo)
+                det = _extrair_deterministico(texto)
+                paciente_nome = parsed.get("paciente_nome") or det["paciente"].get("nome")
+                paciente_idade = parsed.get("paciente_idade") or det["paciente"].get("idade")
+                medico_nome = parsed.get("medico_nome") or det["medico_solicitante"].get("nome")
+                medico_crm = parsed.get("medico_crm") or det["medico_solicitante"].get("crm")
+                exame = parsed.get("exame_realizado") or det.get("exame_realizado")
+                diag = parsed.get("diagnostico_principal") or det.get("diagnostico_principal")
+                cid = parsed.get("cid_sugerido") or det.get("cid_sugerido")
+
                 dados_extraidos = {
                     "paciente": {
-                        "nome": parsed.get("paciente_nome") or "Paciente Identificado",
-                        "idade": parsed.get("paciente_idade") or 45,
+                        "nome": paciente_nome,
+                        "idade": paciente_idade,
                     },
                     "medico_solicitante": {
-                        "nome": parsed.get("medico_nome") or "Médico Identificado",
-                        "crm": parsed.get("medico_crm") or "145892-SP",
+                        "nome": medico_nome,
+                        "crm": medico_crm,
                     },
-                    "exame_realizado": parsed.get("exame_realizado") or "Avaliação Clínica",
-                    "diagnostico_principal": parsed.get("diagnostico_principal"),
-                    "cid_sugerido": parsed.get("cid_sugerido"),
+                    "exame_realizado": exame,
+                    "diagnostico_principal": diag,
+                    "cid_sugerido": cid,
                     "metodo": "llm_generativa",
                 }
         except Exception as e:

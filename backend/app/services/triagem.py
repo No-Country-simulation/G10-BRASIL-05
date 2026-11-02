@@ -64,16 +64,16 @@ class TriagemService:
 
         dados_extraidos = DadosExtraidos(
             paciente=Paciente(
-                nome=paciente_dict.get("nome") or "Paciente Identificado",
-                idade=paciente_dict.get("idade") or 45,
+                nome=paciente_dict.get("nome"),
+                idade=paciente_dict.get("idade"),
             ),
             medico_solicitante=MedicoSolicitante(
-                nome=medico_dict.get("nome") or "Médico Solicitante",
-                crm=medico_dict.get("crm") or "145892-SP",
+                nome=medico_dict.get("nome"),
+                crm=medico_dict.get("crm"),
             ),
-            exame_realizado=resultado_grafo.get("exame_realizado") or "Avaliação Clínica",
-            diagnostico_principal=resultado_grafo.get("diagnostico_principal") or "Avaliação Clínica",
-            cid_sugerido=resultado_grafo.get("cid_sugerido") or "Z00.0",
+            exame_realizado=resultado_grafo.get("exame_realizado"),
+            diagnostico_principal=resultado_grafo.get("diagnostico_principal"),
+            cid_sugerido=resultado_grafo.get("cid_sugerido"),
         )
 
         notificacao_dict = resultado_grafo.get("notificacao_gerada")

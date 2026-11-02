@@ -18,15 +18,15 @@ Regras Críticas Anti-Alucinação:
 PROMPT_EXTRACAO_USER = """Extraia as entidades clínicas do documento abaixo e responda estritamente em formato JSON estruturado:
 
 Campos obrigatórios no JSON:
-- paciente_nome: str ou null
-- paciente_idade: int ou null
-- medico_nome: str ou null
-- medico_crm: str ou null (ex: '145892-SP')
-- exame_realizado: str ou null
+- paciente_nome: str ou null (nome completo do paciente)
+- paciente_idade: int ou null (idade em anos; se houver apenas data de nascimento, calcule a idade com base no ano atual)
+- medico_nome: str ou null (médico solicitante, atendente ou profissional de saúde responsável)
+- medico_crm: str ou null (CRM com UF se presente, ou null se não houver CRM explícito)
+- exame_realizado: str ou null (exame realizado, procedimento agendado, consulta médica ou atendimento)
 - medicamentos: lista de strings (ex: ['Enoxaparina 80mg', 'Dipirona 500mg'])
 - diagnostico_principal: str ou null
-- cid_sugerido: str ou null (ex: 'I26.9', 'J18.9')
-- achados_criticos: lista de strings (ex: ['Falha de enchimento em arteria pulmonar'])
+- cid_sugerido: str ou null (código CID-10 se mencionado explicitamente ou fortemente evidenciado, senão null)
+- achados_criticos: lista de strings (achados clínicos de urgência ou alerta)
 
 Documento:
 \"\"\"

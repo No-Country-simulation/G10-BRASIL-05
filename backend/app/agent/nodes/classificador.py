@@ -125,4 +125,6 @@ def criar_node_classificacao(cliente_llm: Optional[ClienteLLM]):
     return node_classificacao
 
 
-node_classificacao = criar_node_classificacao(obter_cliente_llm())
+def node_classificacao(state: GraphState) -> GraphState:
+    """Nó 2 padrão instanciado com o cliente LLM atualizado dinamicamente."""
+    return criar_node_classificacao(obter_cliente_llm())(state)

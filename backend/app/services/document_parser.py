@@ -133,8 +133,12 @@ class DocumentParserService:
     def extrair_texto_imagem(conteudo: bytes, extensao: str, nome_arquivo: str) -> str:
         """Utiliza visão computacional / LLM multimodal para transcrever com precisão o documento clínico."""
         import base64
-        from app.config.settings import settings
-        from app.config.logger import logger
+        try:
+            from app.config.settings import settings
+            from app.config.logger import logger
+        except ImportError:
+            from backend.app.config.settings import settings
+            from backend.app.config.logger import logger
 
         mimetype_map = {
             ".png": "image/png",
@@ -150,6 +154,21 @@ class DocumentParserService:
                 from langchain_openai import ChatOpenAI
                 from langchain_core.messages import HumanMessage
 
+                # Otimiza imagem para envio ao modelo de visão se for muito grande
+                try:
+                    img_pil = Image.open(io.BytesIO(conteudo))
+                    if img_pil.mode in ("RGBA", "P"):
+                        img_pil = img_pil.convert("RGB")
+                    max_dim = 1600
+                    if max(img_pil.width, img_pil.height) > max_dim:
+                        img_pil.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+                        buffer = io.BytesIO()
+                        img_pil.save(buffer, format="JPEG", quality=90)
+                        conteudo = buffer.getvalue()
+                        mime = "image/jpeg"
+                except Exception as img_err:
+                    logger.debug(f"Aviso ao otimizar imagem para OCR: {img_err}")
+
                 b64 = base64.b64encode(conteudo).decode("utf-8")
                 modelo = settings.OPENROUTER_MODEL or "google/gemma-3-27b-it"
                 llm = ChatOpenAI(
@@ -157,7 +176,7 @@ class DocumentParserService:
                     api_key=settings.OPENROUTER_API_KEY,
                     model=modelo,
                     temperature=0.0,
-                    timeout=25.0,
+                    timeout=35.0,
                     default_headers={
                         "HTTP-Referer": "http://localhost:8000",
                         "X-Title": "MediFlow OCR",
