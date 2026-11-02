@@ -24,8 +24,8 @@ def test_gerar_nome_arquivo_whatsapp():
     assert nome.endswith("_exame_sangue.pdf")
 
 
-def test_salvar_arquivo_whatsapp_cria_arquivo_em_storage(tmp_path):
-    """Valida persistência física do arquivo binário na pasta Storage com nome renomeado."""
+def test_salvar_arquivo_whatsapp_pdf_vai_para_pasta_pdf(tmp_path):
+    """Valida que documentos PDF vão para a subpasta Storage/pdf/."""
     repo = StorageRepository(local_storage_dir=str(tmp_path))
     conteudo_teste = b"%PDF-1.4 Fake PDF Content for Clinical Triage"
 
@@ -40,6 +40,7 @@ def test_salvar_arquivo_whatsapp_cria_arquivo_em_storage(tmp_path):
     assert resultado["status_backup"] == "sucesso_local"
     assert resultado["tamanho_bytes"] == len(conteudo_teste)
     assert os.path.exists(resultado["caminho_local"])
+    assert "/pdf/" in resultado["caminho_local"] or resultado["caminho_local"].endswith(f"/pdf/{resultado['nome_arquivo']}")
 
     with open(resultado["caminho_local"], "rb") as f:
         gravado = f.read()
@@ -47,6 +48,25 @@ def test_salvar_arquivo_whatsapp_cria_arquivo_em_storage(tmp_path):
     assert gravado == conteudo_teste
     assert resultado["nome_arquivo"].startswith("WPP_DOC-WPP-9988_")
     assert resultado["nome_arquivo"].endswith("_laudo_clinico_urgente.pdf")
+
+
+def test_salvar_arquivo_whatsapp_imagem_vai_para_pasta_imagem(tmp_path):
+    """Valida que imagens (.jpg, .png, etc.) vão para a subpasta Storage/imagem/."""
+    repo = StorageRepository(local_storage_dir=str(tmp_path))
+    conteudo_img = b"\xff\xd8\xff\xe0\x00\x10JFIF"
+
+    resultado = repo.salvar_arquivo_whatsapp(
+        documento_id="DOC-WPP-IMG-01",
+        conteudo=conteudo_img,
+        nome_original="Foto Receita Paciente.jpeg",
+        extensao=".jpeg",
+        mimetype="image/jpeg",
+    )
+
+    assert resultado["status_backup"] == "sucesso_local"
+    assert os.path.exists(resultado["caminho_local"])
+    assert "/imagem/" in resultado["caminho_local"] or resultado["caminho_local"].endswith(f"/imagem/{resultado['nome_arquivo']}")
+    assert resultado["nome_arquivo"].endswith("_foto_receita_paciente.jpeg")
 
 
 def test_salvar_triagem_json_cria_json_em_storage(tmp_path):

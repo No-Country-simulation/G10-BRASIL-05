@@ -112,8 +112,24 @@ class StorageRepository:
     ) -> Dict[str, Any]:
         """Redireciona e salva o arquivo binário recebido via WhatsApp exclusivamente na pasta local Storage.
 
+        Separa automaticamente em subpastas:
+        - Imagens (.jpg, .jpeg, .png, etc.) -> Storage/imagem/
+        - PDFs (.pdf) -> Storage/pdf/
         Aplica renomeação padronizada rastreável, operando 100% em disco local (sem envio para nuvem).
         """
+        # Determina a subpasta por extensão ou mimetype caso não tenha sido especificada
+        if subpasta is None:
+            ext_limpa = (extensao or os.path.splitext(nome_original or "")[1] or "").lower()
+            if not ext_limpa.startswith(".") and ext_limpa:
+                ext_limpa = f".{ext_limpa}"
+
+            mime = (mimetype or "").lower()
+
+            if ext_limpa == ".pdf" or "pdf" in mime:
+                subpasta = "pdf"
+            elif ext_limpa in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff") or "image" in mime:
+                subpasta = "imagem"
+
         nome_renomeado = self.gerar_nome_arquivo_whatsapp(
             documento_id=documento_id,
             nome_original=nome_original,
