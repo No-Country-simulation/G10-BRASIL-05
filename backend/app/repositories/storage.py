@@ -29,7 +29,14 @@ class StorageRepository:
             os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../Storage")),
             os.path.abspath("Storage"),
             os.path.abspath("../Storage"),
-        ]   
+        ]
+        for caminho in candidatos:
+            if os.path.exists(caminho):
+                return caminho
+
+        caminho_padrao = candidatos[0]
+        os.makedirs(caminho_padrao, exist_ok=True)
+        return caminho_padrao
     def _inicializar_cliente_oci(self):
         """Tenta autenticar no SDK OCI se os parâmetros estiverem presentes."""
         if settings.OCI_USER_OCID and os.path.exists(os.path.expanduser(settings.OCI_KEY_FILE or "")):
@@ -103,9 +110,9 @@ class StorageRepository:
         mimetype: Optional[str] = None,
         subpasta: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Redireciona e salva o arquivo binário recebido via WhatsApp na pasta local Storage.
+        """Redireciona e salva o arquivo binário recebido via WhatsApp exclusivamente na pasta local Storage.
 
-        Aplica renomeação padronizada rastreável e realiza backup em OCI caso configurado.
+        Aplica renomeação padronizada rastreável, operando 100% em disco local (sem envio para nuvem).
         """
         nome_renomeado = self.gerar_nome_arquivo_whatsapp(
             documento_id=documento_id,
@@ -123,34 +130,17 @@ class StorageRepository:
         with open(caminho_completo, "wb") as f:
             f.write(conteudo)
 
-        resultado = {
-            "bucket": self.bucket_name,
+        return {
+            "bucket": "local-storage",
             "caminho_local": caminho_completo,
             "caminho_relativo": os.path.relpath(caminho_completo, os.path.dirname(self.local_storage_dir)),
             "nome_arquivo": nome_renomeado,
             "diretorio": destino_dir,
             "tamanho_bytes": len(conteudo),
             "mimetype": mimetype or "application/octet-stream",
-            "caminho_objeto": f"recebidos/{nome_renomeado}",
+            "caminho_objeto": f"Storage/{nome_renomeado}",
             "status_backup": "sucesso_local",
         }
-
-        # Backup em OCI caso o cliente e namespace estejam ativos
-        if self.client and settings.OCI_NAMESPACE:
-            try:
-                self.client.put_object(
-                    namespace_name=settings.OCI_NAMESPACE,
-                    bucket_name=self.bucket_name,
-                    object_name=resultado["caminho_objeto"],
-                    put_object_body=conteudo,
-                    content_type=mimetype or "application/octet-stream",
-                )
-                resultado["status_backup"] = "sucesso_local_e_oci"
-            except Exception as e:
-                logger.error(f"[OCI Storage Error] Falha no upload para nuvem do WhatsApp: {e}")
-                resultado["status_backup"] = f"sucesso_local_falha_oci: {str(e)}"
-
-        return resultado
 
     def salvar_triagem_json(
         self,
