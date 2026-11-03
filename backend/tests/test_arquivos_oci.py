@@ -13,16 +13,24 @@ class ClienteOCIFalso:
 
     def __init__(self):
         self.objetos = {}
+        self.fora_do_ar = False
 
-    def put_object(self, namespace_name, bucket_name, object_name, put_object_body, content_type):
+    def _verificar_conexao(self):
+        if self.fora_do_ar:
+            raise ConnectionError("OCI fora do ar")
+
+    def put_object(self, namespace_name, bucket_name, object_name, put_object_body, content_type, **kwargs):
+        self._verificar_conexao()
         self.objetos[object_name] = {"conteudo": put_object_body, "content_type": content_type}
 
-    def get_object(self, namespace_name, bucket_name, object_name):
+    def get_object(self, namespace_name, bucket_name, object_name, **kwargs):
+        self._verificar_conexao()
         if object_name not in self.objetos:
             raise oci.exceptions.ServiceError(404, "ObjectNotFound", {}, "Objeto não encontrado")
         return SimpleNamespace(data=SimpleNamespace(content=self.objetos[object_name]["conteudo"]))
 
-    def rename_object(self, namespace_name, bucket_name, rename_object_details):
+    def rename_object(self, namespace_name, bucket_name, rename_object_details, **kwargs):
+        self._verificar_conexao()
         origem = rename_object_details.source_name
         if origem not in self.objetos:
             raise oci.exceptions.ServiceError(404, "ObjectNotFound", {}, "Objeto não encontrado")
@@ -30,9 +38,9 @@ class ClienteOCIFalso:
 
 
 @pytest.fixture
-def repo_sem_oci(monkeypatch):
+def repo_sem_oci(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "OCI_USER_OCID", "")
-    return ArquivosOCIRepository()
+    return ArquivosOCIRepository(pasta_local=tmp_path)
 
 
 @pytest.fixture
@@ -41,6 +49,8 @@ def repo(repo_sem_oci, monkeypatch):
     repo_sem_oci.client = ClienteOCIFalso()
     return repo_sem_oci
 
+
+# --- SCRUM-72: upload e leitura ---
 
 def test_salvar_arquivo_original_vai_para_recebidos(repo):
     resultado = repo.salvar_arquivo_original("DOC-001", b"%PDF-1.4", "Laudo.PDF", "application/pdf")
@@ -74,16 +84,7 @@ def test_ler_arquivo_inexistente_gera_file_not_found(repo):
         repo.ler_arquivo("recebidos/nao-existe.pdf")
 
 
-def test_sem_oci_upload_e_simulado(repo_sem_oci):
-    resultado = repo_sem_oci.salvar_arquivo_original("DOC-004", b"x", "doc.txt", "text/plain")
-
-    assert resultado["status_backup"] == "sucesso (local_simulado)"
-
-
-def test_sem_oci_leitura_gera_erro_claro(repo_sem_oci):
-    with pytest.raises(RuntimeError):
-        repo_sem_oci.ler_arquivo("recebidos/DOC-004.txt")
-
+# --- SCRUM-73: roteamento por status ---
 
 @pytest.mark.parametrize(
     "is_urgente, requer_auditoria, destino",
@@ -112,8 +113,150 @@ def test_mover_arquivo_inexistente_retorna_falha(repo):
     assert resultado["caminho_objeto"] == "recebidos/nao-existe.pdf"
 
 
-def test_sem_oci_mover_e_simulado(repo_sem_oci):
-    resultado = repo_sem_oci.mover_por_status("recebidos/DOC-006.txt")
+# --- SCRUM-74: modo local (sem credenciais OCI) ---
 
-    assert resultado["caminho_objeto"] == "processados/rotina/DOC-006.txt"
-    assert resultado["status_backup"] == "sucesso (local_simulado)"
+def test_sem_oci_upload_salva_na_pasta_local(repo_sem_oci, tmp_path):
+    resultado = repo_sem_oci.salvar_arquivo_original("DOC-004", b"x", "doc.txt", "text/plain")
+
+    assert resultado["status_backup"] == "sucesso (local)"
+    assert (tmp_path / "recebidos" / "DOC-004.txt").read_bytes() == b"x"
+
+
+def test_sem_oci_leitura_vem_da_pasta_local(repo_sem_oci):
+    repo_sem_oci.salvar_arquivo_original("DOC-006", b"conteudo", "doc.txt", "text/plain")
+
+    assert repo_sem_oci.ler_arquivo("recebidos/DOC-006.txt") == b"conteudo"
+
+
+def test_sem_oci_leitura_inexistente_gera_file_not_found(repo_sem_oci):
+    with pytest.raises(FileNotFoundError):
+        repo_sem_oci.ler_arquivo("recebidos/nao-existe.txt")
+
+
+def test_sem_oci_mover_na_pasta_local(repo_sem_oci, tmp_path):
+    repo_sem_oci.salvar_arquivo_original("DOC-007", b"x", "doc.txt", "text/plain")
+
+    resultado = repo_sem_oci.mover_por_status("recebidos/DOC-007.txt", is_urgente=True)
+
+    assert resultado["caminho_objeto"] == "processados/urgentes/DOC-007.txt"
+    assert resultado["status_backup"] == "sucesso (local)"
+    assert not (tmp_path / "recebidos" / "DOC-007.txt").exists()
+    assert (tmp_path / "processados" / "urgentes" / "DOC-007.txt").read_bytes() == b"x"
+
+
+def test_sem_oci_mover_inexistente_retorna_falha(repo_sem_oci):
+    resultado = repo_sem_oci.mover_por_status("recebidos/nao-existe.txt")
+
+    assert resultado["status_backup"].startswith("falha")
+
+
+def test_caminho_que_sai_da_pasta_local_e_bloqueado(repo_sem_oci):
+    with pytest.raises(ValueError):
+        repo_sem_oci.ler_arquivo("../../segredo.txt")
+
+
+# --- SCRUM-74: OCI configurada, mas fora do ar ---
+
+def test_oci_fora_do_ar_upload_salva_local(repo, tmp_path):
+    repo.client.fora_do_ar = True
+
+    resultado = repo.salvar_arquivo_original("DOC-008", b"laudo", "laudo.pdf", "application/pdf")
+
+    assert resultado["status_backup"] == "falha_oci (salvo_local)"
+    assert (tmp_path / "recebidos" / "DOC-008.pdf").read_bytes() == b"laudo"
+
+
+def test_oci_fora_do_ar_leitura_usa_copia_local(repo):
+    repo.client.fora_do_ar = True
+    repo.salvar_arquivo_original("DOC-009", b"laudo", "laudo.pdf", "application/pdf")
+
+    assert repo.ler_arquivo("recebidos/DOC-009.pdf") == b"laudo"
+
+
+def test_oci_fora_do_ar_mover_usa_pasta_local(repo, tmp_path):
+    repo.client.fora_do_ar = True
+    repo.salvar_arquivo_original("DOC-010", b"laudo", "laudo.pdf", "application/pdf")
+
+    resultado = repo.mover_por_status("recebidos/DOC-010.pdf", requer_auditoria=True)
+
+    assert resultado["status_backup"] == "sucesso (local)"
+    assert (tmp_path / "auditoria_humana" / "DOC-010.pdf").exists()
+
+
+def test_oci_fora_do_ar_sem_copia_local_gera_erro(repo):
+    repo.client.fora_do_ar = True
+
+    with pytest.raises(ConnectionError):
+        repo.ler_arquivo("recebidos/nao-existe.pdf")
+
+
+def test_chamadas_oci_usam_retry(repo, monkeypatch):
+    chamadas = {}
+
+    def put_object_espiao(**kwargs):
+        chamadas.update(kwargs)
+
+    monkeypatch.setattr(repo.client, "put_object", put_object_espiao)
+    repo.salvar_arquivo_original("DOC-011", b"x", "doc.txt")
+
+    assert chamadas["retry_strategy"] is oci.retry.DEFAULT_RETRY_STRATEGY
+
+
+# --- SCRUM-74: sincronizar o que ficou local por falha ---
+
+def test_falha_oci_marca_arquivo_como_pendente(repo):
+    repo.client.fora_do_ar = True
+    repo.salvar_arquivo_original("DOC-012", b"laudo", "laudo.pdf", "application/pdf")
+
+    assert repo._ler_pendentes() == {"recebidos/DOC-012.pdf": "application/pdf"}
+
+
+def test_modo_desenvolvimento_nao_gera_pendente(repo_sem_oci):
+    repo_sem_oci.salvar_arquivo_original("DOC-013", b"x", "doc.txt", "text/plain")
+
+    assert repo_sem_oci._ler_pendentes() == {}
+
+
+def test_mover_local_atualiza_pendente(repo):
+    repo.client.fora_do_ar = True
+    repo.salvar_arquivo_original("DOC-014", b"laudo", "laudo.pdf", "application/pdf")
+
+    repo.mover_por_status("recebidos/DOC-014.pdf", is_urgente=True)
+
+    assert repo._ler_pendentes() == {"processados/urgentes/DOC-014.pdf": "application/pdf"}
+
+
+def test_sincronizar_envia_para_oci_e_apaga_local(repo, tmp_path):
+    repo.client.fora_do_ar = True
+    repo.salvar_arquivo_original("DOC-015", b"laudo", "laudo.pdf", "application/pdf")
+    repo.mover_por_status("recebidos/DOC-015.pdf", requer_auditoria=True)
+
+    repo.client.fora_do_ar = False
+    resultado = repo.sincronizar_pendentes()
+
+    assert resultado == {"enviados": ["auditoria_humana/DOC-015.pdf"], "falhas": []}
+    assert repo.client.objetos["auditoria_humana/DOC-015.pdf"] == {
+        "conteudo": b"laudo",
+        "content_type": "application/pdf",
+    }
+    assert not (tmp_path / "auditoria_humana" / "DOC-015.pdf").exists()
+    assert repo._ler_pendentes() == {}
+
+
+def test_sincronizar_com_oci_ainda_fora_mantem_pendente(repo, tmp_path):
+    repo.client.fora_do_ar = True
+    repo.salvar_arquivo_original("DOC-016", b"laudo", "laudo.pdf", "application/pdf")
+
+    resultado = repo.sincronizar_pendentes()
+
+    assert resultado == {"enviados": [], "falhas": ["recebidos/DOC-016.pdf"]}
+    assert (tmp_path / "recebidos" / "DOC-016.pdf").exists()
+    assert repo._ler_pendentes() == {"recebidos/DOC-016.pdf": "application/pdf"}
+
+
+def test_sincronizar_sem_oci_nao_envia_nada(repo_sem_oci):
+    repo_sem_oci._gravar_pendentes({"recebidos/DOC-017.pdf": "application/pdf"})
+
+    resultado = repo_sem_oci.sincronizar_pendentes()
+
+    assert resultado == {"enviados": [], "falhas": ["recebidos/DOC-017.pdf"]}
