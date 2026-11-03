@@ -7,7 +7,7 @@ from app.schemas.dados_extraidos import DadosExtraidos
 def test_valida_dados_extraidos_completos():
     dados = DadosExtraidos.model_validate(
         {
-            "paciente": "Maria Silva",
+            "paciente": {"nome": "Maria Silva", "idade": 52},
             "medico_solicitante": {"nome": "João Souza", "crm_uf": "12345-SP"},
             "exame_realizado": "Tomografia de tórax",
             "diagnostico_principal": "Tromboembolismo pulmonar",
@@ -19,7 +19,9 @@ def test_valida_dados_extraidos_completos():
         }
     )
 
-    assert dados.paciente == "Maria Silva"
+    assert dados.paciente is not None
+    assert dados.paciente.nome == "Maria Silva"
+    assert dados.paciente.idade == 52
     assert dados.medico_solicitante is not None
     assert dados.medico_solicitante.nome == "João Souza"
     assert dados.medico_solicitante.crm_uf == "12345-SP"
@@ -76,6 +78,8 @@ def test_rejeita_campos_extras(payload, campo_extra):
     "payload",
     [
         {"paciente": 123},
+        {"paciente": {"idade": 52.5}},
+        {"paciente": {"idade": True}},
         {"medico_solicitante": "João Souza"},
         {"medicamentos": {"medicamento": "Dipirona"}},
         {"medicamentos": [{"dosagem": 500}]},
