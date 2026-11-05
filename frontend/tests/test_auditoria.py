@@ -82,7 +82,7 @@ def test_guarda_o_valor_corrigido_sem_espacos_nas_bordas():
 def test_aplicar_correcoes_preserva_o_que_nao_mudou():
     corrigidos = aplicar_correcoes(DADOS, CORRECAO)
 
-    assert corrigidos["medico_solicitante"] == {"nome": "Dr. Paulo", "crm": "145892-SP"}
+    assert corrigidos["medico_solicitante"] == {"nome": "Dr. Paulo", "crm_uf": "145892-SP"}
     assert corrigidos["paciente"] == {"nome": "Maria", "idade": 34}
     assert corrigidos["diagnostico_principal"] == "Faringite aguda"
     assert corrigidos["cid_sugerido"] == "J02.9"
@@ -99,7 +99,21 @@ def test_aplicar_correcoes_nao_altera_o_original():
 def test_aplicar_correcoes_cria_o_medico_quando_ausente():
     corrigidos = aplicar_correcoes({}, {"crm": "145892-SP", "medico_nome": "Dra. Ana"})
 
-    assert corrigidos["medico_solicitante"] == {"nome": "Dra. Ana", "crm": "145892-SP"}
+    assert corrigidos["medico_solicitante"] == {"nome": "Dra. Ana", "crm_uf": "145892-SP"}
+
+
+def test_normaliza_crm_existente_ao_corrigir_outro_campo():
+    dados = {
+        "medico_solicitante": {"nome": "Dr. Paulo", "crm": "123456-SP"},
+        "diagnostico_principal": "Rinite",
+    }
+
+    corrigidos = aplicar_correcoes(dados, {"diagnostico_principal": "Sinusite"})
+
+    assert corrigidos["medico_solicitante"] == {
+        "nome": "Dr. Paulo",
+        "crm_uf": "123456-SP",
+    }
 
 
 def test_aplicar_correcoes_atualiza_diagnostico_e_cid():
@@ -178,7 +192,7 @@ def test_aprovar_e_rejeitar_nao_enviam_dados_corrigidos(acao):
 def test_corrigir_envia_os_dados_extraidos_completos_ja_corrigidos():
     decisao = montar_decisao(DECISAO_CORRIGIR, "Dra. Ana", "CRM conferido", DADOS, CORRECAO)
 
-    assert decisao["dados_corrigidos"]["medico_solicitante"]["crm"] == "145892-SP"
+    assert decisao["dados_corrigidos"]["medico_solicitante"]["crm_uf"] == "145892-SP"
     assert decisao["dados_corrigidos"]["paciente"] == {"nome": "Maria", "idade": 34}
     assert decisao["dados_corrigidos"]["cid_sugerido"] == "J02.9"
 
