@@ -1,6 +1,7 @@
 import streamlit as st
 
 from components.cards import exibir_item_de_auditoria
+from components.erros import chamar_api_ou_parar
 from services.api_client import listar_fila_auditoria, registrar_decisao
 from utils.auditoria import (
     CAMPOS_EDITAVEIS,
@@ -10,23 +11,37 @@ from utils.auditoria import (
     calcular_correcoes,
     extrair_valores_editaveis,
     montar_decisao,
+    montar_rotulo_da_fila,
+    ordenar_fila,
     validar_decisao,
 )
 
 DOCUMENTO_INDISPONIVEL = "Documento original não disponível."
+CHAVE_DA_CONFIRMACAO = "confirmacao_da_auditoria"
+AVISO_DE_DECISAO_PENDENTE = (
+    "O documento continua pendente na fila. Atualize a página para conferir antes de tentar de novo."
+)
 
 st.title("Auditoria")
-st.write("Revise os documentos que a triagem encaminhou para análise.")
+st.write("Revise os documentos que a triagem encaminhou para análise humana.")
 
-fila = listar_fila_auditoria()
+confirmacao_anterior = st.session_state.pop(CHAVE_DA_CONFIRMACAO, None)
+if confirmacao_anterior:
+    st.success(confirmacao_anterior["mensagem"])
+    with st.expander("Ver decisão enviada (JSON)"):
+        st.json(confirmacao_anterior["decisao"])
+
+fila = ordenar_fila(chamar_api_ou_parar(listar_fila_auditoria))
 if not fila:
     st.info("Nenhum documento aguardando auditoria.")
     st.stop()
 
 st.caption(f"{len(fila)} documento(s) aguardando auditoria")
+rotulos = {item.get("documento_id"): montar_rotulo_da_fila(item) for item in fila}
 escolhido = st.selectbox(
     "Documento para revisar",
-    [item.get("documento_id") for item in fila],
+    list(rotulos),
+    format_func=rotulos.get,
     index=None,
     placeholder="Selecione um documento",
 )
@@ -79,7 +94,13 @@ if problema:
     st.stop()
 
 decisao = montar_decisao(acao, auditor, justificativa, item.get("dados_extraidos") or {}, correcoes)
-confirmacao = registrar_decisao(escolhido, decisao)
-st.success(f"{confirmacao.get('mensagem', 'Decisão registrada.')} Documento {escolhido}.")
-with st.expander("Ver decisão enviada (JSON)"):
-    st.json(decisao)
+resposta = chamar_api_ou_parar(
+    registrar_decisao, escolhido, decisao, complemento=AVISO_DE_DECISAO_PENDENTE
+)
+
+# Recarrega a página para o documento decidido sair da fila e não receber uma segunda decisão
+st.session_state[CHAVE_DA_CONFIRMACAO] = {
+    "mensagem": f"{resposta.get('mensagem', 'Decisão registrada.')} Documento {escolhido}.",
+    "decisao": decisao,
+}
+st.rerun()

@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import uuid4
 
 CANAIS_DE_ORIGEM = ["Pronto_Socorro", "Ambulatorio", "Telemedicina"]
 EXTENSOES_ACEITAS = ["pdf", "png", "jpg", "jpeg", "webp", "txt", "json"]
@@ -53,6 +54,7 @@ def _identificar_tipo_arquivo(nome_arquivo: str) -> str:
 
 def _extrair_texto(arquivo, tipo_arquivo: str) -> str:
     if tipo_arquivo not in ("TEXTO", "JSON"):
+        # PDF e imagem seguem por upload, e o backend extrai o texto. Aqui basta o nome do arquivo.
         return arquivo.name
     try:
         return arquivo.getvalue().decode("utf-8-sig")
@@ -61,4 +63,5 @@ def _extrair_texto(arquivo, tipo_arquivo: str) -> str:
 
 
 def _gerar_documento_id() -> str:
-    return f"DOC-CLIN-{datetime.now():%Y%m%d%H%M%S}"
+    # O backend sobrescreve o documento quando o ID repete, então o ID precisa ser único
+    return f"DOC-CLIN-{datetime.now():%Y%m%d%H%M%S}-{uuid4().hex[:6].upper()}"

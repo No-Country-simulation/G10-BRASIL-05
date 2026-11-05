@@ -1,6 +1,7 @@
 import pytest
 
 from utils.historico import (
+    FILTROS_DE_STATUS,
     FILTRO_TODOS,
     STATUS_APROVADO,
     STATUS_DESCONHECIDO,
@@ -9,7 +10,9 @@ from utils.historico import (
     STATUS_URGENCIA,
     filtrar_por_status,
     identificar_status,
+    montar_estilos_da_tabela,
     montar_linhas_da_tabela,
+    montar_tabela_estilizada,
 )
 
 
@@ -127,3 +130,44 @@ def test_data_invalida_e_mostrada_como_veio():
     linha = montar_linhas_da_tabela([{"created_at": "ontem"}])[0]
 
     assert linha["Data"] == "ontem"
+
+def test_documento_rejeitado_pode_ser_filtrado():
+    documentos = [
+        {"documento_id": "DOC-1", "destino_principal": "Auditoria_Humana", "status_processamento": "auditoria_rejeitado"},
+        {"documento_id": "DOC-2", "destino_principal": "Fluxo_Padrao"},
+    ]
+
+    assert STATUS_REJEITADO in FILTROS_DE_STATUS
+    assert [d["documento_id"] for d in filtrar_por_status(documentos, STATUS_REJEITADO)] == ["DOC-1"]
+
+
+def test_linha_da_tabela_aceita_prioridade_no_formato_do_backend():
+    linha = montar_linhas_da_tabela([{"nivel_prioridade": "Urgente"}])[0]
+
+    assert linha["Prioridade"] == "Urgente"
+
+
+def test_estilos_destacam_fundo_prioridade_e_confianca():
+    documento = {
+        "destino_principal": "Fila_Emergencia_Medica",
+        "nivel_prioridade": "Urgente",
+        "score_confianca": 0.5,
+    }
+
+    estilos = montar_estilos_da_tabela([documento], ["Documento", "Prioridade", "Confiança"])[0]
+
+    assert estilos[0] == "background-color: #FDECEA;"
+    assert "color: #C2410C" in estilos[1]
+    assert "color: #C62828" in estilos[2]
+
+
+def test_estilos_sem_dados_ficam_vazios():
+    assert montar_estilos_da_tabela([{}], ["Documento", "Prioridade"]) == [["", ""]]
+
+
+def test_tabela_estilizada_tem_uma_linha_por_documento():
+    documentos = [_documento_com_destino("Fluxo_Padrao", "DOC-1"), _documento_com_destino("Auditoria_Humana", "DOC-2")]
+
+    tabela = montar_tabela_estilizada(documentos)
+
+    assert list(tabela.data["Documento"]) == ["DOC-1", "DOC-2"]

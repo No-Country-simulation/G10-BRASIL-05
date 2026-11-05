@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from utils.requisicao import (
@@ -23,7 +25,7 @@ def test_monta_requisicao_a_partir_de_texto_digitado():
     assert requisicao["tipo_arquivo"] == "TEXTO"
     assert requisicao["documento_texto"] == "suspeita de TEP"
     assert requisicao["canal_origem"] == "Pronto_Socorro"
-    assert requisicao["documento_id"].startswith("DOC-CLIN-")
+    assert re.fullmatch(r"DOC-CLIN-\d{14}-[0-9A-F]{6}", requisicao["documento_id"])
 
 
 def test_requisicao_tem_exatamente_os_campos_do_contrato():
@@ -118,3 +120,8 @@ def test_aceita_envio_completo():
 
     assert validar_envio(OPCAO_TEXTO, None, "texto", "Pronto_Socorro") is None
     assert validar_envio(OPCAO_ARQUIVO, arquivo, "", "Pronto_Socorro") is None
+
+def test_documento_id_nao_repete_nem_no_mesmo_segundo():
+    ids = {montar_requisicao(None, "receita de rotina", "Ambulatorio")["documento_id"] for _ in range(500)}
+
+    assert len(ids) == 500
