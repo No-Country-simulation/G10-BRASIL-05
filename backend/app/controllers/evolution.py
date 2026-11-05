@@ -25,8 +25,8 @@ router = APIRouter(prefix="/webhook/evolution", tags=["WhatsApp (Evolution API)"
 
 
 class EnvioManualWhatsApp(BaseModel):
-    numero: str = Field(..., example="5511999999999", description="Número de telefone com DDI e DDD")
-    texto: str = Field(..., example="Olá! Teste de integração MediFlow.", description="Conteúdo da mensagem")
+    numero: str = Field(..., json_schema_extra={"example": "5511999999999"}, description="Número de telefone com DDI e DDD")
+    texto: str = Field(..., json_schema_extra={"example": "Olá! Teste de integração MediFlow."}, description="Conteúdo da mensagem")
 
 
 async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):

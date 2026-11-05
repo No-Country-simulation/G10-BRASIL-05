@@ -163,12 +163,17 @@ class TriagemService:
 
     def registrar_decisao_medica(self, documento_id: str, payload: DecisaoAuditoriaRequest):
         """Aprova, corrige ou rejeita um item na fila de Human-in-the-Loop."""
+        dados_corrigidos = (
+            payload.dados_corrigidos.model_dump()
+            if payload.dados_corrigidos is not None
+            else None
+        )
         doc_atualizado = self.db_repo.registrar_decisao(
             documento_id=documento_id,
             decisao=payload.status_aprovacao,
             auditor_nome=payload.auditor_nome,
             justificativa=payload.justificativa,
-            dados_corrigidos=payload.dados_corrigidos,
+            dados_corrigidos=dados_corrigidos,
         )
 
         if doc_atualizado:
@@ -181,7 +186,7 @@ class TriagemService:
                     documento_id=documento_id,
                     tipo_evento=f"DECISAO_MEDICA_{payload.status_aprovacao.upper()}",
                     autor=payload.auditor_nome,
-                    payload=payload.dados_corrigidos or {},
+                    payload=dados_corrigidos or {},
                     justificativa=payload.justificativa,
                 )
             except Exception:

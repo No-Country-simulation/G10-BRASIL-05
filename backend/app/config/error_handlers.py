@@ -8,6 +8,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config.logger import logger
 
+HTTP_UNPROCESSABLE_ENTITY = 422
+
 
 def montar_envelope_erro(
     codigo: str,
@@ -36,7 +38,7 @@ def obter_codigo_http(status_code: int) -> str:
         status.HTTP_404_NOT_FOUND: "RECURSO_NAO_ENCONTRADO",
         status.HTTP_409_CONFLICT: "CONFLITO_DADOS",
         status.HTTP_413_REQUEST_ENTITY_TOO_LARGE: "TAMANHO_ARQUIVO_EXCEDIDO",
-        status.HTTP_422_UNPROCESSABLE_ENTITY: "ENTIDADE_NAO_PROCESSAVEL",
+        HTTP_UNPROCESSABLE_ENTITY: "ENTIDADE_NAO_PROCESSAVEL",
         status.HTTP_500_INTERNAL_SERVER_ERROR: "ERRO_INTERNO_SERVIDOR",
         status.HTTP_503_SERVICE_UNAVAILABLE: "SERVICO_INDISPONIVEL",
     }
@@ -56,7 +58,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
     logger.warning(
         f"Falha de validação em {request.url.path}: {len(detalhes_erros)} campos com erro.",
-        extra={"path": request.url.path, "status_code": status.HTTP_422_UNPROCESSABLE_ENTITY},
+        extra={"path": request.url.path, "status_code": HTTP_UNPROCESSABLE_ENTITY},
     )
 
     payload = montar_envelope_erro(
@@ -65,7 +67,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         path=request.url.path,
         detalhes=detalhes_erros,
     )
-    return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=payload)
+    return JSONResponse(status_code=HTTP_UNPROCESSABLE_ENTITY, content=payload)
 
 
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:

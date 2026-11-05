@@ -49,10 +49,15 @@ def aplicar_correcoes(dados_extraidos: dict, correcoes: dict) -> dict:
         dados["medico_solicitante"] = _com_valor(
             dados.get("medico_solicitante"), "nome", correcoes["medico_nome"]
         )
+    medico = dict(dados.get("medico_solicitante") or {})
+    crm_uf = medico.get("crm_uf") or medico.get("crm")
+    if "crm" in medico:
+        medico.pop("crm")
+        medico["crm_uf"] = crm_uf
     if "crm" in correcoes:
-        dados["medico_solicitante"] = _com_valor(
-            dados.get("medico_solicitante"), "crm", correcoes["crm"]
-        )
+        medico["crm_uf"] = correcoes["crm"]
+    if medico:
+        dados["medico_solicitante"] = medico
     for campo in ("diagnostico_principal", "cid_sugerido"):
         if campo in correcoes:
             dados[campo] = correcoes[campo]
