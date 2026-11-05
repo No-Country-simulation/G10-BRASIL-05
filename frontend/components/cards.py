@@ -6,7 +6,11 @@ from utils.aparencia import (
     texto_colorido_da_confianca,
 )
 from utils.formatadores import (
+    NIVEL_AVISO,
+    NIVEL_ERRO,
+    NIVEL_SUCESSO,
     crm_do_medico,
+    descrever_armazenamento,
     nome_do_paciente,
     rotular_prioridade,
     rotular_tipo_documento,
@@ -38,7 +42,7 @@ def exibir_previa_do_arquivo(arquivo) -> None:
 def exibir_alerta_de_roteamento(decisao: dict) -> None:
     destino = decisao.get("destino_principal")
     justificativa = decisao.get("justificativa_roteamento")
-    mensagem_do_plantao = (decisao.get("notificacao_gerada") or {}).get("mensagem")
+    mensagem_do_plantao = _formatar_notificacao(decisao.get("notificacao_gerada") or {})
     if destino == DESTINO_EMERGENCIA:
         alerta = montar_alerta_de_emergencia(TITULO_DA_EMERGENCIA, justificativa, mensagem_do_plantao)
         st.markdown(alerta, unsafe_allow_html=True)
@@ -63,6 +67,16 @@ def exibir_classificacao(classificacao: dict) -> None:
         _exibir_confianca(classificacao.get("score_confianca_classificacao"))
 
 
+def exibir_armazenamento(armazenamento: dict | None) -> None:
+    situacao = descrever_armazenamento(armazenamento)
+    if situacao is None:
+        return
+    nivel, texto = situacao
+    exibir = {NIVEL_SUCESSO: st.success, NIVEL_AVISO: st.warning, NIVEL_ERRO: st.error}[nivel]
+    st.subheader("Armazenamento")
+    exibir(texto, icon="☁️")
+
+
 def exibir_dados_extraidos(dados: dict) -> None:
     coluna_pessoas, coluna_clinica = st.columns(2)
     with coluna_pessoas:
@@ -80,6 +94,7 @@ def exibir_resultado_da_triagem(resposta: dict) -> None:
     exibir_classificacao(resposta.get("classificacao") or {})
     st.subheader("Dados extraídos")
     exibir_dados_extraidos(resposta.get("dados_extraidos") or {})
+    exibir_armazenamento(resposta.get("armazenamento_oci"))
     with st.expander("Ver resposta completa (JSON)"):
         st.json(resposta)
 
@@ -124,6 +139,12 @@ def _exibir_itens_clinicos(dados: dict) -> None:
             descricao = _formatar_medicamento(medicamento)
             if descricao:
                 st.markdown(f"- {descricao}")
+
+
+def _formatar_notificacao(notificacao: dict) -> str | None:
+    mensagem = notificacao.get("mensagem")
+    canal = notificacao.get("canal")
+    return f"{mensagem} (canal: {canal})" if mensagem and canal else mensagem
 
 
 def _formatar_paciente(paciente) -> str | None:

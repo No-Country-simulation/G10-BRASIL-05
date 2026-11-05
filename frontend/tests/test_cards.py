@@ -172,3 +172,53 @@ def test_previa_de_texto_ou_json_nao_mostra_nada():
     assert not at.exception
     assert not at.info
     assert not at.get("image")
+
+
+def _com_armazenamento(status: str | None) -> dict:
+    resposta = deepcopy(RESPOSTA_DA_API)
+    resposta["armazenamento_oci"] = {
+        "bucket": "mediflow-documentos-clinicos",
+        "caminho_objeto": "processados/urgentes/DOC-1.json",
+        "status_backup": status,
+    }
+    return resposta
+
+
+def test_mostra_onde_o_documento_foi_salvo():
+    at = _renderizar("exibir_resultado_da_triagem", _com_armazenamento("sucesso"))
+
+    assert not at.exception
+    assert "mediflow-documentos-clinicos/processados/urgentes/DOC-1.json" in at.success[-1].value
+    assert not at.error
+
+
+def test_backup_com_falha_aparece_como_erro_e_nao_como_sucesso():
+    at = _renderizar("exibir_resultado_da_triagem", _com_armazenamento("falha: timeout no OCI"))
+
+    assert "backup não foi gravado" in at.error[0].value
+    assert not any("Documento salvo" in s.value for s in at.success)
+
+
+def test_armazenamento_local_avisa_que_o_oci_nao_foi_usado():
+    at = _renderizar("exibir_resultado_da_triagem", _com_armazenamento("sucesso (local_simulado)"))
+
+    assert "sem usar o OCI" in at.warning[0].value
+
+
+def test_resposta_sem_armazenamento_nao_mostra_a_secao():
+    at = _renderizar("exibir_resultado_da_triagem", RESPOSTA_DA_API)
+
+    assert not at.error
+    assert "Armazenamento" not in [s.value for s in at.subheader]
+
+
+def test_alerta_de_urgencia_mostra_o_canal_do_plantao():
+    resposta = deepcopy(RESPOSTA_DA_API)
+    resposta["decisao_roteamento"]["notificacao_gerada"] = {
+        "canal": "Alerta_Plantao_Medico",
+        "mensagem": "ALERTA URGENTE: DOC-1",
+    }
+
+    at = _renderizar("exibir_resultado_da_triagem", resposta)
+
+    assert "ALERTA URGENTE: DOC-1 (canal: Alerta_Plantao_Medico)" in _textos(at)

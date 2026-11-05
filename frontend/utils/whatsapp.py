@@ -2,12 +2,10 @@ import base64
 import binascii
 import re
 
+from utils.formatadores import NIVEL_AVISO, NIVEL_ERRO, NIVEL_SUCESSO
+
 TAMANHO_MINIMO_DO_NUMERO = 10
 TAMANHO_MAXIMO_DO_NUMERO = 15
-
-NIVEL_SUCESSO = "sucesso"
-NIVEL_AVISO = "aviso"
-NIVEL_ERRO = "erro"
 
 SITUACAO_POR_ESTADO = {
     "open": (NIVEL_SUCESSO, "WhatsApp conectado e online", ""),

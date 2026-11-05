@@ -145,6 +145,12 @@ def test_triagem_mostra_erro_da_api_sem_quebrar(monkeypatch):
     assert at.error[0].value == "A API demorou demais para responder. Tente novamente."
 
 
+def test_triagem_em_demonstracao_mostra_onde_o_documento_foi_salvo():
+    at = _analisar_texto(_abrir(TRIAGEM), "receita de rotina")
+
+    assert any("mediflow-documentos-clinicos/processados/rotina" in s.value for s in at.success)
+
+
 # ---------- Triagem (API real)
 
 @pytest.mark.usefixtures("modo_api_real")
@@ -178,6 +184,21 @@ def test_triagem_real_com_falha_da_api_mostra_erro_e_nenhum_resultado(simular_ro
     assert not at.success
     assert not any("URGENTE" in m.value for m in at.markdown)
     assert not at.caption
+
+
+@pytest.mark.usefixtures("modo_api_real")
+def test_triagem_real_com_backup_falho_nao_aparece_como_salvo(simular_rotas):
+    resposta = {
+        **RESPOSTA_DA_TRIAGEM,
+        "armazenamento_oci": {"bucket": "b", "caminho_objeto": "c.json", "status_backup": "falha: OCI fora do ar"},
+    }
+    simular_rotas({("POST", PREFIXO): (200, resposta)})
+
+    at = _analisar_texto(_abrir(TRIAGEM), "suspeita de TEP")
+
+    assert not at.exception
+    assert any("backup não foi gravado" in e.value for e in at.error)
+    assert not any("Documento salvo" in s.value for s in at.success)
 
 
 @pytest.mark.usefixtures("modo_api_real")

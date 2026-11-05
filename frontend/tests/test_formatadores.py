@@ -1,7 +1,11 @@
 import pytest
 
 from utils.formatadores import (
+    NIVEL_AVISO,
+    NIVEL_ERRO,
+    NIVEL_SUCESSO,
     crm_do_medico,
+    descrever_armazenamento,
     nome_do_paciente,
     normalizar_prioridade,
     rotular_prioridade,
@@ -80,3 +84,39 @@ def test_le_o_nome_do_paciente_em_objeto_ou_texto(paciente, esperado):
 )
 def test_le_o_crm_em_qualquer_um_dos_dois_campos(medico, esperado):
     assert crm_do_medico(medico) == esperado
+
+
+@pytest.mark.parametrize(
+    "status, nivel",
+    [
+        ("sucesso", NIVEL_SUCESSO),
+        ("SUCESSO", NIVEL_SUCESSO),
+        ("sucesso_local", NIVEL_AVISO),
+        ("sucesso (local_simulado)", NIVEL_AVISO),
+        ("falha: conexão recusada", NIVEL_ERRO),
+        ("Falha", NIVEL_ERRO),
+        ("algo novo", NIVEL_AVISO),
+        (None, NIVEL_AVISO),
+    ],
+)
+def test_classifica_o_status_do_backup(status, nivel):
+    armazenamento = {"bucket": "mediflow", "caminho_objeto": "processados/DOC-1.json", "status_backup": status}
+
+    assert descrever_armazenamento(armazenamento)[0] == nivel
+
+
+def test_armazenamento_com_sucesso_mostra_bucket_e_caminho():
+    armazenamento = {"bucket": "mediflow", "caminho_objeto": "processados/DOC-1.json", "status_backup": "sucesso"}
+
+    assert descrever_armazenamento(armazenamento)[1] == "Documento salvo em mediflow/processados/DOC-1.json"
+
+
+def test_falha_de_backup_nao_vaza_o_erro_interno():
+    armazenamento = {"status_backup": "falha: /etc/segredo permission denied", "caminho_objeto": "x.json"}
+
+    assert "segredo" not in descrever_armazenamento(armazenamento)[1]
+
+
+@pytest.mark.parametrize("armazenamento", [None, {}])
+def test_sem_informacao_de_armazenamento_nao_mostra_nada(armazenamento):
+    assert descrever_armazenamento(armazenamento) is None
