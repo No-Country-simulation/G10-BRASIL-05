@@ -157,6 +157,17 @@ def test_previa_de_imagem_mostra_a_imagem():
     assert not at.info
 
 
+def test_previa_de_imagem_grande_fica_limitada_a_uma_altura_fixa():
+    from components.cards import ALTURA_DA_PREVIA_EM_PIXELS
+
+    at = _renderizar_previa("receita.png")
+
+    caixa = next(bloco for bloco in at.main if bloco.type == "flex_container")
+    assert caixa.proto.height_config.pixel_height == ALTURA_DA_PREVIA_EM_PIXELS
+    assert [filho.type for filho in caixa.children.values()] == ["caption", "image"]
+    assert "receita.png" in caixa.children[0].value
+
+
 def test_previa_de_pdf_mostra_nome_e_tamanho():
     at = _renderizar_previa("laudo.PDF")
 

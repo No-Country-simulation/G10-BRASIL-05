@@ -29,12 +29,15 @@ ALERTA_DESTINO_DESCONHECIDO = (st.info, "ℹ️", "Destino não reconhecido")
 
 EXTENSOES_DE_IMAGEM = ("png", "jpg", "jpeg", "webp")
 BYTES_POR_KB = 1024
+ALTURA_DA_PREVIA_EM_PIXELS = 280
 
 
 def exibir_previa_do_arquivo(arquivo) -> None:
     extensao = arquivo.name.rsplit(".", 1)[-1].lower()
     if extensao in EXTENSOES_DE_IMAGEM:
-        st.image(arquivo, caption=f"Pré-visualização: {arquivo.name}", width="stretch")
+        with st.container(height=ALTURA_DA_PREVIA_EM_PIXELS, border=True):
+            st.caption(f"Pré-visualização: {arquivo.name}")
+            st.image(arquivo, width="stretch")
     elif extensao == "pdf":
         st.info(f"📄 PDF carregado: **{arquivo.name}** ({arquivo.size / BYTES_POR_KB:.1f} KB)")
 
