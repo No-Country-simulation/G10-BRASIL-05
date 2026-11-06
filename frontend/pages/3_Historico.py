@@ -1,13 +1,18 @@
 import streamlit as st
 
 from components.cards import exibir_resultado_da_triagem
+from components.erros import chamar_api_ou_parar
 from services.api_client import buscar_documento, listar_documentos
-from utils.historico import FILTROS_DE_STATUS, filtrar_por_status, montar_linhas_da_tabela
+from utils.historico import (
+    FILTROS_DE_STATUS,
+    filtrar_por_status,
+    montar_tabela_estilizada,
+)
 
 st.title("Histórico")
 st.write("Consulte os documentos já processados pelo MediFlow.")
 
-documentos = listar_documentos()
+documentos = chamar_api_ou_parar(listar_documentos)
 filtro = st.radio("Filtrar por status", FILTROS_DE_STATUS, horizontal=True)
 documentos_filtrados = filtrar_por_status(documentos, filtro)
 
@@ -16,7 +21,7 @@ if not documentos_filtrados:
     st.stop()
 
 st.caption(f"{len(documentos_filtrados)} documento(s)")
-st.dataframe(montar_linhas_da_tabela(documentos_filtrados), hide_index=True, width="stretch")
+st.dataframe(montar_tabela_estilizada(documentos_filtrados), hide_index=True, width="stretch")
 
 identificadores = [documento.get("documento_id") for documento in documentos_filtrados]
 escolhido = st.selectbox(

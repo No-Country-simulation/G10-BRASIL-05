@@ -1,0 +1,2 @@
+class ErroDeApi(Exception):
+    pass

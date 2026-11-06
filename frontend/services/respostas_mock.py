@@ -14,9 +14,8 @@ RESPOSTA_ROTINA = {
         "medico_solicitante": {"nome": "Dr. Paulo Andrade", "crm": "123456-SP"},
         "medicamentos": [
             {
-                "nome": "Amoxicilina",
-                "dosagem": "500 mg",
-                "posologia": "1 cápsula a cada 8 horas por 7 dias",
+                "medicamento": "Amoxicilina",
+                "dosagem": "500 mg, 1 cápsula a cada 8 horas por 7 dias",
             }
         ],
         "diagnostico_principal": "Faringite aguda",
@@ -81,9 +80,8 @@ RESPOSTA_AMBIGUA = {
         "medico_solicitante": {"nome": "Não legível", "crm": None},
         "medicamentos": [
             {
-                "nome": "Losartana (trecho ilegível)",
+                "medicamento": "Losartana (trecho ilegível)",
                 "dosagem": None,
-                "posologia": None,
             }
         ],
         "diagnostico_principal": None,
@@ -102,6 +100,7 @@ RESPOSTA_AMBIGUA = {
     },
 }
 
+
 def _variar_resposta(base: dict, documento_id: str, nome_paciente: str) -> dict:
     resposta = deepcopy(base)
     resposta["documento_id"] = documento_id
@@ -118,12 +117,20 @@ HISTORICO_MOCK = [
     _variar_resposta(RESPOSTA_AMBIGUA, "DOC-CLIN-2026-0006", "M. Souza"),
 ]
 
-def _montar_item_de_auditoria(documento_id: str, nome_paciente: str, score: float) -> dict:
+
+def _montar_item_de_auditoria(
+    documento_id: str,
+    nome_paciente: str,
+    score: float,
+    prioridade: str,
+    criado_em: str,
+) -> dict:
     dados = deepcopy(RESPOSTA_AMBIGUA["dados_extraidos"])
     dados["paciente"]["nome"] = nome_paciente
     return {
         "documento_id": documento_id,
         "tipo_documento": RESPOSTA_AMBIGUA["classificacao"]["tipo_documento"],
+        "nivel_prioridade": prioridade,
         "score_confianca": score,
         "dados_extraidos": dados,
         "justificativa_roteamento": RESPOSTA_AMBIGUA["decisao_roteamento"]["justificativa_roteamento"],
@@ -132,12 +139,12 @@ def _montar_item_de_auditoria(documento_id: str, nome_paciente: str, score: floa
             f"RECEITUARIO MEDICO. Paciente: {nome_paciente}. "
             "Medico: nome ilegivel, CRM ausente. Prescricao: Losartana (trecho ilegivel)."
         ),
-        "created_at": "2026-10-27T09:30:00",
+        "created_at": criado_em,
     }
 
 
 FILA_AUDITORIA_MOCK = [
-    _montar_item_de_auditoria("DOC-CLIN-2026-0003", "João P. Lima", 0.58),
-    _montar_item_de_auditoria("DOC-CLIN-2026-0006", "M. Souza", 0.66),
-    _montar_item_de_auditoria("DOC-CLIN-2026-0007", "Paulo R. Nunes", 0.62),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0003", "João P. Lima", 0.58, "ROTINA", "2026-10-27T09:30:00"),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0006", "M. Souza", 0.66, "URGENTE", "2026-10-27T09:45:00"),
+    _montar_item_de_auditoria("DOC-CLIN-2026-0007", "Paulo R. Nunes", 0.62, "EMERGENCIA", "2026-10-27T10:00:00"),
 ]
