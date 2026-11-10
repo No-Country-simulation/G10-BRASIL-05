@@ -66,6 +66,13 @@ def aplicar_correcoes(dados_extraidos: dict, correcoes: dict) -> dict:
         dados["paciente"] = _paciente_com_nome(dados.get("paciente"), correcoes["paciente_nome"])
     if "medico_nome" in correcoes or "crm" in correcoes:
         dados["medico_solicitante"] = _medico_corrigido(dados.get("medico_solicitante"), correcoes)
+    if "medico_solicitante" in dados and dados["medico_solicitante"]:
+        medico = dict(dados["medico_solicitante"])
+        if "crm" in medico:
+            crm_uf = medico.get("crm_uf") or medico.get("crm")
+            medico.pop("crm")
+            medico["crm_uf"] = crm_uf
+            dados["medico_solicitante"] = medico
     for campo in ("diagnostico_principal", "cid_sugerido"):
         if campo in correcoes:
             dados[campo] = correcoes[campo]
@@ -120,10 +127,6 @@ def _medico_corrigido(medico: dict | None, correcoes: dict) -> dict:
     if "medico_nome" in correcoes:
         corrigido["nome"] = correcoes["medico_nome"]
     if "crm" in correcoes:
-        corrigido[_campo_do_crm(corrigido)] = correcoes["crm"]
+        corrigido["crm_uf"] = correcoes["crm"]
+        corrigido.pop("crm", None)
     return corrigido
-
-
-def _campo_do_crm(medico: dict) -> str:
-    # Escreve no mesmo campo em que o CRM veio, pois o schema não aceita campos extras
-    return "crm_uf" if "crm_uf" in medico and "crm" not in medico else "crm"
