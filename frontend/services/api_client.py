@@ -1,195 +1,62 @@
-import os
-from copy import deepcopy
-import httpx
-
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/")
-
-from services.respostas_mock import (
-    FILA_AUDITORIA_MOCK,
-    HISTORICO_MOCK,
-    RESPOSTA_AMBIGUA,
-    RESPOSTA_ROTINA,
-    RESPOSTA_URGENCIA,
-)
-
-TERMOS_DE_URGENCIA = ("tep", "embolia", "urgente")
-TERMOS_DE_AMBIGUIDADE = ("ilegível", "ilegivel", "rasurado", "crm ausente")
+from services import cliente_http, cliente_mock, cliente_whatsapp
+from services.configuracao import usar_dados_simulados
+from services.erros import ErroDeApi
 
 
 def enviar_documento(requisicao: dict, arquivo=None) -> dict:
-    # 1. Se um arquivo binário clínico (PDF ou Imagem) foi enviado na interface
-    if arquivo is not None and getattr(arquivo, "name", None):
-        extensao = arquivo.name.rsplit(".", 1)[-1].lower()
-        if extensao in ("pdf", "png", "jpg", "jpeg", "webp"):
-            try:
-                url = f"{BACKEND_URL}/api/v1/triagem/upload"
-                conteudo = arquivo.getvalue() if hasattr(arquivo, "getvalue") else arquivo.read()
-                mimetypes = {
-                    "pdf": "application/pdf",
-                    "png": "image/png",
-                    "jpg": "image/jpeg",
-                    "jpeg": "image/jpeg",
-                    "webp": "image/webp",
-                }
-                mime = getattr(arquivo, "type", None) or mimetypes.get(extensao, "application/octet-stream")
-                files = {"file": (arquivo.name, conteudo, mime)}
-                data = {"canal_origem": requisicao.get("canal_origem", "Pronto_Socorro")}
-                if requisicao.get("documento_id"):
-                    data["documento_id"] = requisicao["documento_id"]
-                resp = httpx.post(url, files=files, data=data, timeout=60.0)
-                if resp.status_code == 200:
-                    return resp.json()
-            except Exception:
-                pass
-
-    # 2. Envio de documento de texto/JSON via endpoint padrão
-    try:
-        url = f"{BACKEND_URL}/api/v1/triagem"
-        resp = httpx.post(url, json=requisicao, timeout=30.0)
-        if resp.status_code == 200:
-            return resp.json()
-    except Exception:
-        pass
-    return deepcopy(_escolher_resposta_mock(requisicao.get("documento_texto", "")))
+    return _cliente().enviar_documento(requisicao, arquivo)
 
 
 def listar_documentos() -> list[dict]:
-    try:
-        url = f"{BACKEND_URL}/api/v1/triagem/documentos"
-        resp = httpx.get(url, timeout=10.0)
-        if resp.status_code == 200:
-            return resp.json()
-    except Exception:
-        pass
-    return [_resumir_documento(documento, posicao) for posicao, documento in enumerate(HISTORICO_MOCK)]
+    return _cliente().listar_documentos()
 
 
 def buscar_documento(documento_id: str) -> dict | None:
-    try:
-        url = f"{BACKEND_URL}/api/v1/triagem/documentos"
-        resp = httpx.get(url, timeout=10.0)
-        if resp.status_code == 200:
-            for doc in resp.json():
-                if doc.get("documento_id") == documento_id:
-                    return deepcopy(doc)
-    except Exception:
-        pass
-
-    for documento in HISTORICO_MOCK:
-        if documento["documento_id"] == documento_id:
-            return deepcopy(documento)
-    return None
+    return _cliente().buscar_documento(documento_id)
 
 
 def listar_fila_auditoria() -> list[dict]:
-    try:
-        url = f"{BACKEND_URL}/api/v1/triagem/auditoria"
-        resp = httpx.get(url, timeout=10.0)
-        if resp.status_code == 200:
-            return resp.json()
-    except Exception:
-        pass
-    return deepcopy(FILA_AUDITORIA_MOCK)
+    return _cliente().listar_fila_auditoria()
 
 
 def registrar_decisao(documento_id: str, decisao: dict) -> dict:
-    try:
-        url = f"{BACKEND_URL}/api/v1/triagem/auditoria/{documento_id}/decisao"
-        resp = httpx.post(url, json=decisao, timeout=10.0)
-        if resp.status_code == 200:
-            return resp.json()
-    except Exception:
-        pass
-
-    return {
-        "mensagem": "Decisão de auditoria registrada com sucesso.",
-        "documento_id": documento_id,
-        "novo_status": f"auditoria_{decisao['status_aprovacao']}",
-    }
+    _exigir_api_real("registrar a decisão de auditoria")
+    return cliente_http.registrar_decisao(documento_id, decisao)
 
 
-def _escolher_resposta_mock(documento_texto: str) -> dict:
-    texto = documento_texto.lower()
-    if any(termo in texto for termo in TERMOS_DE_URGENCIA):
-        return RESPOSTA_URGENCIA
-    if any(termo in texto for termo in TERMOS_DE_AMBIGUIDADE):
-        return RESPOSTA_AMBIGUA
-    return RESPOSTA_ROTINA
-
-
-def _resumir_documento(documento: dict, posicao: int) -> dict:
-    classificacao = documento["classificacao"]
-    decisao = documento["decisao_roteamento"]
-    requer_auditoria = decisao["requer_auditoria_humana"]
-    return {
-        "documento_id": documento["documento_id"],
-        "tipo_documento": classificacao["tipo_documento"],
-        "nivel_prioridade": classificacao["nivel_prioridade"],
-        "score_confianca": classificacao["score_confianca_classificacao"],
-        "destino_principal": decisao["destino_principal"],
-        "status_processamento": "em_auditoria" if requer_auditoria else "processado",
-        "requer_auditoria_humana": requer_auditoria,
-        "created_at": f"2026-10-27T{9 + posicao:02d}:00:00",
-    }
-
-
-# ------------------------------------------------------------------------------
-# WhatsApp / Evolution API Client
-# ------------------------------------------------------------------------------
 def obter_status_whatsapp() -> dict:
-    """Consulta o status da conexão do WhatsApp via backend."""
-    try:
-        url = f"{BACKEND_URL}/api/v1/webhook/evolution/status-instancia"
-        resp = httpx.get(url, timeout=5.0)
-        if resp.status_code == 200:
-            return resp.json()
-        return {"conectado": False, "estado": f"HTTP {resp.status_code}", "detalhes": resp.text}
-    except Exception as e:
-        return {"conectado": False, "estado": "offline", "detalhes": f"Backend indisponível: {e}"}
+    _exigir_api_real("consultar o status do WhatsApp")
+    return cliente_whatsapp.obter_status()
 
 
-def obter_qrcode_whatsapp() -> dict:
-    """Solicita a geração ou leitura do QR Code do WhatsApp."""
-    try:
-        url = f"{BACKEND_URL}/api/v1/webhook/evolution/conectar"
-        resp = httpx.post(url, timeout=15.0)
-        if resp.status_code == 200:
-            return resp.json()
-        return {"sucesso": False, "erro": resp.text}
-    except Exception as e:
-        return {"sucesso": False, "erro": str(e)}
+def gerar_qrcode_whatsapp() -> dict:
+    _exigir_api_real("gerar o QR Code do WhatsApp")
+    return cliente_whatsapp.gerar_qrcode()
 
 
-def configurar_webhook_whatsapp(webhook_url: str = None) -> dict:
-    """Configura o webhook de escuta na Evolution API."""
-    try:
-        url = f"{BACKEND_URL}/api/v1/webhook/evolution/configurar-webhook"
-        payload = {"url": webhook_url} if webhook_url else {}
-        resp = httpx.post(url, json=payload, timeout=10.0)
-        if resp.status_code == 200:
-            return resp.json()
-        return {"sucesso": False, "erro": resp.text}
-    except Exception as e:
-        return {"sucesso": False, "erro": str(e)}
-
-
-def enviar_teste_whatsapp(numero: str, texto: str) -> dict:
-    """Dispara uma mensagem de teste para o WhatsApp informado."""
-    try:
-        url = f"{BACKEND_URL}/api/v1/webhook/evolution/enviar-teste"
-        resp = httpx.post(url, json={"numero": numero, "texto": texto}, timeout=15.0)
-        if resp.status_code == 200:
-            return {"sucesso": True, "dados": resp.json()}
-        return {"sucesso": False, "erro": resp.text}
-    except Exception as e:
-        return {"sucesso": False, "erro": str(e)}
+def configurar_webhook_whatsapp(url: str | None = None) -> dict:
+    _exigir_api_real("configurar o webhook do WhatsApp")
+    return cliente_whatsapp.configurar_webhook(url)
 
 
 def desconectar_whatsapp() -> dict:
-    """Desconecta a sessão ativa do WhatsApp."""
-    try:
-        url = f"{BACKEND_URL}/api/v1/webhook/evolution/desconectar"
-        resp = httpx.post(url, timeout=10.0)
-        return resp.json()
-    except Exception as e:
-        return {"sucesso": False, "erro": str(e)}
+    _exigir_api_real("desconectar o WhatsApp")
+    return cliente_whatsapp.desconectar()
+
+
+def enviar_teste_whatsapp(numero: str, texto: str) -> dict:
+    _exigir_api_real("enviar a mensagem de teste do WhatsApp")
+    return cliente_whatsapp.enviar_mensagem_de_teste(numero, texto)
+
+
+def _cliente():
+    return cliente_mock if usar_dados_simulados() else cliente_http
+
+
+def _exigir_api_real(acao: str) -> None:
+    # Ações que gravam ou enviam algo nunca são simuladas: sem API real, falham
+    if usar_dados_simulados():
+        raise ErroDeApi(
+            f"Não foi possível {acao}: o modo demonstração não usa a API real. "
+            "Nada foi salvo nem enviado."
+        )

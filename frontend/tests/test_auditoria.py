@@ -10,6 +10,8 @@ from utils.auditoria import (
     calcular_correcoes,
     extrair_valores_editaveis,
     montar_decisao,
+    montar_rotulo_da_fila,
+    ordenar_fila,
     validar_decisao,
 )
 
@@ -194,3 +196,96 @@ def test_remove_espacos_do_auditor_e_da_justificativa():
 
     assert decisao["auditor_nome"] == "Dra. Ana"
     assert decisao["justificativa"] == "ok"
+
+def test_aplicar_correcoes_mantem_paciente_como_texto_quando_veio_como_texto():
+    corrigidos = aplicar_correcoes({"paciente": "Maria Silva"}, {"paciente_nome": "Maria Souza"})
+
+    assert corrigidos["paciente"] == "Maria Souza"
+
+
+def test_aplicar_correcoes_preserva_a_idade_ao_corrigir_o_nome():
+    corrigidos = aplicar_correcoes(DADOS, {"paciente_nome": "Maria Souza"})
+
+    assert corrigidos["paciente"] == {"nome": "Maria Souza", "idade": 34}
+
+
+def test_aplicar_correcoes_escreve_o_crm_no_campo_em_que_ele_veio():
+    dados = {"medico_solicitante": {"nome": "João", "crm_uf": "12345-SP"}}
+
+    corrigidos = aplicar_correcoes(dados, {"crm": "99999-SP"})
+
+    assert corrigidos["medico_solicitante"] == {"nome": "João", "crm_uf": "99999-SP"}
+
+
+def test_aplicar_correcoes_nao_cria_medico_sem_correcao_do_medico():
+    corrigidos = aplicar_correcoes({}, {"cid_sugerido": "J03.9"})
+
+    assert "medico_solicitante" not in corrigidos
+
+
+def _item(documento_id: str, prioridade: str | None, score: float | None, criado_em: str = "2026-10-27T09:00:00") -> dict:
+    return {
+        "documento_id": documento_id,
+        "nivel_prioridade": prioridade,
+        "score_confianca": score,
+        "created_at": criado_em,
+    }
+
+
+def _ids(fila: list[dict]) -> list[str]:
+    return [item["documento_id"] for item in fila]
+
+
+def test_ordena_de_emergencia_para_rotina():
+    fila = [_item("A", "ROTINA", 0.5), _item("B", "URGENTE", 0.5), _item("C", "EMERGENCIA", 0.5)]
+
+    assert _ids(ordenar_fila(fila)) == ["C", "B", "A"]
+
+
+def test_ordena_prioridade_em_qualquer_formato_de_texto():
+    fila = [_item("A", "Rotina", 0.5), _item("B", "Urgente", 0.5), _item("C", "Emergência", 0.5)]
+
+    assert _ids(ordenar_fila(fila)) == ["C", "B", "A"]
+
+
+def test_desempata_pela_menor_confianca():
+    fila = [_item("A", "URGENTE", 0.9), _item("B", "URGENTE", 0.4)]
+
+    assert _ids(ordenar_fila(fila)) == ["B", "A"]
+
+
+def test_desempata_pelo_mais_antigo():
+    fila = [
+        _item("NOVO", "URGENTE", 0.5, "2026-10-27T10:00:00"),
+        _item("ANTIGO", "URGENTE", 0.5, "2026-10-27T08:00:00"),
+    ]
+
+    assert _ids(ordenar_fila(fila)) == ["ANTIGO", "NOVO"]
+
+
+def test_prioridade_desconhecida_fica_entre_urgente_e_rotina():
+    fila = [_item("A", "ROTINA", 0.5), _item("B", "Indefinido", 0.5), _item("C", "URGENTE", 0.5)]
+
+    assert _ids(ordenar_fila(fila)) == ["C", "B", "A"]
+
+
+def test_ordena_sem_quebrar_com_campos_ausentes():
+    fila = [{"documento_id": "A"}, {"documento_id": "B"}]
+
+    assert sorted(_ids(ordenar_fila(fila))) == ["A", "B"]
+
+
+def test_ordenar_nao_altera_a_lista_original():
+    fila = [_item("A", "ROTINA", 0.5), _item("B", "EMERGENCIA", 0.5)]
+
+    ordenar_fila(fila)
+
+    assert _ids(fila) == ["A", "B"]
+
+
+def test_rotulo_mostra_a_prioridade():
+    assert montar_rotulo_da_fila(_item("DOC-1", "EMERGENCIA", 0.5)) == "DOC-1 · Emergência"
+
+
+def test_rotulo_sem_prioridade_mostra_so_o_codigo():
+    assert montar_rotulo_da_fila(_item("DOC-1", None, 0.5)) == "DOC-1"
