@@ -1,3 +1,7 @@
+[server]
+# Mesmo limite que o backend aceita no upload de PDF e imagem
+maxUploadSize = 10
+
 [theme]
 base = "light"
 primaryColor = "#0B3C7A"

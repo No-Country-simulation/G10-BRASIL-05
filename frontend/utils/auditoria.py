@@ -1,5 +1,12 @@
 from copy import deepcopy
 
+from utils.formatadores import (
+    crm_do_medico,
+    nome_do_paciente,
+    normalizar_prioridade,
+    rotular_prioridade,
+)
+
 DECISAO_APROVAR = "Aprovar"
 DECISAO_REJEITAR = "Rejeitar"
 DECISAO_CORRIGIR = "Corrigir"
@@ -19,15 +26,27 @@ CAMPOS_EDITAVEIS = {
 }
 
 ACOES_QUE_EXIGEM_JUSTIFICATIVA = (DECISAO_REJEITAR, DECISAO_CORRIGIR)
+ORDEM_POR_PRIORIDADE = {"EMERGENCIA": 0, "URGENTE": 1, "ROTINA": 3}
+ORDEM_DA_PRIORIDADE_DESCONHECIDA = 2
+
+
+def ordenar_fila(fila: list[dict]) -> list[dict]:
+    return sorted(fila, key=_chave_de_ordenacao)
+
+
+def montar_rotulo_da_fila(item: dict) -> str:
+    documento_id = item.get("documento_id") or "-"
+    prioridade = rotular_prioridade(item.get("nivel_prioridade"))
+    return f"{documento_id} · {prioridade}" if prioridade else documento_id
 
 
 def extrair_valores_editaveis(item: dict) -> dict:
     dados = item.get("dados_extraidos") or {}
     medico = dados.get("medico_solicitante") or {}
     return {
-        "paciente_nome": _nome_do_paciente(dados.get("paciente")),
+        "paciente_nome": nome_do_paciente(dados.get("paciente")) or "",
         "medico_nome": medico.get("nome") or "",
-        "crm": medico.get("crm") or medico.get("crm_uf") or "",
+        "crm": crm_do_medico(medico) or "",
         "diagnostico_principal": dados.get("diagnostico_principal") or "",
         "cid_sugerido": dados.get("cid_sugerido") or "",
     }
@@ -44,20 +63,16 @@ def calcular_correcoes(valores_atuais: dict, valores_editados: dict) -> dict:
 def aplicar_correcoes(dados_extraidos: dict, correcoes: dict) -> dict:
     dados = deepcopy(dados_extraidos)
     if "paciente_nome" in correcoes:
-        dados["paciente"] = _com_valor(dados.get("paciente"), "nome", correcoes["paciente_nome"])
-    if "medico_nome" in correcoes:
-        dados["medico_solicitante"] = _com_valor(
-            dados.get("medico_solicitante"), "nome", correcoes["medico_nome"]
-        )
-    medico = dict(dados.get("medico_solicitante") or {})
-    crm_uf = medico.get("crm_uf") or medico.get("crm")
-    if "crm" in medico:
-        medico.pop("crm")
-        medico["crm_uf"] = crm_uf
-    if "crm" in correcoes:
-        medico["crm_uf"] = correcoes["crm"]
-    if medico:
-        dados["medico_solicitante"] = medico
+        dados["paciente"] = _paciente_com_nome(dados.get("paciente"), correcoes["paciente_nome"])
+    if "medico_nome" in correcoes or "crm" in correcoes:
+        dados["medico_solicitante"] = _medico_corrigido(dados.get("medico_solicitante"), correcoes)
+    if "medico_solicitante" in dados and dados["medico_solicitante"]:
+        medico = dict(dados["medico_solicitante"])
+        if "crm" in medico:
+            crm_uf = medico.get("crm_uf") or medico.get("crm")
+            medico.pop("crm")
+            medico["crm_uf"] = crm_uf
+            dados["medico_solicitante"] = medico
     for campo in ("diagnostico_principal", "cid_sugerido"):
         if campo in correcoes:
             dados[campo] = correcoes[campo]
@@ -93,13 +108,25 @@ def montar_decisao(
     }
 
 
-def _com_valor(objeto, chave: str, valor: str) -> dict:
-    novo = dict(objeto) if isinstance(objeto, dict) else {}
-    novo[chave] = valor
-    return novo
+def _chave_de_ordenacao(item: dict) -> tuple[int, float, str]:
+    nivel = normalizar_prioridade(item.get("nivel_prioridade"))
+    ordem = ORDEM_POR_PRIORIDADE.get(nivel, ORDEM_DA_PRIORIDADE_DESCONHECIDA)
+    score = item.get("score_confianca")
+    return ordem, score if score is not None else 0.0, item.get("created_at") or ""
 
 
-def _nome_do_paciente(paciente) -> str:
-    if isinstance(paciente, dict):
-        return paciente.get("nome") or ""
-    return paciente or ""
+def _paciente_com_nome(paciente, nome: str):
+    # Mantém o formato recebido: texto continua texto e objeto continua objeto
+    if isinstance(paciente, str):
+        return nome
+    return {**(paciente or {}), "nome": nome}
+
+
+def _medico_corrigido(medico: dict | None, correcoes: dict) -> dict:
+    corrigido = dict(medico or {})
+    if "medico_nome" in correcoes:
+        corrigido["nome"] = correcoes["medico_nome"]
+    if "crm" in correcoes:
+        corrigido["crm_uf"] = correcoes["crm"]
+        corrigido.pop("crm", None)
+    return corrigido
