@@ -149,12 +149,16 @@ class ArquivosOCIRepository(StorageRepository):
         caminho_atual: str,
         is_urgente: bool = False,
         requer_auditoria: bool = False,
+        nao_classificado: bool = False,
     ) -> Dict[str, str]:
         """Move o arquivo original de recebidos/ para a pasta do resultado da triagem (SCRUM-73).
 
-        Usa a mesma prioridade do salvar_triagem_json: auditoria > urgente > rotina.
+        Prioridade: não classificado > auditoria > urgente > rotina (as três últimas iguais ao salvar_triagem_json).
+        Não classificado = documento que não é clínico (não é laudo, receita, exame...).
         """
-        if requer_auditoria:
+        if nao_classificado:
+            prefixo = "nao_classificados"
+        elif requer_auditoria:
             prefixo = "auditoria_humana"
         elif is_urgente:
             prefixo = "processados/urgentes"

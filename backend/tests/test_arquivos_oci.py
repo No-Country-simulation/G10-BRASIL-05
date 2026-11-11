@@ -106,6 +106,18 @@ def test_mover_por_status_envia_para_pasta_certa(repo, is_urgente, requer_audito
     assert repo.client.objetos[destino]["conteudo"] == b"%PDF-1.4"
 
 
+@pytest.mark.parametrize("is_urgente, requer_auditoria", [(False, False), (True, False), (False, True)])
+def test_nao_classificado_tem_prioridade(repo, is_urgente, requer_auditoria):
+    repo.salvar_arquivo_original("DOC-018", b"fatura", "fatura.pdf", "application/pdf")
+
+    resultado = repo.mover_por_status(
+        "recebidos/DOC-018.pdf", is_urgente, requer_auditoria, nao_classificado=True
+    )
+
+    assert resultado["caminho_objeto"] == "nao_classificados/DOC-018.pdf"
+    assert resultado["status_backup"] == "sucesso"
+
+
 def test_mover_arquivo_inexistente_retorna_falha(repo):
     resultado = repo.mover_por_status("recebidos/nao-existe.pdf", is_urgente=True)
 

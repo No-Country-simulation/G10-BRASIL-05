@@ -43,3 +43,12 @@ Depois da triagem, o JSON do resultado vai para `processados/urgentes/`, `proces
 - **Riscos / Trade-offs:** O método ainda não é chamado pela aplicação. A ligação no `TriagemService` (upload no início, mover no fim) precisa ser combinada com o dono do arquivo (P1/P4).
 - **Pendência:** Definir com o P6 se, depois da decisão médica, o arquivo sai de `auditoria_humana/` para `processados/`.
 - **Validação / Testes:** 12 testes em `test_arquivos_oci.py`, com cliente OCI falso.
+
+---
+
+## Atualização (2026-11-11): pasta `nao_classificados/`
+- **Por quê:** o sistema também vai receber documentos que não são clínicos (não são laudo, receita, exame...). Eles não devem misturar-se com a rotina nem ocupar a fila de auditoria médica.
+- **Como:** novo parâmetro `nao_classificado` em `mover_por_status`, com a maior prioridade: não classificado > auditoria > urgente > rotina.
+- **Infra:** criar a pasta `nao_classificados/` no bucket (console OCI).
+- **Pendências:** quem decide que o documento "não é clínico" é a classificação (agente, P2/P3), que precisa devolver essa informação. O `salvar_triagem_json` (P1) ainda não conhece essa pasta, e o JSON desses documentos vai para outra pasta até o autor decidir.
+- **Testes:** +3 (29 no total).
