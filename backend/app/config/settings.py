@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     OCI_TENANCY_OCID: str = ""
     OCI_FINGERPRINT: str = ""
     OCI_KEY_FILE: str = ""
-    OCI_REGION: str = "sa-saopaulo-1"
+    OCI_REGION: str = "us-ashburn-1"
     OCI_NAMESPACE: str = ""
     OCI_BUCKET_NAME: str = "mediflow-documentos-clinicos"
 
