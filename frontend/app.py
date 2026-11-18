@@ -15,7 +15,50 @@ st.markdown(
     """
     <style>
     /* ========================================================
-       LOGO & CABEÇALHO DO SIDEBAR
+       CABEÇALHO SUPERIOR (LIMPO E SEM LOGO FLUTUANTE)
+       ======================================================== */
+    header[data-testid="stHeader"] {
+        background-color: transparent !important;
+        border-bottom: none !important;
+        height: 3.5rem !important;
+    }
+    /* Oculta botão Deploy padrão do Streamlit */
+    .stDeployButton,
+    [data-testid="stDeployButton"] {
+        display: none !important;
+    }
+    /* Remove a logo do cabeçalho superior quando recolhido */
+    [data-testid="stSidebarCollapsedControl"] img,
+    [data-testid="stSidebarCollapsedControl"] [data-testid="stSidebarLogo"],
+    header[data-testid="stHeader"] img {
+        display: none !important;
+    }
+    /* Centraliza o botão >> no topo da faixa de 80px */
+    [data-testid="stSidebarCollapsedControl"] {
+        position: fixed !important;
+        top: 12px !important;
+        left: 0 !important;
+        width: 80px !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        z-index: 105 !important;
+    }
+    [data-testid="stSidebarCollapsedControl"] button {
+        background: transparent !important;
+        border: none !important;
+        color: #0B3C7A !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+        transition: all 150ms ease !important;
+    }
+    [data-testid="stSidebarCollapsedControl"] button:hover {
+        background-color: rgba(0, 157, 187, 0.12) !important;
+        color: #009DBB !important;
+    }
+
+    /* ========================================================
+       LOGO & CABEÇALHO DO SIDEBAR EXPANDIDO
        ======================================================== */
     [data-testid="stSidebarHeader"] {
         padding-top: 1rem !important;
@@ -48,39 +91,16 @@ st.markdown(
         height: 100vh !important;
         z-index: 100 !important;
         background-color: #EAF4F8 !important;
-        box-shadow: 2px 0 8px rgba(11, 42, 91, 0.05) !important;
+        border-right: 1px solid rgba(11, 60, 122, 0.10) !important;
+        box-shadow: 2px 0 10px rgba(11, 42, 91, 0.04) !important;
         transition: width 200ms ease, min-width 200ms ease, max-width 200ms ease !important;
     }
 
-    /* Empurra o conteúdo principal quando a barra estiver recolhida em 80px */
-    [data-testid="stSidebar"][data-collapsed="true"] ~ section.main,
-    [data-testid="stSidebar"][data-collapsed="true"] ~ [data-testid="stMain"],
-    [data-testid="stSidebar"][aria-expanded="false"] ~ section.main,
-    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stMain"] {
-        margin-left: 80px !important;
-    }
-
-    /* Controle flutuante com a logo compacta e o botão >> no topo da faixa de 80px */
-    [data-testid="stSidebarCollapsedControl"] {
-        position: fixed !important;
-        top: 10px !important;
-        left: 4px !important;
-        width: 72px !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        z-index: 102 !important;
-    }
-    [data-testid="stSidebarCollapsedControl"] img {
-        width: 36px !important;
-        height: 36px !important;
-        object-fit: contain !important;
-    }
-
-    /* Cabeçalho da sidebar recolhida cede espaço ao controle flutuante */
+    /* Cabeçalho da sidebar recolhida cede espaço ao botão >> */
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"],
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] {
-        height: 56px !important;
+        height: 52px !important;
+        min-height: 52px !important;
         padding: 0 !important;
         margin: 0 !important;
         visibility: hidden !important;
@@ -91,14 +111,15 @@ st.markdown(
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNav"] {
         display: block !important;
         visibility: visible !important;
-        padding-top: 10px !important;
+        padding-top: 14px !important;
+        border-top: 1px solid rgba(11, 60, 122, 0.08) !important;
     }
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavItems"],
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavItems"] {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
-        gap: 10px !important;
+        gap: 12px !important;
         padding: 0 !important;
     }
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavItems"] li,
@@ -124,7 +145,7 @@ st.markdown(
     }
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"] *,
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] * {
-        font-size: 1.4rem !important;
+        font-size: 1.45rem !important;
     }
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"] span:last-child:not(:only-child),
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] span:last-child:not(:only-child) {
@@ -221,6 +242,39 @@ st.markdown(
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarUserContent"],
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarUserContent"] {
         display: none !important;
+    }
+
+    /* ========================================================
+       SEPARAÇÃO E RESPIRO DO CONTEÚDO PRINCIPAL
+       ======================================================== */
+    /* Quando a barra estiver recolhida (80px), dá margem e respiro generoso */
+    [data-testid="stSidebar"][data-collapsed="true"] ~ section.main,
+    [data-testid="stSidebar"][data-collapsed="true"] ~ [data-testid="stMain"],
+    [data-testid="stSidebar"][aria-expanded="false"] ~ section.main,
+    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stMain"] {
+        margin-left: 80px !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] ~ section.main [data-testid="stMainBlockContainer"],
+    [data-testid="stSidebar"][data-collapsed="true"] ~ [data-testid="stMain"] [data-testid="stMainBlockContainer"],
+    [data-testid="stSidebar"][data-collapsed="true"] ~ section.main .block-container,
+    [data-testid="stSidebar"][data-collapsed="true"] ~ [data-testid="stMain"] .block-container,
+    [data-testid="stSidebar"][aria-expanded="false"] ~ section.main [data-testid="stMainBlockContainer"],
+    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stMain"] [data-testid="stMainBlockContainer"],
+    [data-testid="stSidebar"][aria-expanded="false"] ~ section.main .block-container,
+    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stMain"] .block-container {
+        padding-left: 3.5rem !important;
+        padding-right: 3.5rem !important;
+        padding-top: 2rem !important;
+        max-width: 1400px !important;
+    }
+
+    /* Quando a barra estiver expandida, mantém respiro harmônico */
+    .block-container,
+    [data-testid="stMainBlockContainer"] {
+        padding-left: 2.5rem !important;
+        padding-right: 2.5rem !important;
+        padding-top: 2rem !important;
+        max-width: 1400px !important;
     }
     </style>
     """,
