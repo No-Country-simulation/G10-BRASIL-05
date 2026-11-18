@@ -1,0 +1,200 @@
+:root {
+    --mf-azul: #0B3C7A;
+    --mf-ciano: #009DBB;
+    --mf-texto: #0B2A5B;
+    --mf-rotulo: #315273;
+    --mf-fundo-suave: #8ac1e0;
+    --mf-gradiente: linear-gradient(135deg, var(--mf-azul) 0%, var(--mf-ciano) 100%);
+    --mf-raio: 12px;
+}
+
+/* ==========================================================================
+   1. BOTÕES PRINCIPAIS (type="primary", inclusive os de formulário)
+   ========================================================================== */
+button[data-testid="stBaseButton-primary"],
+button[data-testid="stBaseButton-primaryFormSubmit"] {
+    background: var(--mf-gradiente) !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: var(--mf-raio) !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 1.4rem !important;
+    box-shadow: 0 4px 15px rgba(0, 157, 187, 0.25) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    width: 100%;
+}
+button[data-testid="stBaseButton-primary"] *,
+button[data-testid="stBaseButton-primaryFormSubmit"] * {
+    color: #FFFFFF !important;
+}
+button[data-testid="stBaseButton-primary"]:hover:not(:disabled),
+button[data-testid="stBaseButton-primaryFormSubmit"]:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 157, 187, 0.4) !important;
+}
+button[data-testid="stBaseButton-primary"]:active:not(:disabled),
+button[data-testid="stBaseButton-primaryFormSubmit"]:active:not(:disabled) {
+    transform: none;
+}
+
+/* ==========================================================================
+   2. BOTÕES SECUNDÁRIOS (Rejeitar, Corrigir, Atualizar status...)
+      Contorno azul para não competir com o botão principal da tela.
+   ========================================================================== */
+button[data-testid="stBaseButton-secondary"],
+button[data-testid="stBaseButton-secondaryFormSubmit"] {
+    background: #FFFFFF !important;
+    color: var(--mf-azul) !important;
+    border: 1.5px solid rgba(11, 60, 122, 0.35) !important;
+    border-radius: var(--mf-raio) !important;
+    font-weight: 600 !important;
+    padding: 0.6rem 1.4rem !important;
+    transition: background 0.2s ease, border-color 0.2s ease !important;
+    width: 100%;
+}
+button[data-testid="stBaseButton-secondary"] *,
+button[data-testid="stBaseButton-secondaryFormSubmit"] * {
+    color: var(--mf-azul) !important;
+}
+button[data-testid="stBaseButton-secondary"]:hover:not(:disabled),
+button[data-testid="stBaseButton-secondaryFormSubmit"]:hover:not(:disabled) {
+    background: var(--mf-fundo-suave) !important;
+    border-color: var(--mf-ciano) !important;
+}
+
+/* Botão desabilitado precisa parecer desabilitado */
+button[data-testid^="stBaseButton-"]:disabled {
+    opacity: 0.45;
+    box-shadow: none !important;
+    cursor: not-allowed;
+}
+
+/* ==========================================================================
+   3. ÁREA DE UPLOAD
+   ========================================================================== */
+[data-testid="stFileUploaderDropzone"] {
+    background: rgba(230, 247, 251, 0.4) !important;
+    border: 1.5px dashed rgba(0, 157, 187, 0.4) !important;
+    border-radius: 14px !important;
+    transition: border-color 0.2s ease, background 0.2s ease !important;
+}
+[data-testid="stFileUploaderDropzone"]:hover {
+    border-color: var(--mf-ciano) !important;
+    background: rgba(230, 247, 251, 0.7) !important;
+}
+/* Só o botão "Upload" da área: o "x" de remover arquivo fica como o Streamlit faz */
+[data-testid="stFileUploaderDropzone"] button {
+    background: var(--mf-gradiente) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    width: auto;
+}
+[data-testid="stFileUploaderDropzone"] button,
+[data-testid="stFileUploaderDropzone"] button * {
+    color: #FFFFFF !important;
+}
+
+/* ==========================================================================
+   4. CAIXAS DE DADOS (components/cards.py)
+   ========================================================================== */
+.mediflow-dado-box {
+    background: rgba(230, 247, 251, 0.45);
+    border: 1px solid rgba(0, 157, 187, 0.15);
+    border-radius: var(--mf-raio);
+    padding: 0.8rem 1rem;
+    margin-bottom: 0.75rem;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.mediflow-dado-box:hover {
+    border-color: rgba(0, 157, 187, 0.35);
+    background: rgba(230, 247, 251, 0.75);
+}
+.mediflow-dado-rotulo {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mf-rotulo);
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+}
+.mediflow-dado-valor {
+    font-size: 0.95rem;
+    color: var(--mf-texto);
+    font-weight: 600;
+}
+.mediflow-confianca {
+    font-weight: 700;
+}
+.mediflow-dado-lista {
+    margin: 0.3rem 0 0 1.1rem;
+    padding: 0;
+    color: var(--mf-texto);
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+.mediflow-dado-lista li {
+    margin-bottom: 0.2rem;
+}
+
+/* ==========================================================================
+   5. AVISOS E ERROS (st.error, st.warning, st.success, st.info)
+      Só visual: o texto e a lógica continuam os mesmos.
+   ========================================================================== */
+[data-testid="stAlertContainer"] {
+    border-radius: var(--mf-raio) !important;
+    border-width: 1px 1px 1px 5px !important;
+    border-style: solid !important;
+    padding: 0.9rem 1.1rem !important;
+    box-shadow: 0 2px 8px rgba(11, 42, 91, 0.06);
+}
+[data-testid="stAlertContainer"] p,
+[data-testid="stAlertContainer"] li,
+[data-testid="stAlertContainer"] strong {
+    color: inherit !important;
+}
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]) {
+    background: #FDECEA !important;
+    border-color: #F2B8B5 #F2B8B5 #F2B8B5 #C62828 !important;
+    color: #5B1414 !important;
+}
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentWarning"]) {
+    background: #FFF7E8 !important;
+    border-color: #F6D9A8 #F6D9A8 #F6D9A8 #B45309 !important;
+    color: #5A3205 !important;
+}
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentSuccess"]) {
+    background: #E8F6EE !important;
+    border-color: #B7E1C8 #B7E1C8 #B7E1C8 #1B7F4B !important;
+    color: #0F4A2B !important;
+}
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentInfo"]) {
+    background: #E6F7FB !important;
+    border-color: #B3E3EE #B3E3EE #B3E3EE #009DBB !important;
+    color: #0B2A5B !important;
+}
+
+/* ==========================================================================
+   6. LOGO DA BARRA LATERAL (st.logo em components/barra_lateral.py)
+   ========================================================================== */
+[data-testid="stSidebarHeader"] {
+    height: auto !important;
+    min-height: 5rem;
+    padding-top: 1rem;
+}
+/* Barra ABERTA */
+[data-testid="stSidebarLogo"] {
+    height: 5.5rem !important;
+    max-width: 100% !important;
+    width: auto !important;
+}
+/* Barra RECOLHIDA (ícone no topo do app) */
+[data-testid="stHeader"] img {
+    height: 3.5rem !important;
+    max-height: 3.5rem !important;
+    width: auto !important;
+}
+[data-testid="stHeader"] [data-testid="stLogo"] {
+    height: auto !important;
+    max-height: none !important;
+}

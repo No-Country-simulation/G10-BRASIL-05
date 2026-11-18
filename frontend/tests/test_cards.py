@@ -51,6 +51,11 @@ def _textos(at: AppTest) -> str:
     return "\n".join(elemento.value for elemento in at.markdown)
 
 
+def _valor(texto: str) -> str:
+    # Como cada dado aparece na caixa do card
+    return f'<div class="mediflow-dado-valor">{texto}</div>'
+
+
 def test_mostra_o_resultado_no_formato_da_api():
     at = _renderizar("exibir_resultado_da_triagem", RESPOSTA_DA_API)
 
@@ -58,11 +63,11 @@ def test_mostra_o_resultado_no_formato_da_api():
     assert not at.exception
     assert "URGENTE: encaminhado para a fila de emergência médica" in texto
     assert "ALERTA URGENTE: DOC-1" in texto
-    assert "**Laudo de Exame de Imagem**" in texto
-    assert "**Urgente**" in texto
-    assert "**Carlos Eduardo Mendes, 52 anos**" in texto
-    assert "**Dra. Renata Silveira (CRM 145892-SP)**" in texto
-    assert "**Tomografia de Tórax**" in texto
+    assert _valor("Laudo de Exame de Imagem") in texto
+    assert _valor("Urgente") in texto
+    assert _valor("Carlos Eduardo Mendes, 52 anos") in texto
+    assert _valor("Dra. Renata Silveira (CRM 145892-SP)") in texto
+    assert _valor("Tomografia de Tórax") in texto
 
 
 def test_mostra_dados_no_formato_do_schema_do_backend():
@@ -70,23 +75,22 @@ def test_mostra_dados_no_formato_do_schema_do_backend():
 
     texto = _textos(at)
     assert not at.exception
-    assert "**Maria Silva**" in texto
-    assert "**João Souza (CRM 12345-SP)**" in texto
-    assert "- Amoxicilina · 500 mg" in texto
+    assert _valor("Maria Silva") in texto
+    assert _valor("João Souza (CRM 12345-SP)") in texto
+    assert "<li>Amoxicilina · 500 mg</li>" in texto
 
 
 def test_medicamento_sem_dados_nao_gera_item_vazio():
     at = _renderizar("exibir_dados_extraidos", DADOS_DO_SCHEMA)
 
-    itens = [elemento.value for elemento in at.markdown if elemento.value.startswith("- ")]
-    assert itens == ["- Amoxicilina · 500 mg"]
+    assert _textos(at).count("<li>") == 1
 
 
 def test_dados_ausentes_mostram_nao_informado():
     at = _renderizar("exibir_dados_extraidos", {})
 
     assert not at.exception
-    assert _textos(at).count("**Não informado**") == 4
+    assert _textos(at).count(_valor("Não informado")) == 4
 
 
 def test_documento_de_rotina_aparece_como_aprovado():
@@ -127,7 +131,7 @@ def test_item_de_auditoria_da_api_funciona_sem_prioridade():
 
     assert not at.exception
     assert "CRM ausente." in at.warning[0].value
-    assert ":red[**58%**]" in _textos(at)
+    assert 'style="color:#C62828;">58%</div>' in _textos(at)
 
 
 def _renderizar_previa(nome_do_arquivo: str) -> AppTest:
@@ -233,3 +237,25 @@ def test_alerta_de_urgencia_mostra_o_canal_do_plantao():
     at = _renderizar("exibir_resultado_da_triagem", resposta)
 
     assert "ALERTA URGENTE: DOC-1 (canal: Alerta_Plantao_Medico)" in _textos(at)
+
+
+def test_texto_do_documento_nao_entra_como_html():
+    # Os dados vêm de um documento lido pela IA: não podem virar HTML na tela
+    dados = {"paciente": "<script>alert(1)</script>", "medicamentos": [{"medicamento": "<b>X</b>"}]}
+
+    texto = _textos(_renderizar("exibir_dados_extraidos", dados))
+
+    assert "<script>" not in texto
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in texto
+    assert "<li>&lt;b&gt;X&lt;/b&gt;</li>" in texto
+
+
+def test_cor_da_confianca_segue_as_faixas_do_projeto():
+    # 75% e 85% são os limites de utils/aparencia.py; o card não tem regra própria
+    cores = {0.72: "#C62828", 0.80: "#B45309", 0.90: "#1B7F4B"}
+    for score, cor in cores.items():
+        item = {"tipo_documento": "Laudo", "score_confianca": score, "dados_extraidos": {}}
+
+        texto = _textos(_renderizar("exibir_item_de_auditoria", item))
+
+        assert f'style="color:{cor};">{score:.0%}</div>' in texto

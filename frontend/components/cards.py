@@ -1,9 +1,11 @@
+from html import escape
+
 import streamlit as st
 
 from utils.aparencia import (
+    cor_da_confianca,
     montar_alerta_de_emergencia,
     montar_selo_de_prioridade,
-    texto_colorido_da_confianca,
 )
 from utils.formatadores import (
     NIVEL_AVISO,
@@ -121,27 +123,43 @@ def _exibir_selo_de_prioridade(prioridade: str | None) -> None:
         st.markdown(selo, unsafe_allow_html=True)
 
 
+def _exibir_caixa(rotulo: str, valor_html: str) -> None:
+    # HTML em uma linha só e sem indentação, para o Markdown não tratar como bloco de código
+    st.markdown(
+        '<div class="mediflow-dado-box">'
+        f'<div class="mediflow-dado-rotulo">{escape(rotulo)}</div>'
+        f"{valor_html}"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def _exibir_campo(rotulo: str, valor) -> None:
-    st.caption(rotulo)
-    st.markdown(f"**{valor or NAO_INFORMADO}**")
+    # escape(): os valores vêm do documento lido pela IA, então nunca entram no HTML crus
+    texto = escape(str(valor or NAO_INFORMADO))
+    _exibir_caixa(rotulo, f'<div class="mediflow-dado-valor">{texto}</div>')
 
 
 def _exibir_confianca(score: float | None) -> None:
-    st.caption("Confiança")
-    st.markdown(texto_colorido_da_confianca(score) or f"**{NAO_INFORMADO}**")
+    if score is None:
+        valor_html = f'<div class="mediflow-dado-valor">{NAO_INFORMADO}</div>'
+    else:
+        # Faixas e cores vêm de utils/aparencia.py (mesma regra do Histórico)
+        valor_html = (
+            f'<div class="mediflow-dado-valor mediflow-confianca" '
+            f'style="color:{cor_da_confianca(score)};">{score:.0%}</div>'
+        )
+    _exibir_caixa("Confiança da IA", valor_html)
 
 
 def _exibir_itens_clinicos(dados: dict) -> None:
     exame = dados.get("exame_realizado")
     if exame:
         _exibir_campo("Exame realizado", exame)
-    medicamentos = dados.get("medicamentos") or []
-    if medicamentos:
-        st.caption("Medicamentos")
-        for medicamento in medicamentos:
-            descricao = _formatar_medicamento(medicamento)
-            if descricao:
-                st.markdown(f"- {descricao}")
+    descricoes = [_formatar_medicamento(m) for m in dados.get("medicamentos") or []]
+    itens = "".join(f"<li>{escape(descricao)}</li>" for descricao in descricoes if descricao)
+    if itens:
+        _exibir_caixa("Medicamentos prescritos", f'<ul class="mediflow-dado-lista">{itens}</ul>')
 
 
 def _formatar_notificacao(notificacao: dict) -> str | None:
