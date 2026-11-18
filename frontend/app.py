@@ -32,25 +32,28 @@ st.markdown(
 
     /* ========================================================
        BOTÕES DE RECOLHER/EXPANDIR (ESTILO OFICINA)
+       Idênticos nos dois casos: botão redondo na divisória da barra com a tela (-right-3 top-5)
        ======================================================== */
-    /* Quando a barra está EXPANDIDA: seta << DENTRO do cabeçalho ao lado da logo (marcado como SIM) */
+    /* Quando a barra está EXPANDIDA: seta << na divisória direita entre a barra e a tela */
     [data-testid="stSidebarCollapseButton"] {
-        position: static !important;
-        transform: none !important;
+        position: absolute !important;
+        right: -12px !important; /* Exatamente na divisória da barra expandida e a tela */
+        top: 20px !important;
+        z-index: 1010 !important;
+        margin: 0 !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        margin-left: auto !important;
     }
     [data-testid="stSidebarCollapseButton"] button {
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        min-height: 28px !important;
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
         border-radius: 9999px !important;
         background-color: #FFFFFF !important;
-        border: 1px solid #E2E8F0 !important;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+        border: 1px solid #CBD5E1 !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.10) !important;
         color: #64748B !important;
         display: flex !important;
         align-items: center !important;
@@ -61,8 +64,8 @@ st.markdown(
     }
     [data-testid="stSidebarCollapseButton"] button:hover {
         color: #0F172A !important;
-        border-color: #CBD5E1 !important;
-        transform: scale(1.08) !important;
+        border-color: #94A3B8 !important;
+        transform: scale(1.1) !important;
         background-color: #F8FAFC !important;
     }
 
@@ -137,12 +140,14 @@ st.markdown(
     /* ========================================================
        CABEÇALHO DA SIDEBAR EXPANDIDA & RECOLHIDA (ESTILO OFICINA)
        ======================================================== */
-    /* Expandido: logo na esquerda e botão << na direita, alinhados perfeitamente */
+    /* Expandido: logo na esquerda e botão << na divisória direita, alinhados perfeitamente */
     [data-testid="stSidebarHeader"] {
+        position: relative !important;
+        overflow: visible !important;
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
-        justify-content: space-between !important;
+        justify-content: flex-start !important;
         height: 64px !important;
         padding: 0 1rem !important;
         width: 100% !important;
@@ -160,10 +165,14 @@ st.markdown(
        OPÇÃO B: SIDEBAR PERMANENTE DE 80px QUANDO RECOLHIDA
        ======================================================== */
     [data-testid="stSidebar"] {
+        overflow: visible !important;
         transition: width 300ms ease-in-out,
                     min-width 300ms ease-in-out,
                     max-width 300ms ease-in-out,
                     transform 300ms ease-in-out !important;
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        overflow: visible !important;
     }
     [data-testid="stSidebar"][data-collapsed="true"],
     [data-testid="stSidebar"][aria-expanded="false"] {
