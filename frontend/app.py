@@ -31,32 +31,115 @@ st.markdown(
     }
 
     /* ========================================================
-       SIDEBAR RECOLHIDA: MODO COMPACTO (80px)
+       OPÇÃO B: SIDEBAR PERMANENTE DE 80px QUANDO RECOLHIDA
        ======================================================== */
     [data-testid="stSidebar"][data-collapsed="true"],
     [data-testid="stSidebar"][aria-expanded="false"] {
+        display: block !important;
+        visibility: visible !important;
+        transform: none !important;
+        margin-left: 0 !important;
         width: 80px !important;
         min-width: 80px !important;
         max-width: 80px !important;
-        transition: width 200ms ease;
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        height: 100vh !important;
+        z-index: 100 !important;
+        background-color: #EAF4F8 !important;
+        box-shadow: 2px 0 8px rgba(11, 42, 91, 0.05) !important;
+        transition: width 200ms ease, min-width 200ms ease, max-width 200ms ease !important;
     }
 
-    /* Logo quando recolhida: ícone centralizado */
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"],
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] {
+    /* Empurra o conteúdo principal quando a barra estiver recolhida em 80px */
+    [data-testid="stSidebar"][data-collapsed="true"] ~ section.main,
+    [data-testid="stSidebar"][data-collapsed="true"] ~ [data-testid="stMain"],
+    [data-testid="stSidebar"][aria-expanded="false"] ~ section.main,
+    [data-testid="stSidebar"][aria-expanded="false"] ~ [data-testid="stMain"] {
+        margin-left: 80px !important;
+    }
+
+    /* Controle flutuante com a logo compacta e o botão >> no topo da faixa de 80px */
+    [data-testid="stSidebarCollapsedControl"] {
+        position: fixed !important;
+        top: 10px !important;
+        left: 4px !important;
+        width: 72px !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        padding-left: 0 !important;
-        padding-right: 0 !important;
+        z-index: 102 !important;
     }
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"] img,
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
-        width: 50px !important;
-        max-width: 50px !important;
-        height: 50px !important;
-        max-height: 50px !important;
+    [data-testid="stSidebarCollapsedControl"] img {
+        width: 36px !important;
+        height: 36px !important;
         object-fit: contain !important;
+    }
+
+    /* Cabeçalho da sidebar recolhida cede espaço ao controle flutuante */
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] {
+        height: 56px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        visibility: hidden !important;
+    }
+
+    /* Links de navegação centralizados na faixa de 80px */
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNav"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNav"] {
+        display: block !important;
+        visibility: visible !important;
+        padding-top: 10px !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavItems"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavItems"] {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 0 !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavItems"] li,
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavItems"] li {
+        width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+        margin: 0 !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 48px !important;
+        height: 48px !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+        border-radius: 12px !important;
+        border: 1px solid transparent !important;
+        font-size: 0 !important;
+        transition: all 150ms ease !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"] *,
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] * {
+        font-size: 1.4rem !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"] span:last-child:not(:only-child),
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] span:last-child:not(:only-child) {
+        display: none !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"][aria-current="page"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"][aria-current="page"] {
+        background-color: #D8EAF2 !important;
+        color: #0B3C7A !important;
+        border-left: 1px solid transparent !important;
+        box-shadow: 0 0 0 2px #009DBB !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"]:hover,
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"]:hover {
+        background-color: rgba(0, 157, 187, 0.12) !important;
     }
 
     /* ========================================================
@@ -92,43 +175,6 @@ st.markdown(
         font-weight: 700 !important;
         border-left: 4px solid #009DBB !important;
         border-radius: 3px 8px 8px 3px !important;
-    }
-
-    /* ========================================================
-       LINKS DE NAVEGAÇÃO QUANDO RECOLHIDO (ÍCONES CENTRALIZADOS)
-       ======================================================== */
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavItems"],
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavItems"] {
-        align-items: center !important;
-        gap: 8px !important;
-    }
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"],
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] {
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        width: 46px !important;
-        height: 46px !important;
-        padding: 0 !important;
-        margin: 0 auto !important;
-        border-radius: 12px !important;
-        border: 1px solid transparent !important;
-        font-size: 0 !important;
-    }
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"] *,
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] * {
-        font-size: 1.35rem !important;
-    }
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"] span:last-child:not(:only-child),
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] span:last-child:not(:only-child) {
-        display: none !important;
-    }
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"][aria-current="page"],
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"][aria-current="page"] {
-        background-color: #D8EAF2 !important;
-        color: #0B3C7A !important;
-        border-left: 1px solid transparent !important;
-        box-shadow: 0 0 0 2px #009DBB !important;
     }
 
     /* ========================================================
