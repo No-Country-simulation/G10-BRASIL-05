@@ -77,17 +77,19 @@ class StorageRepository:
         caminho_local = os.path.join(destino_dir, nome_renomeado)
         caminho_objeto = f"recebidos/{documento_id}{extensao_limpa or '.bin'}"
         tipo_conteudo = mimetype or "application/octet-stream"
+        objeto_tentado = False
 
         try:
             self._salvar_local_atomico(caminho_local, conteudo)
             if self.client:
+                objeto_tentado = True
                 self._enviar_objeto_oci(caminho_objeto, conteudo, tipo_conteudo)
         except Exception as erro:
             try:
                 self._remover_arquivo_local(caminho_local)
             except OSError:
                 logger.exception("Falha ao remover cópia local durante rollback: %s", caminho_local)
-            if self.client:
+            if self.client and objeto_tentado:
                 try:
                     self._excluir_objeto_oci(caminho_objeto)
                 except StoragePersistenceError:
@@ -194,16 +196,18 @@ class StorageRepository:
         payload_bytes = json.dumps(dados_resultado, ensure_ascii=False, indent=2).encode("utf-8")
 
         caminho_local = os.path.join(self.local_storage_dir, prefixo, f"{documento_id}.json")
+        objeto_tentado = False
         try:
             self._salvar_local_atomico(caminho_local, payload_bytes)
             if self.client:
+                objeto_tentado = True
                 self._enviar_objeto_oci(caminho_objeto, payload_bytes, "application/json")
         except Exception as erro:
             try:
                 self._remover_arquivo_local(caminho_local)
             except OSError:
                 logger.exception("Falha ao remover JSON local durante rollback: %s", caminho_local)
-            if self.client:
+            if self.client and objeto_tentado:
                 try:
                     self._excluir_objeto_oci(caminho_objeto)
                 except StoragePersistenceError:

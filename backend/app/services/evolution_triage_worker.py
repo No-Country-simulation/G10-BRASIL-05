@@ -76,8 +76,9 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
         )
 
         # 4. Execução da Triagem Clínica via Agente LangGraph e Persistência
-        db = SessionLocal()
+        db = None
         try:
+            db = SessionLocal()
             service = TriagemService(db)
             requisicao = RequisicaoTriagem(
                 documento_id=doc_id,
@@ -100,7 +101,8 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
                 logger.exception("Falha ao limpar checkpoint do documento %s após erro", doc_id)
             raise
         finally:
-            db.close()
+            if db is not None:
+                db.close()
 
         # 5. Formatação da Devolutiva e Envio ao Paciente/Médico no WhatsApp
         msg_devolutiva = EvolutionService.formatar_devolutiva_triagem(resposta_triagem)

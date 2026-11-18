@@ -180,7 +180,6 @@ class TriagemService:
                 motivo_revisao=justificativa if requer_auditoria else None,
             )
             self.db_repo.db.commit()
-            self.db_repo.db.refresh(model)
         except Exception:
             self.db_repo.db.rollback()
             if resultado_oci:
@@ -324,8 +323,9 @@ class TriagemService:
                         doc_atualizado.bucket_oci = resultado_oci["bucket"]
                         doc_atualizado.caminho_objeto_oci = resultado_oci["caminho_objeto"]
 
-                self.db_repo.db.commit()
+                self.db_repo.db.flush()
                 self.db_repo.db.refresh(doc_atualizado)
+                self.db_repo.db.commit()
         except Exception:
             self.db_repo.db.rollback()
             if resultado_oci:

@@ -84,15 +84,14 @@ async def processar_upload_triagem(
         info_storage["caminho_local"],
     )
 
-    requisicao = RequisicaoTriagem(
-        documento_id=doc_id,
-        tipo_arquivo=tipo_arquivo,
-        canal_origem=canal_origem or "Pronto_Socorro",
-        documento_texto=texto_extraido,
-    )
-
-    service = TriagemService(db)
     try:
+        requisicao = RequisicaoTriagem(
+            documento_id=doc_id,
+            tipo_arquivo=tipo_arquivo,
+            canal_origem=canal_origem or "Pronto_Socorro",
+            documento_texto=texto_extraido,
+        )
+        service = TriagemService(db)
         return service.processar_triagem(
             requisicao,
             referencia_fonte=info_storage.get("caminho_local"),

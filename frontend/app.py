@@ -10,30 +10,57 @@ st.set_page_config(page_title="MediFlow", layout="wide")
 st.markdown(
     """
     <style>
+    /* ========================================================
+       LOGO & CABEÇALHO DO SIDEBAR
+       ======================================================== */
+    [data-testid="stSidebarHeader"] {
+        padding-top: 1rem !important;
+        padding-bottom: 0.5rem !important;
+    }
     [data-testid="stSidebarHeader"] img {
-        width: 230px !important;
+        width: 220px !important;
         max-width: 100% !important;
         height: auto !important;
-        max-height: 105px !important;
+        max-height: 95px !important;
         object-fit: contain;
-        transition: width 180ms ease, height 180ms ease;
+        transition: all 200ms ease;
     }
+
+    /* ========================================================
+       SIDEBAR RECOLHIDA: MODO COMPACTO (80px)
+       ======================================================== */
     [data-testid="stSidebar"][data-collapsed="true"],
     [data-testid="stSidebar"][aria-expanded="false"] {
-        width: 88px !important;
-        min-width: 88px !important;
-        max-width: 88px !important;
-        transition: width 180ms ease;
+        width: 80px !important;
+        min-width: 80px !important;
+        max-width: 80px !important;
+        transition: width 200ms ease;
+    }
+
+    /* Logo quando recolhida: ícone centralizado */
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
     }
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"] img,
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
-        width: 80px !important;
-        max-width: none !important;
-        height: 80px !important;
-        max-height: none !important;
-        object-fit: cover;
-        object-position: 25% center;
+        width: 48px !important;
+        max-width: 48px !important;
+        height: 48px !important;
+        max-height: 48px !important;
+        object-fit: cover !important;
+        object-position: 22% center !important;
+        border-radius: 10px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
     }
+
+    /* ========================================================
+       LINKS DE NAVEGAÇÃO (EXPANDIDO)
+       ======================================================== */
     [data-testid="stSidebarNav"] {
         padding-top: 0.75rem !important;
         padding-bottom: 0.75rem !important;
@@ -65,6 +92,47 @@ st.markdown(
         border-left: 4px solid #009DBB !important;
         border-radius: 3px 8px 8px 3px !important;
     }
+
+    /* ========================================================
+       LINKS DE NAVEGAÇÃO QUANDO RECOLHIDO (ÍCONES CENTRALIZADOS)
+       ======================================================== */
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavItems"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavItems"] {
+        align-items: center !important;
+        gap: 8px !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 46px !important;
+        height: 46px !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+        border-radius: 12px !important;
+        border: 1px solid transparent !important;
+        font-size: 0 !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"] *,
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] * {
+        font-size: 1.35rem !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"] span:last-child:not(:only-child),
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"] span:last-child:not(:only-child) {
+        display: none !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarNavLink"][aria-current="page"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarNavLink"][aria-current="page"] {
+        background-color: #D8EAF2 !important;
+        color: #0B3C7A !important;
+        border-left: 1px solid transparent !important;
+        box-shadow: 0 0 0 2px #009DBB !important;
+    }
+
+    /* ========================================================
+       CONTEÚDO SECUNDÁRIO & RODAPÉ (EXPANDIDO)
+       ======================================================== */
     [data-testid="stSidebarContent"] {
         display: flex !important;
         flex-direction: column !important;
@@ -101,8 +169,10 @@ st.markdown(
         border: 1px solid rgba(11, 60, 122, 0.12);
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
     }
-    [data-testid="stSidebar"][data-collapsed="true"] .sidebar-footer,
-    [data-testid="stSidebar"][aria-expanded="false"] .sidebar-footer {
+
+    /* Oculta o conteúdo secundário e footer quando recolhido */
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarUserContent"],
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarUserContent"] {
         display: none !important;
     }
     </style>

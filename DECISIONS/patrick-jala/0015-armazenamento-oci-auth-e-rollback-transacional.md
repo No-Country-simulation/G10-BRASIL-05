@@ -1,6 +1,6 @@
 # [0015] - Autenticação OCI e rollback compensatório da triagem
 
-- **Data:** 2026-11-17
+- **Data:** 2026-11-18
 - **Autor(es):** @patrick-jala (via Assistente IA)
 - **Status:** Aprovado
 
@@ -24,12 +24,12 @@ Permitir autenticação por API key no desenvolvimento local e Instance Principa
 
 ### Detalhamento da Solução:
 
-Adicionar `OCI_AUTH_MODE` com modos explícitos `api_key` e `instance_principal`. A autenticação OCI existente permanece para execução local; a Compute usa `InstancePrincipalsSecurityTokenSigner`. O endpoint de upload web e o worker WhatsApp passam a persistir o original via `ArquivosOCIRepository` (mantendo cópia local apenas conforme a política do ambiente). O service acompanha os objetos e caminhos criados durante a tentativa. Falhas de gravação devem levantar erro, acionar exclusão compensatória dos artefatos dessa tentativa e `Session.rollback()`. A exclusão compensatória é idempotente e registra falhas de limpeza; por ser operação distribuída, não pode garantir atomicidade absoluta se o próprio serviço OCI estiver indisponível durante a exclusão.
+Adicionar `OCI_AUTH_MODE` com modos explícitos `api_key`, `instance_principal` e `local_only` (usado na suíte isolada para impedir acesso ao bucket real). A autenticação OCI existente permanece para execução local; a Compute usa `InstancePrincipalsSecurityTokenSigner`. O endpoint de upload web e o worker WhatsApp passam a persistir o original via `StorageRepository`, que coordena o adaptador local e `OCIObjectStorageRepository`; o arquivo fonte é mantido localmente para visualização e enviado ao OCI quando o cliente remoto está ativo. Falhas de gravação levantam erro, acionam exclusão compensatória dos artefatos dessa tentativa e `Session.rollback()`. A exclusão compensatória registra falhas de limpeza; por ser operação distribuída, não pode garantir atomicidade absoluta se o próprio serviço OCI estiver indisponível durante a exclusão.
 
 ## 4. Onde? (Impacto no Código e Arquitetura)
 
 - **Módulos / Diretórios Afetados:** `backend/app/config/`, `backend/app/repositories/`, `backend/app/services/`, `backend/app/controllers/`, `backend/.env.example`.
-- **Arquivos Criados / Modificados:** configurações OCI, `storage.py`, `arquivos_oci.py`, `triagem.py`, `triagem_upload.py`, `evolution_triage_worker.py` e documentação de ambiente.
+- **Arquivos Criados / Modificados:** `local_file_storage.py`, `oci_object_storage.py`, `storage_errors.py`, `storage.py`, `arquivos_oci.py`, `database.py`, `triagem.py`, `triagem_upload.py`, `evolution_triage_worker.py`, `settings.py` e `.env.example`.
 - **Banco de Dados / Infra:** Dynamic Group e política IAM limitados aos objetos do bucket da aplicação; nenhum PEM de usuário no servidor OCI.
 
 ## 5. Consequências e Débitos Técnicos
