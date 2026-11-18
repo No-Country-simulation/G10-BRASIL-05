@@ -38,7 +38,40 @@ st.markdown(
         display: flex;
         flex-direction: column;
         flex-grow: 1;
-        min-height: 70vh;
+        min-height: 65vh;
+        gap: 12px;
+    }
+    /* Distribuição e espaçamento dos links de navegação */
+    [data-testid="stSidebarNav"] {
+        padding-top: 0.75rem !important;
+        padding-bottom: 0.75rem !important;
+    }
+    [data-testid="stSidebarNavItems"] {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 6px !important;
+    }
+    [data-testid="stSidebarNavItems"] li {
+        margin: 0 !important;
+    }
+    [data-testid="stSidebarNavLink"] {
+        padding: 0.60rem 0.85rem !important;
+        border-radius: 8px !important;
+        transition: all 150ms ease !important;
+        font-weight: 500 !important;
+        font-size: 0.92rem !important;
+        border: 1px solid transparent !important;
+    }
+    [data-testid="stSidebarNavLink"]:hover {
+        background-color: rgba(0, 157, 187, 0.08) !important;
+        border-color: rgba(0, 157, 187, 0.18) !important;
+    }
+    [data-testid="stSidebarNavLink"][aria-current="page"] {
+        background-color: #D8EAF2 !important;
+        color: #0B3C7A !important;
+        font-weight: 700 !important;
+        border-left: 4px solid #009DBB !important;
+        border-radius: 3px 8px 8px 3px !important;
     }
     .sidebar-footer {
         margin-top: auto;

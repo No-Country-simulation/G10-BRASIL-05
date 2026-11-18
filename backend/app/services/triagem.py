@@ -41,6 +41,12 @@ class TriagemService:
         requisicao: RequisicaoTriagem,
         referencia_fonte: Optional[str] = None,
     ) -> RespostaTriagem:
+        if self.db_repo.buscar_por_documento_id(requisicao.documento_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Já existe uma triagem com esse identificador.",
+            )
+
         # 1. Execução do Agente Autônomo LangGraph (StateGraph)
         estado_inicial = {
             "documento_id": requisicao.documento_id,

@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
 from app.config.logger import logger
+from app.agent.graph import excluir_checkpoint_triagem
 from app.agent.nodes.filtro_elegibilidade import avaliar_elegibilidade
 from app.repositories.database import SessionLocal
 from app.repositories.storage import StorageRepository
@@ -93,6 +94,10 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
                 caminho_fonte=info_storage.get("caminho_local"),
                 objetos_oci=[info_storage.get("caminho_objeto_fonte")],
             )
+            try:
+                excluir_checkpoint_triagem(doc_id)
+            except Exception:
+                logger.exception("Falha ao limpar checkpoint do documento %s após erro", doc_id)
             raise
         finally:
             db.close()

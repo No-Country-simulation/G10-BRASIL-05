@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.config.logger import logger
 from app.agent.nodes.filtro_elegibilidade import avaliar_elegibilidade
-from app.repositories.database import get_db
+from app.repositories.database import DatabaseRepository, get_db
 from app.repositories.storage import StoragePersistenceError, StorageRepository
+from app.agent.graph import excluir_checkpoint_triagem
 from app.schemas.triagem import RequisicaoTriagem, RespostaTriagem
 from app.services.document_parser import DocumentParserService
 from app.services.triagem import TriagemService
@@ -46,6 +47,12 @@ async def processar_upload_triagem(
     )
 
     doc_id = documento_id or f"DOC-UP-{uuid.uuid4().hex[:8].upper()}"
+    if DatabaseRepository(db).buscar_por_documento_id(doc_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Já existe uma triagem com esse identificador. Envie novamente sem informar o ID ou use outro ID.",
+        )
+    db.rollback()
 
     elegibilidade, _, justificativa = avaliar_elegibilidade(texto_extraido)
     if elegibilidade == "nao_medico":
@@ -95,4 +102,8 @@ async def processar_upload_triagem(
             caminho_fonte=info_storage.get("caminho_local"),
             objetos_oci=[info_storage.get("caminho_objeto_fonte")],
         )
+        try:
+            excluir_checkpoint_triagem(doc_id)
+        except Exception:
+            logger.exception("Falha ao limpar checkpoint do documento %s após erro", doc_id)
         raise
