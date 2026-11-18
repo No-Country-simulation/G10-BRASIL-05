@@ -35,107 +35,99 @@ st.markdown(
     }
 
     /* ========================================================
-       BOTÕES DE RECOLHER/EXPANDIR
+       SETA FLUTUANTE NA DIVISÓRIA (ESTILO OFICINA)
        ======================================================== */
-    /* Botão << alinhado no cabeçalho ao lado da logo (marcado como SIM) */
+    /* Quando a barra está EXPANDIDA: seta << na divisória direita (ao lado da logo) */
     [data-testid="stSidebarCollapseButton"] {
-        position: static !important;
-        transform: none !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        margin-left: auto !important;
-    }
-    [data-testid="stSidebarCollapseButton"] button {
-        width: 32px !important;
-        height: 32px !important;
-        min-width: 32px !important;
-        min-height: 32px !important;
-        border-radius: 8px !important;
-        background: transparent !important;
-        border: 1px solid rgba(11, 60, 122, 0.12) !important;
-        color: #0B3C7A !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        cursor: pointer !important;
-        transition: all 150ms ease !important;
-    }
-    [data-testid="stSidebarCollapseButton"] button:hover {
-        background: #E6F7FB !important;
-        border-color: #009DBB !important;
-        color: #009DBB !important;
+        position: fixed !important;
+        top: 20px !important;
+        left: 324px !important; /* Na divisória direita da barra expandida (336px - 12px) */
+        z-index: 1005 !important;
+        transition: left 300ms ease-in-out !important;
     }
 
-    /* Botão >> quando a barra estiver recolhida: na divisória entre a barra e a tela, ao lado da logo */
+    /* Quando a barra está RECOLHIDA: seta >> na divisória direita (ao lado da logo) */
     [data-testid="stSidebarCollapsedControl"] {
         position: fixed !important;
-        top: 36px !important;
-        transform: translateY(-50%) !important;
-        left: 66px !important; /* Na divisória dos 80px (80px - 14px) */
-        width: 28px !important;
-        height: 28px !important;
+        top: 20px !important;
+        left: 68px !important; /* Na divisória direita da barra recolhida (80px - 12px) */
+        width: 24px !important;
+        height: 24px !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         z-index: 1005 !important;
-        transition: left 320ms cubic-bezier(0.25, 1, 0.5, 1), top 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
+        transition: left 300ms ease-in-out !important;
     }
+
+    /* Estilo do botão idêntico ao oficina/front:
+       w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 hover:scale-105 transition-all cursor-pointer */
+    [data-testid="stSidebarCollapseButton"] button,
     [data-testid="stSidebarCollapsedControl"] button {
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        min-height: 28px !important;
-        border-radius: 50% !important;
-        background: #FFFFFF !important;
-        border: 1px solid rgba(11, 60, 122, 0.16) !important;
-        box-shadow: 0 2px 8px rgba(11, 42, 91, 0.12) !important;
-        color: #0B3C7A !important;
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        border-radius: 9999px !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #E2E8F0 !important;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+        color: #64748B !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         cursor: pointer !important;
         padding: 0 !important;
-        transition: all 150ms ease !important;
+        transition: all 150ms ease-in-out !important;
     }
+    [data-testid="stSidebarCollapseButton"] button:hover,
     [data-testid="stSidebarCollapsedControl"] button:hover {
-        background: #E6F7FB !important;
-        border-color: #009DBB !important;
-        color: #009DBB !important;
-        transform: scale(1.15) !important;
-        box-shadow: 0 4px 12px rgba(0, 157, 187, 0.22) !important;
+        color: #0F172A !important;
+        border-color: #CBD5E1 !important;
+        transform: scale(1.08) !important;
+        box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.08) !important;
     }
-        color: #009DBB !important;
+    [data-testid="stSidebarCollapseButton"] button svg,
+    [data-testid="stSidebarCollapseButton"] button span,
+    [data-testid="stSidebarCollapsedControl"] button svg,
+    [data-testid="stSidebarCollapsedControl"] button span {
+        font-size: 13px !important;
+        line-height: 1 !important;
+    }
+
+    /* Oculta a logo duplicada injetada pelo controle flutuante do Streamlit */
+    [data-testid="stSidebarCollapsedControl"] img,
+    [data-testid="stSidebarCollapsedControl"] [data-testid="stSidebarLogo"] {
+        display: none !important;
     }
 
     /* ========================================================
-       LOGO & CABEÇALHO DO SIDEBAR EXPANDIDO
+       CABEÇALHO DA SIDEBAR EXPANDIDA & RECOLHIDA (ESTILO OFICINA)
        ======================================================== */
+    /* Expandido: logo na esquerda com respiro */
     [data-testid="stSidebarHeader"] {
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
-        justify-content: space-between !important;
-        padding: 0.75rem 0.85rem 0.5rem 0.85rem !important;
-        gap: 8px !important;
+        height: 64px !important;
+        padding: 0 1rem !important;
     }
     [data-testid="stSidebarHeader"] img {
         width: auto !important;
-        max-width: 185px !important;
-        height: auto !important;
-        max-height: 85px !important;
-        object-fit: contain;
-        transition: all 300ms cubic-bezier(0.25, 1, 0.5, 1);
+        max-width: 180px !important;
+        height: 42px !important;
+        object-fit: contain !important;
+        transition: all 300ms ease-in-out !important;
     }
 
     /* ========================================================
        OPÇÃO B: SIDEBAR PERMANENTE DE 80px QUANDO RECOLHIDA
        ======================================================== */
     [data-testid="stSidebar"] {
-        transition: width 320ms cubic-bezier(0.25, 1, 0.5, 1),
-                    min-width 320ms cubic-bezier(0.25, 1, 0.5, 1),
-                    max-width 320ms cubic-bezier(0.25, 1, 0.5, 1),
-                    transform 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
+        transition: width 300ms ease-in-out,
+                    min-width 300ms ease-in-out,
+                    max-width 300ms ease-in-out,
+                    transform 300ms ease-in-out !important;
     }
     [data-testid="stSidebar"][data-collapsed="true"],
     [data-testid="stSidebar"][aria-expanded="false"] {
@@ -163,9 +155,8 @@ st.markdown(
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        height: auto !important;
-        min-height: 64px !important;
-        padding: 16px 0 10px 0 !important;
+        height: 64px !important;
+        padding: 0 !important;
         margin: 0 auto !important;
         visibility: visible !important;
     }
@@ -173,10 +164,10 @@ st.markdown(
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
         display: block !important;
         visibility: visible !important;
-        width: 46px !important;
-        max-width: 46px !important;
-        height: 46px !important;
-        max-height: 46px !important;
+        width: 40px !important;
+        max-width: 40px !important;
+        height: 40px !important;
+        max-height: 40px !important;
         object-fit: contain !important;
         margin: 0 auto !important;
     }
