@@ -96,14 +96,29 @@ st.markdown(
         transition: width 200ms ease, min-width 200ms ease, max-width 200ms ease !important;
     }
 
-    /* Cabeçalho da sidebar recolhida cede espaço ao botão >> */
+    /* Cabeçalho da sidebar recolhida: exibe a logo compacta centralizada */
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"],
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] {
-        height: 52px !important;
-        min-height: 52px !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        visibility: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        height: auto !important;
+        min-height: 64px !important;
+        padding: 44px 0 10px 0 !important;
+        margin: 0 auto !important;
+        visibility: visible !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"] img,
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
+        display: block !important;
+        visibility: visible !important;
+        width: 48px !important;
+        max-width: 48px !important;
+        height: 48px !important;
+        max-height: 48px !important;
+        object-fit: contain !important;
+        margin: 0 auto !important;
     }
 
     /* Links de navegação centralizados na faixa de 80px */
