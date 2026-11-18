@@ -82,7 +82,7 @@ class StorageRepository:
             self._salvar_local_atomico(caminho_local, conteudo)
             if self.client:
                 self._enviar_objeto_oci(caminho_objeto, conteudo, tipo_conteudo)
-        except Exception:
+        except Exception as erro:
             try:
                 self._remover_arquivo_local(caminho_local)
             except OSError:
@@ -91,8 +91,10 @@ class StorageRepository:
                 try:
                     self._excluir_objeto_oci(caminho_objeto)
                 except StoragePersistenceError:
-                    pass
-            raise
+                    logger.exception("Rollback remoto incompleto para a fonte %s", documento_id)
+            if isinstance(erro, StoragePersistenceError):
+                raise
+            raise StoragePersistenceError("Falha ao persistir documento original; operação desfeita.") from erro
 
         return {
             "bucket": self.bucket_name if self.client else "local-storage",
@@ -196,7 +198,7 @@ class StorageRepository:
             self._salvar_local_atomico(caminho_local, payload_bytes)
             if self.client:
                 self._enviar_objeto_oci(caminho_objeto, payload_bytes, "application/json")
-        except Exception:
+        except Exception as erro:
             try:
                 self._remover_arquivo_local(caminho_local)
             except OSError:
@@ -205,11 +207,13 @@ class StorageRepository:
                 try:
                     self._excluir_objeto_oci(caminho_objeto)
                 except StoragePersistenceError:
-                    pass
-            raise
+                    logger.exception("Rollback remoto incompleto para JSON de triagem %s", documento_id)
+            if isinstance(erro, StoragePersistenceError):
+                raise
+            raise StoragePersistenceError("Falha ao persistir JSON da triagem; operação desfeita.") from erro
 
         return {
-            "bucket": self.bucket_name if self.client else "local-storage",
+            "bucket": self.bucket_name,
             "caminho_objeto": caminho_objeto,
             "caminho_local": caminho_local,
             "status_backup": "sucesso" if self.client else "sucesso (local_simulado)",

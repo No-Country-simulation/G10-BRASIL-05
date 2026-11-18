@@ -34,14 +34,6 @@ st.markdown(
         object-fit: cover;
         object-position: 25% center;
     }
-    [data-testid="stSidebarUserContent"] {
-        display: flex;
-        flex-direction: column;
-        flex-grow: 1;
-        min-height: 65vh;
-        gap: 12px;
-    }
-    /* Distribuição e espaçamento dos links de navegação */
     [data-testid="stSidebarNav"] {
         padding-top: 0.75rem !important;
         padding-bottom: 0.75rem !important;
@@ -73,11 +65,29 @@ st.markdown(
         border-left: 4px solid #009DBB !important;
         border-radius: 3px 8px 8px 3px !important;
     }
+    [data-testid="stSidebarContent"] {
+        display: flex !important;
+        flex-direction: column !important;
+        height: 100% !important;
+    }
+    [data-testid="stSidebarUserContent"] {
+        display: flex !important;
+        flex-direction: column !important;
+        flex-grow: 1 !important;
+        height: 100% !important;
+    }
+    [data-testid="stSidebarUserContent"] > div:last-child,
+    [data-testid="stSidebarUserContent"] > div:has(.sidebar-footer) {
+        margin-top: auto !important;
+        padding-top: 20px !important;
+        padding-bottom: 12px !important;
+    }
     .sidebar-footer {
-        margin-top: auto;
-        padding-top: 24px;
-        padding-bottom: 8px;
+        position: sticky;
+        bottom: 12px;
         text-align: center;
+        width: 100%;
+        z-index: 10;
     }
     .sidebar-badge {
         display: inline-block;
@@ -90,6 +100,10 @@ st.markdown(
         border-radius: 999px;
         border: 1px solid rgba(11, 60, 122, 0.12);
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] .sidebar-footer,
+    [data-testid="stSidebar"][aria-expanded="false"] .sidebar-footer {
+        display: none !important;
     }
     </style>
     """,

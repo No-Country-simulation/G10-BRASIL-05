@@ -20,6 +20,8 @@ class OCIObjectStorageRepository:
             return None
 
         if modo == "instance_principal":
+            if not settings.OCI_NAMESPACE:
+                raise StoragePersistenceError("OCI_NAMESPACE é obrigatório no modo Instance Principal.")
             try:
                 import oci
 

@@ -1,7 +1,6 @@
 import os
 import json
 from typing import Dict, Any
-from app.config.settings import settings
 from app.repositories.storage import StorageRepository
 
 
@@ -27,26 +26,13 @@ class ArquivosOCIRepository(StorageRepository):
             mimetype=content_type,
         )
         if not self.client:
+            resultado["bucket"] = self.bucket_name
             resultado["status_backup"] = "sucesso (local_simulado)"
         return resultado
 
     def ler_arquivo(self, caminho_objeto: str) -> bytes:
         """Lê o conteúdo bruto de um objeto do Bucket OCI."""
-        if not (self.client and settings.OCI_NAMESPACE):
-            raise RuntimeError("OCI Object Storage não configurado: leitura indisponível no modo simulado.")
-
-        import oci
-        try:
-            resposta = self.client.get_object(
-                namespace_name=settings.OCI_NAMESPACE,
-                bucket_name=self.bucket_name,
-                object_name=caminho_objeto,
-            )
-        except oci.exceptions.ServiceError as e:
-            if e.status == 404:
-                raise FileNotFoundError(f"Objeto não encontrado no bucket: {caminho_objeto}") from e
-            raise
-        return resposta.data.content
+        return self.oci_storage.ler(caminho_objeto)
 
     def ler_triagem_json(self, caminho_objeto: str) -> Dict[str, Any]:
         """Lê e decodifica um JSON de triagem salvo no Bucket OCI."""

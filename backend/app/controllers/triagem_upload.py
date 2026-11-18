@@ -61,8 +61,8 @@ async def processar_upload_triagem(
             detail="O documento enviado não é médico. O processamento foi recusado.",
         )
 
-    storage_repo = StorageRepository()
     try:
+        storage_repo = StorageRepository()
         info_storage = storage_repo.salvar_arquivo_original(
             documento_id=doc_id,
             conteudo=conteudo,

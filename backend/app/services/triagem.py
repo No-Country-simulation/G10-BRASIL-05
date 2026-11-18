@@ -2,6 +2,7 @@ import os
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from app.config.logger import logger
 from app.config.settings import settings
 from app.schemas.triagem import (
     RequisicaoTriagem,
@@ -46,6 +47,7 @@ class TriagemService:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Já existe uma triagem com esse identificador.",
             )
+        self.db_repo.db.rollback()
 
         # 1. Execução do Agente Autônomo LangGraph (StateGraph)
         estado_inicial = {
@@ -167,6 +169,16 @@ class TriagemService:
                 caminho_fonte=(referencia_fonte if referencia_fonte != "texto_informado" else None),
             )
             self.db_repo.salvar(model)
+            resposta_triagem = RespostaTriagem(
+                status="processado" if not requer_auditoria else "em_auditoria",
+                documento_id=requisicao.documento_id,
+                classificacao=classificacao,
+                dados_extraidos=dados_extraidos,
+                decisao_roteamento=decisao_roteamento,
+                armazenamento_oci=armazenamento_oci,
+                evidencias_campos=resultado_grafo.get("evidencias_campos"),
+                motivo_revisao=justificativa if requer_auditoria else None,
+            )
             self.db_repo.db.commit()
             self.db_repo.db.refresh(model)
         except Exception:
@@ -176,6 +188,10 @@ class TriagemService:
                     caminho_json_local=resultado_oci.get("caminho_local"),
                     objetos_oci=[resultado_oci.get("caminho_objeto")],
                 )
+            try:
+                excluir_checkpoint_triagem(requisicao.documento_id)
+            except Exception:
+                logger.exception("Falha ao limpar checkpoint após persistência incompleta: %s", requisicao.documento_id)
             raise
 
         # 6. Registro NoSQL no MongoDB & Publicação de Telemetria no Redis
@@ -203,16 +219,7 @@ class TriagemService:
         except Exception:
             pass
 
-        return RespostaTriagem(
-            status="processado" if not requer_auditoria else "em_auditoria",
-            documento_id=requisicao.documento_id,
-            classificacao=classificacao,
-            dados_extraidos=dados_extraidos,
-            decisao_roteamento=decisao_roteamento,
-            armazenamento_oci=armazenamento_oci,
-            evidencias_campos=resultado_grafo.get("evidencias_campos"),
-            motivo_revisao=justificativa if requer_auditoria else None,
-        )
+        return resposta_triagem
 
     def registrar_decisao_medica(self, documento_id: str, payload: DecisaoAuditoriaRequest):
         """Aprova, corrige ou rejeita um item na fila de Human-in-the-Loop."""
@@ -328,6 +335,7 @@ class TriagemService:
                 )
             raise
 
+        if doc_atualizado:
             try:
                 # Libera lock no Redis
                 self.redis_service.liberar_lock(documento_id, payload.auditor_nome)
@@ -341,6 +349,6 @@ class TriagemService:
                     justificativa=payload.justificativa,
                 )
             except Exception:
-                pass
+                logger.exception("Falha ao registrar evento após decisão de auditoria: %s", documento_id)
 
         return doc_atualizado
