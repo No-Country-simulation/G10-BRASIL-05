@@ -35,70 +35,88 @@ st.markdown(
     }
 
     /* ========================================================
-       BOTÕES DE RECOLHER/EXPANDIR NA DIVISÓRIA (CENTRO VERTICAL)
+       BOTÕES DE RECOLHER/EXPANDIR
        ======================================================== */
-    /* Pílula circular flutuando entre a barra recolhida e a tela */
+    /* Botão << alinhado no cabeçalho ao lado da logo (marcado como SIM) */
+    [data-testid="stSidebarCollapseButton"] {
+        position: static !important;
+        transform: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin-left: auto !important;
+    }
+    [data-testid="stSidebarCollapseButton"] button {
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        min-height: 32px !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+        border: 1px solid rgba(11, 60, 122, 0.12) !important;
+        color: #0B3C7A !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        transition: all 150ms ease !important;
+    }
+    [data-testid="stSidebarCollapseButton"] button:hover {
+        background: #E6F7FB !important;
+        border-color: #009DBB !important;
+        color: #009DBB !important;
+    }
+
+    /* Botão >> no topo da faixa de 80px quando recolhida */
     [data-testid="stSidebarCollapsedControl"] {
         position: fixed !important;
-        top: 50% !important;
-        transform: translateY(-50%) !important;
-        left: 66px !important; /* metade sobre a borda dos 80px (80px - 14px) */
-        width: 28px !important;
-        height: 28px !important;
+        top: 10px !important;
+        left: 0 !important;
+        width: 80px !important;
+        height: 32px !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         z-index: 1005 !important;
-        transition: left 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
     }
-    /* Pílula circular flutuando entre a barra expandida e a tela */
-    [data-testid="stSidebarCollapseButton"] {
-        position: fixed !important;
-        top: 50% !important;
-        transform: translateY(-50%) !important;
-        left: 322px !important; /* metade sobre a borda dos 336px (336px - 14px) */
-        z-index: 1005 !important;
-        transition: left 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
-    }
-    [data-testid="stSidebarCollapseButton"] button,
     [data-testid="stSidebarCollapsedControl"] button {
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        min-height: 28px !important;
-        border-radius: 50% !important;
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        min-height: 30px !important;
+        border-radius: 8px !important;
         background: #FFFFFF !important;
-        border: 1px solid rgba(11, 60, 122, 0.16) !important;
-        box-shadow: 0 2px 8px rgba(11, 42, 91, 0.12) !important;
+        border: 1px solid rgba(11, 60, 122, 0.14) !important;
+        box-shadow: 0 1px 4px rgba(11, 42, 91, 0.08) !important;
+        color: #0B3C7A !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        padding: 0 !important;
-        color: #0B3C7A !important;
         cursor: pointer !important;
-        transition: all 180ms ease !important;
+        transition: all 150ms ease !important;
     }
-    [data-testid="stSidebarCollapseButton"] button:hover,
     [data-testid="stSidebarCollapsedControl"] button:hover {
         background: #E6F7FB !important;
         border-color: #009DBB !important;
         color: #009DBB !important;
-        transform: scale(1.15) !important;
-        box-shadow: 0 4px 12px rgba(0, 157, 187, 0.22) !important;
     }
 
     /* ========================================================
        LOGO & CABEÇALHO DO SIDEBAR EXPANDIDO
        ======================================================== */
     [data-testid="stSidebarHeader"] {
-        padding-top: 1rem !important;
-        padding-bottom: 0.5rem !important;
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 0.75rem 0.85rem 0.5rem 0.85rem !important;
+        gap: 8px !important;
     }
     [data-testid="stSidebarHeader"] img {
-        width: 220px !important;
-        max-width: 100% !important;
+        width: auto !important;
+        max-width: 185px !important;
         height: auto !important;
-        max-height: 95px !important;
+        max-height: 85px !important;
         object-fit: contain;
         transition: all 300ms cubic-bezier(0.25, 1, 0.5, 1);
     }
@@ -152,17 +170,6 @@ st.markdown(
         max-width: 46px !important;
         height: 46px !important;
         max-height: 46px !important;
-        object-fit: contain !important;
-        margin: 0 auto !important;
-    }
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"] img,
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
-        display: block !important;
-        visibility: visible !important;
-        width: 48px !important;
-        max-width: 48px !important;
-        height: 48px !important;
-        max-height: 48px !important;
         object-fit: contain !important;
         margin: 0 auto !important;
     }
@@ -239,6 +246,9 @@ st.markdown(
     [data-testid="stSidebarNavItems"] li {
         margin: 0 !important;
     }
+    [data-testid="stSidebar"]:not([data-collapsed="true"]):not([aria-expanded="false"]) {
+        min-width: 295px !important;
+    }
     [data-testid="stSidebarNavLink"] {
         padding: 0.60rem 0.85rem !important;
         border-radius: 8px !important;
@@ -246,6 +256,11 @@ st.markdown(
         font-weight: 500 !important;
         font-size: 0.92rem !important;
         border: 1px solid transparent !important;
+    }
+    [data-testid="stSidebarNavLink"] span {
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap !important;
     }
     [data-testid="stSidebarNavLink"]:hover {
         background-color: rgba(0, 157, 187, 0.08) !important;
