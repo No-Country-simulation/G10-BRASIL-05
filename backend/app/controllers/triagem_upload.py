@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.config.logger import logger
 from app.agent.nodes.filtro_elegibilidade import avaliar_elegibilidade
 from app.repositories.database import get_db
-from app.repositories.storage import StorageRepository
+from app.repositories.storage import StoragePersistenceError, StorageRepository
 from app.schemas.triagem import RequisicaoTriagem, RespostaTriagem
 from app.services.document_parser import DocumentParserService
 from app.services.triagem import TriagemService
@@ -54,24 +54,28 @@ async def processar_upload_triagem(
             detail="O documento enviado não é médico. O processamento foi recusado.",
         )
 
-    # Persistência do documento na pasta local Storage (Storage/imagem ou Storage/pdf)
-    referencia_fonte = None
+    storage_repo = StorageRepository()
     try:
-        storage_repo = StorageRepository()
-        info_storage = storage_repo.salvar_arquivo_whatsapp(
+        info_storage = storage_repo.salvar_arquivo_original(
             documento_id=doc_id,
             conteudo=conteudo,
             nome_original=file.filename,
             extensao=extensao,
             mimetype=file.content_type,
         )
-        logger.info(
-            f"Arquivo de upload web persistido na pasta Storage: '{info_storage['nome_arquivo']}' "
-            f"({info_storage['tamanho_bytes']} bytes) em {info_storage['caminho_local']}"
-        )
-        referencia_fonte = info_storage.get("caminho_local")
-    except Exception as st_err:
-        logger.warning(f"Aviso ao persistir arquivo de upload no Storage local: {st_err}")
+    except StoragePersistenceError as erro:
+        logger.exception("Falha crítica ao persistir documento enviado: %s", doc_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Não foi possível salvar o documento. A triagem não foi iniciada.",
+        ) from erro
+
+    logger.info(
+        "Documento %s salvo em storage (%s): %s",
+        doc_id,
+        info_storage["status_backup"],
+        info_storage["caminho_local"],
+    )
 
     requisicao = RequisicaoTriagem(
         documento_id=doc_id,
@@ -81,4 +85,14 @@ async def processar_upload_triagem(
     )
 
     service = TriagemService(db)
-    return service.processar_triagem(requisicao, referencia_fonte=referencia_fonte)
+    try:
+        return service.processar_triagem(
+            requisicao,
+            referencia_fonte=info_storage.get("caminho_local"),
+        )
+    except Exception:
+        storage_repo.rollback_tentativa(
+            caminho_fonte=info_storage.get("caminho_local"),
+            objetos_oci=[info_storage.get("caminho_objeto_fonte")],
+        )
+        raise

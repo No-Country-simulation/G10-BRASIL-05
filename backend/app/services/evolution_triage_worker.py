@@ -62,7 +62,7 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
 
         # Salva a fonte original somente depois do filtro de escopo.
         storage_repo = StorageRepository()
-        info_storage = storage_repo.salvar_arquivo_whatsapp(
+        info_storage = storage_repo.salvar_arquivo_original(
             documento_id=doc_id,
             conteudo=conteudo,
             nome_original=dados.get("filename"),
@@ -88,6 +88,12 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
                 requisicao,
                 referencia_fonte=info_storage.get("caminho_local"),
             )
+        except Exception:
+            storage_repo.rollback_tentativa(
+                caminho_fonte=info_storage.get("caminho_local"),
+                objetos_oci=[info_storage.get("caminho_objeto_fonte")],
+            )
+            raise
         finally:
             db.close()
 

@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     CONFIDENCE_THRESHOLD: float = 0.75
 
     # OCI Object Storage Always Free
+    OCI_AUTH_MODE: str = "api_key"
     OCI_USER_OCID: str = ""
     OCI_TENANCY_OCID: str = ""
     OCI_FINGERPRINT: str = ""

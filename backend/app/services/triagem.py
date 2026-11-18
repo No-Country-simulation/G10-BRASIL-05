@@ -1,3 +1,4 @@
+import os
 from typing import Optional, Dict, Any
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -122,43 +123,54 @@ class TriagemService:
             notificacao_gerada=notificacao_obj,
         )
 
-        # 4. Persistência de Auditoria no OCI Object Storage
-        resultado_oci = self.storage_repo.salvar_triagem_json(
-            documento_id=requisicao.documento_id,
-            dados_resultado={
-                "documento_id": requisicao.documento_id,
-                "classificacao": classificacao.model_dump(),
-                "dados_extraidos": dados_extraidos.model_dump(),
-                "decisao_roteamento": decisao_roteamento.model_dump(),
-            },
-            is_urgente=is_urgente,
-            requer_auditoria=requer_auditoria,
-        )
-        armazenamento_oci = ArmazenamentoOCI(**resultado_oci)
+        resultado_oci = None
+        try:
+            # Persiste o JSON antes do commit SQL; em falha relacional, remove o artefato criado.
+            resultado_oci = self.storage_repo.salvar_triagem_json(
+                documento_id=requisicao.documento_id,
+                dados_resultado={
+                    "documento_id": requisicao.documento_id,
+                    "classificacao": classificacao.model_dump(),
+                    "dados_extraidos": dados_extraidos.model_dump(),
+                    "decisao_roteamento": decisao_roteamento.model_dump(),
+                },
+                is_urgente=is_urgente,
+                requer_auditoria=requer_auditoria,
+            )
+            armazenamento_oci = ArmazenamentoOCI(**resultado_oci)
 
-        # 5. Persistência Relacional no PostgreSQL
-        model = DocumentoTriagemModel(
-            documento_id=requisicao.documento_id,
-            tipo_arquivo=requisicao.tipo_arquivo,
-            canal_origem=requisicao.canal_origem,
-            documento_texto=requisicao.documento_texto,
-            tipo_documento=classificacao.tipo_documento,
-            especialidade=classificacao.especialidade,
-            nivel_prioridade=classificacao.nivel_prioridade,
-            score_confianca=classificacao.score_confianca_classificacao,
-            destino_principal=destino_principal,
-            requer_auditoria_humana=requer_auditoria,
-            status_processamento="em_auditoria" if requer_auditoria else "processado",
-            justificativa_roteamento=justificativa,
-            dados_extraidos=dados_extraidos.model_dump(),
-            bucket_oci=armazenamento_oci.bucket,
-            caminho_objeto_oci=armazenamento_oci.caminho_objeto,
-            evidencias_campos=resultado_grafo.get("evidencias_campos"),
-            motivo_revisao=resultado_grafo.get("motivo_revisao") or justificativa if requer_auditoria else None,
-            etapa_revisao=resultado_grafo.get("etapa_revisao"),
-            caminho_fonte=(referencia_fonte if referencia_fonte != "texto_informado" else None),
-        )
-        self.db_repo.salvar(model)
+            model = DocumentoTriagemModel(
+                documento_id=requisicao.documento_id,
+                tipo_arquivo=requisicao.tipo_arquivo,
+                canal_origem=requisicao.canal_origem,
+                documento_texto=requisicao.documento_texto,
+                tipo_documento=classificacao.tipo_documento,
+                especialidade=classificacao.especialidade,
+                nivel_prioridade=classificacao.nivel_prioridade,
+                score_confianca=classificacao.score_confianca_classificacao,
+                destino_principal=destino_principal,
+                requer_auditoria_humana=requer_auditoria,
+                status_processamento="em_auditoria" if requer_auditoria else "processado",
+                justificativa_roteamento=justificativa,
+                dados_extraidos=dados_extraidos.model_dump(),
+                bucket_oci=armazenamento_oci.bucket,
+                caminho_objeto_oci=armazenamento_oci.caminho_objeto,
+                evidencias_campos=resultado_grafo.get("evidencias_campos"),
+                motivo_revisao=resultado_grafo.get("motivo_revisao") or justificativa if requer_auditoria else None,
+                etapa_revisao=resultado_grafo.get("etapa_revisao"),
+                caminho_fonte=(referencia_fonte if referencia_fonte != "texto_informado" else None),
+            )
+            self.db_repo.salvar(model)
+            self.db_repo.db.commit()
+            self.db_repo.db.refresh(model)
+        except Exception:
+            self.db_repo.db.rollback()
+            if resultado_oci:
+                self.storage_repo.rollback_tentativa(
+                    caminho_json_local=resultado_oci.get("caminho_local"),
+                    objetos_oci=[resultado_oci.get("caminho_objeto")],
+                )
+            raise
 
         # 6. Registro NoSQL no MongoDB & Publicação de Telemetria no Redis
         try:
@@ -226,6 +238,11 @@ class TriagemService:
                 documento_id,
                 caminho_fonte=caminho_fonte,
                 caminho_objeto=caminho_objeto,
+                caminhos_objetos=(
+                    [f"recebidos/{documento_id}{os.path.splitext(caminho_fonte)[1]}"]
+                    if caminho_fonte
+                    else []
+                ),
             )
             excluir_checkpoint_triagem(documento_id)
             self.redis_service.liberar_lock(documento_id, payload.auditor_nome)
@@ -234,65 +251,76 @@ class TriagemService:
                 detail="A revisão confirmou que o documento não é médico. O processamento foi recusado e os dados transitórios foram removidos.",
             )
 
-        doc_atualizado = self.db_repo.registrar_decisao(
-            documento_id=documento_id,
-            decisao=payload.status_aprovacao,
-            auditor_nome=payload.auditor_nome,
-            justificativa=payload.justificativa,
-            dados_corrigidos=dados_corrigidos,
-        )
+        resultado_oci = None
+        try:
+            doc_atualizado = self.db_repo.registrar_decisao(
+                documento_id=documento_id,
+                decisao=payload.status_aprovacao,
+                auditor_nome=payload.auditor_nome,
+                justificativa=payload.justificativa,
+                dados_corrigidos=dados_corrigidos,
+            )
 
-        if doc_atualizado:
-            interrompido_novamente = bool(resultado_grafo.get("__interrupt__"))
-            if interrompido_novamente:
-                doc_atualizado.status_processamento = "em_auditoria"
-                doc_atualizado.requer_auditoria_humana = True
-                doc_atualizado.motivo_revisao = resultado_grafo.get("motivo_revisao") or payload.justificativa
-                doc_atualizado.etapa_revisao = resultado_grafo.get("etapa_revisao")
-                doc_atualizado.evidencias_campos = resultado_grafo.get("evidencias_campos")
-            else:
-                doc_atualizado.status_processamento = (
-                    "aguardando_reenvio"
-                    if resultado_grafo.get("status") == "aguardando_reenvio"
-                    else "auditoria_rejeitado"
-                    if resultado_grafo.get("status") == "rejeitado"
-                    else "processado"
-                )
-                doc_atualizado.requer_auditoria_humana = False
-                doc_atualizado.tipo_documento = resultado_grafo.get("tipo_documento") or doc_atualizado.tipo_documento
-                doc_atualizado.especialidade = resultado_grafo.get("especialidade") or doc_atualizado.especialidade
-                doc_atualizado.nivel_prioridade = resultado_grafo.get("nivel_prioridade") or doc_atualizado.nivel_prioridade
-                doc_atualizado.score_confianca = resultado_grafo.get("score_confianca_classificacao") or doc_atualizado.score_confianca
-                doc_atualizado.destino_principal = resultado_grafo.get("destino_principal") or doc_atualizado.destino_principal
-                doc_atualizado.justificativa_roteamento = resultado_grafo.get("justificativa_roteamento") or payload.justificativa
-                if resultado_grafo.get("dados_extraidos"):
-                    doc_atualizado.dados_extraidos = resultado_grafo["dados_extraidos"]
-                doc_atualizado.motivo_revisao = None
-                doc_atualizado.etapa_revisao = None
-                doc_atualizado.evidencias_campos = resultado_grafo.get("evidencias_campos")
-
-                if resultado_grafo.get("status") == "roteado":
-                    resultado_oci = self.storage_repo.salvar_triagem_json(
-                        documento_id=documento_id,
-                        dados_resultado={
-                            "documento_id": documento_id,
-                            "classificacao": {
-                                "tipo_documento": doc_atualizado.tipo_documento,
-                                "especialidade": doc_atualizado.especialidade,
-                                "nivel_prioridade": doc_atualizado.nivel_prioridade,
-                                "score_confianca_classificacao": doc_atualizado.score_confianca,
-                            },
-                            "dados_extraidos": doc_atualizado.dados_extraidos,
-                            "destino_principal": doc_atualizado.destino_principal,
-                            "justificativa_roteamento": doc_atualizado.justificativa_roteamento,
-                        },
-                        is_urgente=bool(resultado_grafo.get("is_urgente")),
-                        requer_auditoria=False,
+            if doc_atualizado:
+                interrompido_novamente = bool(resultado_grafo.get("__interrupt__"))
+                if interrompido_novamente:
+                    doc_atualizado.status_processamento = "em_auditoria"
+                    doc_atualizado.requer_auditoria_humana = True
+                    doc_atualizado.motivo_revisao = resultado_grafo.get("motivo_revisao") or payload.justificativa
+                    doc_atualizado.etapa_revisao = resultado_grafo.get("etapa_revisao")
+                    doc_atualizado.evidencias_campos = resultado_grafo.get("evidencias_campos")
+                else:
+                    doc_atualizado.status_processamento = (
+                        "aguardando_reenvio"
+                        if resultado_grafo.get("status") == "aguardando_reenvio"
+                        else "auditoria_rejeitado"
+                        if resultado_grafo.get("status") == "rejeitado"
+                        else "processado"
                     )
-                    doc_atualizado.bucket_oci = resultado_oci["bucket"]
-                    doc_atualizado.caminho_objeto_oci = resultado_oci["caminho_objeto"]
+                    doc_atualizado.requer_auditoria_humana = False
+                    doc_atualizado.tipo_documento = resultado_grafo.get("tipo_documento") or doc_atualizado.tipo_documento
+                    doc_atualizado.especialidade = resultado_grafo.get("especialidade") or doc_atualizado.especialidade
+                    doc_atualizado.nivel_prioridade = resultado_grafo.get("nivel_prioridade") or doc_atualizado.nivel_prioridade
+                    doc_atualizado.score_confianca = resultado_grafo.get("score_confianca_classificacao") or doc_atualizado.score_confianca
+                    doc_atualizado.destino_principal = resultado_grafo.get("destino_principal") or doc_atualizado.destino_principal
+                    doc_atualizado.justificativa_roteamento = resultado_grafo.get("justificativa_roteamento") or payload.justificativa
+                    if resultado_grafo.get("dados_extraidos"):
+                        doc_atualizado.dados_extraidos = resultado_grafo["dados_extraidos"]
+                    doc_atualizado.motivo_revisao = None
+                    doc_atualizado.etapa_revisao = None
+                    doc_atualizado.evidencias_campos = resultado_grafo.get("evidencias_campos")
+
+                    if resultado_grafo.get("status") == "roteado":
+                        resultado_oci = self.storage_repo.salvar_triagem_json(
+                            documento_id=documento_id,
+                            dados_resultado={
+                                "documento_id": documento_id,
+                                "classificacao": {
+                                    "tipo_documento": doc_atualizado.tipo_documento,
+                                    "especialidade": doc_atualizado.especialidade,
+                                    "nivel_prioridade": doc_atualizado.nivel_prioridade,
+                                    "score_confianca_classificacao": doc_atualizado.score_confianca,
+                                },
+                                "dados_extraidos": doc_atualizado.dados_extraidos,
+                                "destino_principal": doc_atualizado.destino_principal,
+                                "justificativa_roteamento": doc_atualizado.justificativa_roteamento,
+                            },
+                            is_urgente=bool(resultado_grafo.get("is_urgente")),
+                            requer_auditoria=False,
+                        )
+                        doc_atualizado.bucket_oci = resultado_oci["bucket"]
+                        doc_atualizado.caminho_objeto_oci = resultado_oci["caminho_objeto"]
+
                 self.db_repo.db.commit()
                 self.db_repo.db.refresh(doc_atualizado)
+        except Exception:
+            self.db_repo.db.rollback()
+            if resultado_oci:
+                self.storage_repo.rollback_tentativa(
+                    caminho_json_local=resultado_oci.get("caminho_local"),
+                    objetos_oci=[resultado_oci.get("caminho_objeto")],
+                )
+            raise
 
             try:
                 # Libera lock no Redis

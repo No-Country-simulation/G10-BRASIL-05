@@ -268,53 +268,15 @@ class StorageRepository:
         mimetype: Optional[str] = None,
         subpasta: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Redireciona e salva o arquivo binário recebido via WhatsApp exclusivamente na pasta local Storage.
-
-        Separa automaticamente em subpastas:
-        - Imagens (.jpg, .jpeg, .png, etc.) -> Storage/imagem/
-        - PDFs (.pdf) -> Storage/pdf/
-        Aplica renomeação padronizada rastreável, operando 100% em disco local (sem envio para nuvem).
-        """
-        # Determina a subpasta por extensão ou mimetype caso não tenha sido especificada
-        if subpasta is None:
-            ext_limpa = (extensao or os.path.splitext(nome_original or "")[1] or "").lower()
-            if not ext_limpa.startswith(".") and ext_limpa:
-                ext_limpa = f".{ext_limpa}"
-
-            mime = (mimetype or "").lower()
-
-            if ext_limpa == ".pdf" or "pdf" in mime:
-                subpasta = "pdf"
-            elif ext_limpa in (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff") or "image" in mime:
-                subpasta = "imagem"
-
-        nome_renomeado = self.gerar_nome_arquivo_whatsapp(
+        """Compatibilidade para o fluxo WhatsApp, agora com upload OCI quando configurado."""
+        return self.salvar_arquivo_original(
             documento_id=documento_id,
+            conteudo=conteudo,
             nome_original=nome_original,
             extensao=extensao,
+            mimetype=mimetype,
+            subpasta=subpasta,
         )
-
-        destino_dir = self.local_storage_dir
-        if subpasta:
-            destino_dir = os.path.join(destino_dir, subpasta)
-        os.makedirs(destino_dir, exist_ok=True)
-
-        caminho_completo = os.path.join(destino_dir, nome_renomeado)
-
-        with open(caminho_completo, "wb") as f:
-            f.write(conteudo)
-
-        return {
-            "bucket": "local-storage",
-            "caminho_local": caminho_completo,
-            "caminho_relativo": os.path.relpath(caminho_completo, os.path.dirname(self.local_storage_dir)),
-            "nome_arquivo": nome_renomeado,
-            "diretorio": destino_dir,
-            "tamanho_bytes": len(conteudo),
-            "mimetype": mimetype or "application/octet-stream",
-            "caminho_objeto": f"Storage/{nome_renomeado}",
-            "status_backup": "sucesso_local",
-        }
 
     def salvar_triagem_json(
         self,
@@ -323,7 +285,7 @@ class StorageRepository:
         is_urgente: bool = False,
         requer_auditoria: bool = False,
     ) -> Dict[str, str]:
-        """Salva o JSON estruturado na pasta correspondente do Bucket OCI e em Storage local."""
+        """Salva o JSON estruturado e desfaz cópias parciais se algum destino falhar."""
         if requer_auditoria:
             prefixo = "auditoria_humana"
         elif is_urgente:
@@ -334,44 +296,28 @@ class StorageRepository:
         caminho_objeto = f"{prefixo}/{documento_id}.json"
         payload_bytes = json.dumps(dados_resultado, ensure_ascii=False, indent=2).encode("utf-8")
 
-        # Persistência no Storage local
+        caminho_local = os.path.join(self.local_storage_dir, prefixo, f"{documento_id}.json")
         try:
-            pasta_local = os.path.join(self.local_storage_dir, prefixo)
-            os.makedirs(pasta_local, exist_ok=True)
-            caminho_arquivo_local = os.path.join(pasta_local, f"{documento_id}.json")
-            with open(caminho_arquivo_local, "wb") as f:
-                f.write(payload_bytes)
-        except Exception as e:
-            logger.warning(f"[Storage Warning] Falha ao gravar JSON local: {e}")
-
-        # Se o cliente OCI estiver ativo, envia para a nuvem Oracle
-        if self.client and settings.OCI_NAMESPACE:
+            self._salvar_local_atomico(caminho_local, payload_bytes)
+            if self.client:
+                self._enviar_objeto_oci(caminho_objeto, payload_bytes, "application/json")
+        except Exception:
             try:
-                self.client.put_object(
-                    namespace_name=settings.OCI_NAMESPACE,
-                    bucket_name=self.bucket_name,
-                    object_name=caminho_objeto,
-                    put_object_body=payload_bytes,
-                    content_type="application/json",
-                )
-                return {
-                    "bucket": self.bucket_name,
-                    "caminho_objeto": caminho_objeto,
-                    "status_backup": "sucesso",
-                }
-            except Exception as e:
-                logger.error(f"[OCI Storage Error] Falha no upload para nuvem: {e}")
-                return {
-                    "bucket": self.bucket_name,
-                    "caminho_objeto": caminho_objeto,
-                    "status_backup": f"falha: {str(e)}",
-                }
+                self._remover_arquivo_local(caminho_local)
+            except OSError:
+                logger.exception("Falha ao remover JSON local durante rollback: %s", caminho_local)
+            if self.client:
+                try:
+                    self._excluir_objeto_oci(caminho_objeto)
+                except StoragePersistenceError:
+                    pass
+            raise
 
-        # Modo fallback local: simula o caminho OCI
         return {
-            "bucket": self.bucket_name,
+            "bucket": self.bucket_name if self.client else "local-storage",
             "caminho_objeto": caminho_objeto,
-            "status_backup": "sucesso (local_simulado)",
+            "caminho_local": caminho_local,
+            "status_backup": "sucesso" if self.client else "sucesso (local_simulado)",
         }
 
     def excluir_artefatos_triagem(
@@ -379,6 +325,7 @@ class StorageRepository:
         documento_id: str,
         caminho_fonte: Optional[str] = None,
         caminho_objeto: Optional[str] = None,
+        caminhos_objetos: Optional[list[str]] = None,
     ) -> None:
         """Apaga fonte e artefatos da triagem após confirmação humana de conteúdo fora de escopo."""
         raiz = os.path.realpath(self.local_storage_dir)
@@ -398,12 +345,29 @@ class StorageRepository:
             except OSError as erro:
                 logger.warning(f"Falha ao remover artefato local de documento fora de escopo: {erro}")
 
-        if self.client and settings.OCI_NAMESPACE and caminho_objeto:
+        objetos = set(caminhos_objetos or [])
+        if caminho_objeto:
+            objetos.add(caminho_objeto)
+        for objeto in objetos:
             try:
-                self.client.delete_object(
-                    namespace_name=settings.OCI_NAMESPACE,
-                    bucket_name=self.bucket_name,
-                    object_name=caminho_objeto,
-                )
-            except Exception as erro:
-                logger.warning(f"Falha ao remover objeto OCI de documento fora de escopo: {erro}")
+                self._excluir_objeto_oci(objeto)
+            except StoragePersistenceError:
+                continue
+
+    def rollback_tentativa(
+        self,
+        caminho_fonte: Optional[str] = None,
+        objetos_oci: Optional[list[str]] = None,
+        caminho_json_local: Optional[str] = None,
+    ) -> None:
+        """Remove somente os artefatos criados pela tentativa atual."""
+        for caminho in (caminho_fonte, caminho_json_local):
+            try:
+                self._remover_arquivo_local(caminho)
+            except OSError:
+                logger.exception("Falha ao remover artefato local durante rollback: %s", caminho)
+        for objeto in set(objetos_oci or []):
+            try:
+                self._excluir_objeto_oci(objeto)
+            except StoragePersistenceError:
+                continue
