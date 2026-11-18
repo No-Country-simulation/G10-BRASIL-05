@@ -245,16 +245,23 @@ class TriagemService:
         if resultado_grafo.get("status") == "recusado":
             caminho_fonte = doc_original.caminho_fonte
             caminho_objeto = doc_original.caminho_objeto_oci
+            caminhos_objetos_fonte = []
+            if caminho_fonte:
+                extensao_fonte = os.path.splitext(caminho_fonte)[1]
+                caminhos_objetos_fonte = [
+                    self.storage_repo.gerar_caminho_objeto_original(
+                        documento_id,
+                        extensao_fonte,
+                    ),
+                    # Compatibilidade com originais salvos antes da separação por tipo.
+                    f"recebidos/{documento_id}{extensao_fonte}",
+                ]
             self.db_repo.excluir_documento_e_auditoria(documento_id)
             self.storage_repo.excluir_artefatos_triagem(
                 documento_id,
                 caminho_fonte=caminho_fonte,
                 caminho_objeto=caminho_objeto,
-                caminhos_objetos=(
-                    [f"recebidos/{documento_id}{os.path.splitext(caminho_fonte)[1]}"]
-                    if caminho_fonte
-                    else []
-                ),
+                caminhos_objetos=caminhos_objetos_fonte,
             )
             excluir_checkpoint_triagem(documento_id)
             self.redis_service.liberar_lock(documento_id, payload.auditor_nome)

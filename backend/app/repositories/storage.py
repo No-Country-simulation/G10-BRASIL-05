@@ -75,8 +75,12 @@ class StorageRepository:
             subpasta = "pdf" if extensao_limpa == ".pdf" else "imagem" if (mimetype or "").startswith("image/") else None
         destino_dir = os.path.join(self.local_storage_dir, subpasta) if subpasta else self.local_storage_dir
         caminho_local = os.path.join(destino_dir, nome_renomeado)
-        caminho_objeto = f"recebidos/{documento_id}{extensao_limpa or '.bin'}"
         tipo_conteudo = mimetype or "application/octet-stream"
+        caminho_objeto = self.gerar_caminho_objeto_original(
+            documento_id=documento_id,
+            extensao=extensao_limpa,
+            mimetype=tipo_conteudo,
+        )
         objeto_tentado = False
 
         try:
@@ -110,6 +114,32 @@ class StorageRepository:
             "mimetype": tipo_conteudo,
             "status_backup": "sucesso" if self.client else "sucesso_local",
         }
+
+    @staticmethod
+    def gerar_caminho_objeto_original(
+        documento_id: str,
+        extensao: Optional[str],
+        mimetype: Optional[str] = None,
+    ) -> str:
+        """Organiza originais no bucket por tipo: recebidos/pdf ou recebidos/imagens."""
+        extensao_limpa = (extensao or "").lower()
+        if extensao_limpa and not extensao_limpa.startswith("."):
+            extensao_limpa = f".{extensao_limpa}"
+        tipo_conteudo = (mimetype or "").split(";", 1)[0].strip().lower()
+        extensoes_imagem = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".img"}
+
+        if extensao_limpa == ".pdf" or tipo_conteudo == "application/pdf":
+            pasta = "pdf"
+        elif tipo_conteudo.startswith("image/") or extensao_limpa in extensoes_imagem:
+            pasta = "imagens"
+        else:
+            # Mantém compatibilidade para tipos que não sejam PDF nem imagem.
+            pasta = None
+
+        nome_objeto = f"{documento_id}{extensao_limpa or '.bin'}"
+        if pasta:
+            return f"recebidos/{pasta}/{nome_objeto}"
+        return f"recebidos/{nome_objeto}"
 
     @staticmethod
     def sanitizar_nome_arquivo(nome_arquivo: Optional[str]) -> str:

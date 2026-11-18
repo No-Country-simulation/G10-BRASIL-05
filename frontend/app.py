@@ -67,37 +67,44 @@ st.markdown(
         color: #009DBB !important;
     }
 
-    /* Botão >> no topo da faixa de 80px quando recolhida */
+    /* Botão >> quando a barra estiver recolhida: na divisória entre a barra e a tela, ao lado da logo */
     [data-testid="stSidebarCollapsedControl"] {
         position: fixed !important;
-        top: 10px !important;
-        left: 0 !important;
-        width: 80px !important;
-        height: 32px !important;
+        top: 36px !important;
+        transform: translateY(-50%) !important;
+        left: 66px !important; /* Na divisória dos 80px (80px - 14px) */
+        width: 28px !important;
+        height: 28px !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         z-index: 1005 !important;
+        transition: left 320ms cubic-bezier(0.25, 1, 0.5, 1), top 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
     }
     [data-testid="stSidebarCollapsedControl"] button {
-        width: 30px !important;
-        height: 30px !important;
-        min-width: 30px !important;
-        min-height: 30px !important;
-        border-radius: 8px !important;
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+        border-radius: 50% !important;
         background: #FFFFFF !important;
-        border: 1px solid rgba(11, 60, 122, 0.14) !important;
-        box-shadow: 0 1px 4px rgba(11, 42, 91, 0.08) !important;
+        border: 1px solid rgba(11, 60, 122, 0.16) !important;
+        box-shadow: 0 2px 8px rgba(11, 42, 91, 0.12) !important;
         color: #0B3C7A !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         cursor: pointer !important;
+        padding: 0 !important;
         transition: all 150ms ease !important;
     }
     [data-testid="stSidebarCollapsedControl"] button:hover {
         background: #E6F7FB !important;
         border-color: #009DBB !important;
+        color: #009DBB !important;
+        transform: scale(1.15) !important;
+        box-shadow: 0 4px 12px rgba(0, 157, 187, 0.22) !important;
+    }
         color: #009DBB !important;
     }
 
