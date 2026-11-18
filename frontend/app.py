@@ -15,11 +15,13 @@ st.markdown(
     """
     <style>
     /* ========================================================
-       CABEÇALHO SUPERIOR (LIMPO E SEM LOGO FLUTUANTE)
+       CABEÇALHO SUPERIOR (LIMPO E SEM LINHA)
        ======================================================== */
-    header[data-testid="stHeader"] {
+    header[data-testid="stHeader"],
+    [data-testid="stHeader"] {
         background-color: transparent !important;
         border-bottom: none !important;
+        box-shadow: none !important;
         height: 3.5rem !important;
     }
     /* Oculta botão Deploy padrão do Streamlit */
@@ -27,47 +29,24 @@ st.markdown(
     [data-testid="stDeployButton"] {
         display: none !important;
     }
-    /* Remove a logo do cabeçalho superior quando recolhido */
-    [data-testid="stSidebarCollapsedControl"] img,
-    [data-testid="stSidebarCollapsedControl"] [data-testid="stSidebarLogo"],
-    header[data-testid="stHeader"] img {
-        display: none !important;
-    }
 
     /* ========================================================
-       SETA FLUTUANTE NA DIVISÓRIA (ESTILO OFICINA)
+       BOTÕES DE RECOLHER/EXPANDIR (ESTILO OFICINA)
        ======================================================== */
-    /* Quando a barra está EXPANDIDA: seta << na divisória direita (ao lado da logo) */
+    /* Quando a barra está EXPANDIDA: seta << DENTRO do cabeçalho ao lado da logo (marcado como SIM) */
     [data-testid="stSidebarCollapseButton"] {
-        position: fixed !important;
-        top: 20px !important;
-        left: 324px !important; /* Na divisória direita da barra expandida (336px - 12px) */
-        z-index: 1005 !important;
-        transition: left 300ms ease-in-out !important;
-    }
-
-    /* Quando a barra está RECOLHIDA: seta >> na divisória direita (ao lado da logo) */
-    [data-testid="stSidebarCollapsedControl"] {
-        position: fixed !important;
-        top: 20px !important;
-        left: 68px !important; /* Na divisória direita da barra recolhida (80px - 12px) */
-        width: 24px !important;
-        height: 24px !important;
+        position: static !important;
+        transform: none !important;
         display: flex !important;
-        justify-content: center !important;
         align-items: center !important;
-        z-index: 1005 !important;
-        transition: left 300ms ease-in-out !important;
+        justify-content: center !important;
+        margin-left: auto !important;
     }
-
-    /* Estilo do botão idêntico ao oficina/front:
-       w-6 h-6 rounded-full bg-white border border-slate-200 shadow-sm items-center justify-center text-slate-500 hover:text-slate-900 hover:border-slate-300 hover:scale-105 transition-all cursor-pointer */
-    [data-testid="stSidebarCollapseButton"] button,
-    [data-testid="stSidebarCollapsedControl"] button {
-        width: 24px !important;
-        height: 24px !important;
-        min-width: 24px !important;
-        min-height: 24px !important;
+    [data-testid="stSidebarCollapseButton"] button {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
         border-radius: 9999px !important;
         background-color: #FFFFFF !important;
         border: 1px solid #E2E8F0 !important;
@@ -80,12 +59,72 @@ st.markdown(
         padding: 0 !important;
         transition: all 150ms ease-in-out !important;
     }
-    [data-testid="stSidebarCollapseButton"] button:hover,
-    [data-testid="stSidebarCollapsedControl"] button:hover {
+    [data-testid="stSidebarCollapseButton"] button:hover {
         color: #0F172A !important;
         border-color: #CBD5E1 !important;
         transform: scale(1.08) !important;
-        box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.08) !important;
+        background-color: #F8FAFC !important;
+    }
+
+    /* Quando a barra está RECOLHIDA:
+       Controle fixado exatamente sobre o topo da sidebar de 80px (largura 80px, altura 64px) */
+    [data-testid="stSidebarCollapsedControl"] {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 80px !important;
+        height: 64px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        z-index: 1005 !important;
+        background-color: transparent !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* A logo compacta centralizada no cabeçalho de 80px */
+    [data-testid="stSidebarCollapsedControl"] [data-testid="stSidebarLogo"],
+    [data-testid="stSidebarCollapsedControl"] img {
+        display: flex !important;
+        visibility: visible !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 38px !important;
+        height: 38px !important;
+        max-width: 38px !important;
+        max-height: 38px !important;
+        object-fit: contain !important;
+        margin: 0 auto !important;
+    }
+
+    /* Seta >> flutuante na divisória entre a barra de 80px e a tela, ao lado da logo (estilo oficina -right-3 top-5) */
+    [data-testid="stSidebarCollapsedControl"] button {
+        position: absolute !important;
+        right: -12px !important; /* -right-3: exatamente na emenda da barra de 80px com o conteúdo */
+        top: 20px !important;   /* top-5: na mesma altura do centro da logo */
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        min-height: 24px !important;
+        border-radius: 9999px !important;
+        background-color: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.10) !important;
+        color: #64748B !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        padding: 0 !important;
+        z-index: 1010 !important;
+        transition: all 150ms ease-in-out !important;
+    }
+    [data-testid="stSidebarCollapsedControl"] button:hover {
+        color: #0F172A !important;
+        border-color: #94A3B8 !important;
+        transform: scale(1.1) !important;
+        background-color: #F8FAFC !important;
     }
     [data-testid="stSidebarCollapseButton"] button svg,
     [data-testid="stSidebarCollapseButton"] button span,
@@ -95,27 +134,24 @@ st.markdown(
         line-height: 1 !important;
     }
 
-    /* Oculta a logo duplicada injetada pelo controle flutuante do Streamlit */
-    [data-testid="stSidebarCollapsedControl"] img,
-    [data-testid="stSidebarCollapsedControl"] [data-testid="stSidebarLogo"] {
-        display: none !important;
-    }
-
     /* ========================================================
        CABEÇALHO DA SIDEBAR EXPANDIDA & RECOLHIDA (ESTILO OFICINA)
        ======================================================== */
-    /* Expandido: logo na esquerda com respiro */
+    /* Expandido: logo na esquerda e botão << na direita, alinhados perfeitamente */
     [data-testid="stSidebarHeader"] {
         display: flex !important;
         flex-direction: row !important;
         align-items: center !important;
+        justify-content: space-between !important;
         height: 64px !important;
         padding: 0 1rem !important;
+        width: 100% !important;
     }
     [data-testid="stSidebarHeader"] img {
         width: auto !important;
-        max-width: 180px !important;
-        height: 42px !important;
+        max-width: 195px !important;
+        height: auto !important;
+        max-height: 55px !important;
         object-fit: contain !important;
         transition: all 300ms ease-in-out !important;
     }
@@ -148,28 +184,12 @@ st.markdown(
         box-shadow: 2px 0 10px rgba(11, 42, 91, 0.04) !important;
     }
 
-    /* Cabeçalho da sidebar recolhida: exibe a logo compacta centralizada no topo */
+    /* Cabeçalho da sidebar recolhida reserva 64px para o stSidebarCollapsedControl */
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"],
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
         height: 64px !important;
-        padding: 0 !important;
-        margin: 0 auto !important;
-        visibility: visible !important;
-    }
-    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"] img,
-    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
-        display: block !important;
-        visibility: visible !important;
-        width: 40px !important;
-        max-width: 40px !important;
-        height: 40px !important;
-        max-height: 40px !important;
-        object-fit: contain !important;
-        margin: 0 auto !important;
+        min-height: 64px !important;
+        visibility: hidden !important;
     }
 
     /* Links de navegação centralizados na faixa de 80px */
