@@ -34,6 +34,30 @@ st.markdown(
         object-fit: cover;
         object-position: 25% center;
     }
+    [data-testid="stSidebarUserContent"] {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+        min-height: 70vh;
+    }
+    .sidebar-footer {
+        margin-top: auto;
+        padding-top: 24px;
+        padding-bottom: 8px;
+        text-align: center;
+    }
+    .sidebar-badge {
+        display: inline-block;
+        background: #D8EAF2;
+        color: #0B2A5B;
+        font-size: 0.73rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 5px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(11, 60, 122, 0.12);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -42,10 +66,27 @@ st.logo(CAMINHO_DA_LOGO, size="large", icon_image=CAMINHO_DA_LOGO)
 validar_configuracao_frontend()
 
 paginas = [
-    st.Page("pages/1_Triagem_Clinica.py", title="Triagem Clínica", default=True),
-    st.Page("pages/2_Auditoria_Humana.py", title="Auditoria"),
-    st.Page("pages/3_Historico.py", title="Histórico"),
-    st.Page("pages/4_WhatsApp_Evolution.py", title="Conectar"),
+    st.Page(
+        "pages/1_Triagem_Clinica.py",
+        title="Triagem Clínica",
+        icon=":material/stethoscope:",
+        default=True,
+    ),
+    st.Page(
+        "pages/2_Auditoria_Humana.py",
+        title="Auditoria",
+        icon=":material/verified_user:",
+    ),
+    st.Page(
+        "pages/3_Historico.py",
+        title="Histórico",
+        icon=":material/history:",
+    ),
+    st.Page(
+        "pages/4_WhatsApp_Evolution.py",
+        title="Conectar",
+        icon=":material/chat:",
+    ),
 ]
 
 exibir_barra_lateral()
