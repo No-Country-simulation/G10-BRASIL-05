@@ -33,28 +33,58 @@ st.markdown(
     header[data-testid="stHeader"] img {
         display: none !important;
     }
-    /* Centraliza o botão >> no topo da faixa de 80px */
+
+    /* ========================================================
+       BOTÕES DE RECOLHER/EXPANDIR NA DIVISÓRIA (CENTRO VERTICAL)
+       ======================================================== */
+    /* Pílula circular flutuando entre a barra recolhida e a tela */
     [data-testid="stSidebarCollapsedControl"] {
         position: fixed !important;
-        top: 12px !important;
-        left: 0 !important;
-        width: 80px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        left: 66px !important; /* metade sobre a borda dos 80px (80px - 14px) */
+        width: 28px !important;
+        height: 28px !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        z-index: 105 !important;
+        z-index: 1005 !important;
+        transition: left 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
     }
+    /* Pílula circular flutuando entre a barra expandida e a tela */
+    [data-testid="stSidebarCollapseButton"] {
+        position: fixed !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        left: 322px !important; /* metade sobre a borda dos 336px (336px - 14px) */
+        z-index: 1005 !important;
+        transition: left 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
+    }
+    [data-testid="stSidebarCollapseButton"] button,
     [data-testid="stSidebarCollapsedControl"] button {
-        background: transparent !important;
-        border: none !important;
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+        border-radius: 50% !important;
+        background: #FFFFFF !important;
+        border: 1px solid rgba(11, 60, 122, 0.16) !important;
+        box-shadow: 0 2px 8px rgba(11, 42, 91, 0.12) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0 !important;
         color: #0B3C7A !important;
-        border-radius: 8px !important;
-        padding: 6px !important;
-        transition: all 150ms ease !important;
+        cursor: pointer !important;
+        transition: all 180ms ease !important;
     }
+    [data-testid="stSidebarCollapseButton"] button:hover,
     [data-testid="stSidebarCollapsedControl"] button:hover {
-        background-color: rgba(0, 157, 187, 0.12) !important;
+        background: #E6F7FB !important;
+        border-color: #009DBB !important;
         color: #009DBB !important;
+        transform: scale(1.15) !important;
+        box-shadow: 0 4px 12px rgba(0, 157, 187, 0.22) !important;
     }
 
     /* ========================================================
@@ -70,12 +100,18 @@ st.markdown(
         height: auto !important;
         max-height: 95px !important;
         object-fit: contain;
-        transition: all 200ms ease;
+        transition: all 300ms cubic-bezier(0.25, 1, 0.5, 1);
     }
 
     /* ========================================================
        OPÇÃO B: SIDEBAR PERMANENTE DE 80px QUANDO RECOLHIDA
        ======================================================== */
+    [data-testid="stSidebar"] {
+        transition: width 320ms cubic-bezier(0.25, 1, 0.5, 1),
+                    min-width 320ms cubic-bezier(0.25, 1, 0.5, 1),
+                    max-width 320ms cubic-bezier(0.25, 1, 0.5, 1),
+                    transform 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
+    }
     [data-testid="stSidebar"][data-collapsed="true"],
     [data-testid="stSidebar"][aria-expanded="false"] {
         display: block !important;
@@ -93,10 +129,9 @@ st.markdown(
         background-color: #EAF4F8 !important;
         border-right: 1px solid rgba(11, 60, 122, 0.10) !important;
         box-shadow: 2px 0 10px rgba(11, 42, 91, 0.04) !important;
-        transition: width 200ms ease, min-width 200ms ease, max-width 200ms ease !important;
     }
 
-    /* Cabeçalho da sidebar recolhida: exibe a logo compacta centralizada */
+    /* Cabeçalho da sidebar recolhida: exibe a logo compacta centralizada no topo */
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"],
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] {
         display: flex !important;
@@ -105,9 +140,20 @@ st.markdown(
         justify-content: center !important;
         height: auto !important;
         min-height: 64px !important;
-        padding: 44px 0 10px 0 !important;
+        padding: 16px 0 10px 0 !important;
         margin: 0 auto !important;
         visibility: visible !important;
+    }
+    [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"] img,
+    [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
+        display: block !important;
+        visibility: visible !important;
+        width: 46px !important;
+        max-width: 46px !important;
+        height: 46px !important;
+        max-height: 46px !important;
+        object-fit: contain !important;
+        margin: 0 auto !important;
     }
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"] img,
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
@@ -262,7 +308,11 @@ st.markdown(
     /* ========================================================
        SEPARAÇÃO E RESPIRO DO CONTEÚDO PRINCIPAL
        ======================================================== */
-    /* Quando a barra estiver recolhida (80px), dá margem e respiro generoso */
+    /* Quando a barra estiver recolhida (80px), dá margem e respiro generoso com transição fluida */
+    section.main,
+    [data-testid="stMain"] {
+        transition: margin-left 320ms cubic-bezier(0.25, 1, 0.5, 1) !important;
+    }
     [data-testid="stSidebar"][data-collapsed="true"] ~ section.main,
     [data-testid="stSidebar"][data-collapsed="true"] ~ [data-testid="stMain"],
     [data-testid="stSidebar"][aria-expanded="false"] ~ section.main,
