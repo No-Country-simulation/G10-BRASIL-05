@@ -108,6 +108,17 @@ def test_sanitizacao_lgpd_em_producao():
         settings.APP_ENV = original_env
 
 
+def test_sanitizacao_lgpd_em_ambiente_local_preserva_valores():
+    """Em ambiente local, mantém dados nos logs para depuração."""
+    original_env = settings.APP_ENV
+    try:
+        settings.APP_ENV = "local"
+        texto_sensivel = "Paciente CPF 123.456.789-00 e paciente@hospital.com"
+        assert sanitizar_dados_lgpd(texto_sensivel) == texto_sensivel
+    finally:
+        settings.APP_ENV = original_env
+
+
 def test_json_log_formatter_estrutura():
     """Valida que o formatador emite JSON válido com metadados estruturados."""
     formatter = JSONLogFormatter()

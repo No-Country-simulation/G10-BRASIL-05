@@ -23,6 +23,7 @@ class MedicamentoDosagem(BaseModel):
 
     medicamento: str | None = None
     dosagem: str | None = None
+    posologia: str | None = None
 
 
 class DadosExtraidos(BaseModel):

@@ -31,6 +31,10 @@ def listar_fila_auditoria() -> list[dict]:
     return deepcopy(FILA_AUDITORIA_MOCK)
 
 
+def obter_fonte_original(documento_id: str):
+    return None
+
+
 def _escolher_resposta(documento_texto: str) -> dict:
     texto = documento_texto.lower()
     if any(termo in texto for termo in TERMOS_DE_URGENCIA):

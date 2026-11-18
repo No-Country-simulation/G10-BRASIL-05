@@ -18,7 +18,8 @@ redis>=5.0.0
 pymongo>=4.6.0
 
 # Inteligência Artificial & Agentes
-langgraph>=0.2.20
+langgraph>=1.2.20
+langgraph-checkpoint-postgres>=3.0,<4.0
 langchain>=0.2.14
 langchain-core>=0.2.35
 langchain-google-genai>=1.0.8

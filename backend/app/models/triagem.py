@@ -88,6 +88,10 @@ class DocumentoTriagemModel(Base):
 
     # Entidades extraídas (armazenamento flexível em JSON)
     dados_extraidos = Column(JSON, nullable=True)
+    evidencias_campos = Column(JSON, nullable=True)
+    motivo_revisao = Column(Text, nullable=True)
+    etapa_revisao = Column(String(50), nullable=True)
+    caminho_fonte = Column(String(500), nullable=True)
 
     # OCI Object Storage
     bucket_oci = Column(String(150), nullable=True)

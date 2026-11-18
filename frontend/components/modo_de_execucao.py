@@ -1,23 +1,31 @@
 import streamlit as st
 
 from services.configuracao import obter_url_do_backend, usar_dados_simulados
+from services.erros import ErroDeConfiguracao
 
 AVISO_DA_PAGINA = (
-    "**MODO DEMONSTRAÇÃO:** os dados desta tela são fictícios. Decisões de auditoria e a "
-    "integração com o WhatsApp não funcionam neste modo. "
-    "Para usar a API real, deixe `MODO_DEMONSTRACAO` vazio no `.env`."
+    "Dados fictícios para teste. Nenhum documento é processado, salvo ou enviado para auditoria ou WhatsApp."
 )
 
 
-def exibir_modo_na_barra_lateral() -> None:
-    with st.sidebar:
-        if usar_dados_simulados():
-            st.warning("**Modo demonstração**\n\nDados fictícios. Nada é enviado nem salvo.", icon="🧪")
-        else:
-            st.success("**Modo API (dados reais)**", icon="🔌")
-            st.caption(obter_url_do_backend())
+def validar_configuracao_frontend() -> None:
+    if _usar_mock_ou_interromper():
+        return
+    try:
+        obter_url_do_backend()
+    except ErroDeConfiguracao as erro:
+        st.error(str(erro))
+        st.stop()
 
 
-def exibir_aviso_de_demonstracao() -> None:
-    if usar_dados_simulados():
-        st.warning(AVISO_DA_PAGINA, icon="🧪")
+def exibir_aviso_de_dados_ficticios() -> None:
+    if _usar_mock_ou_interromper():
+        st.warning(AVISO_DA_PAGINA, icon="ℹ️")
+
+
+def _usar_mock_ou_interromper() -> bool:
+    try:
+        return usar_dados_simulados()
+    except ErroDeConfiguracao as erro:
+        st.error(str(erro))
+        st.stop()

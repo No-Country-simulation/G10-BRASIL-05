@@ -183,7 +183,7 @@ def test_avisa_quando_a_resposta_nao_e_json(simular_api):
 
 
 def test_cliente_usa_a_url_e_o_tempo_limite_configurados(monkeypatch):
-    monkeypatch.setenv("API_BASE_URL", "http://servidor:9000/")
+    monkeypatch.setenv("API_URL_LOCAL", "http://servidor:9000/")
     monkeypatch.setenv("API_TIMEOUT", "15")
 
     with cliente_http._criar_cliente() as cliente:

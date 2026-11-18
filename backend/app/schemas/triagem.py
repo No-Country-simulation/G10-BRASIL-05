@@ -36,6 +36,12 @@ class MedicoSolicitante(BaseModel):
         return v
 
 
+class MedicamentoExtraido(BaseModel):
+    medicamento: Optional[str] = None
+    dosagem: Optional[str] = None
+    posologia: Optional[str] = None
+
+
 class DadosExtraidos(BaseModel):
     """Entidades clínicas essenciais extraídas do documento."""
     paciente: Paciente = Field(default_factory=Paciente)
@@ -43,6 +49,7 @@ class DadosExtraidos(BaseModel):
     exame_realizado: Optional[str] = Field(None, json_schema_extra={"example": "Tomografia de Torax com contraste"})
     diagnostico_principal: Optional[str] = Field(None, json_schema_extra={"example": "Tromboembolismo Pulmonar Agudo (TEP)"})
     cid_sugerido: Optional[str] = Field(None, json_schema_extra={"example": "I26.9"})
+    medicamentos: List[MedicamentoExtraido] = Field(default_factory=list)
 
 
 class NotificacaoAlerta(BaseModel):
@@ -73,12 +80,14 @@ class RespostaTriagem(BaseModel):
     dados_extraidos: DadosExtraidos
     decisao_roteamento: DecisaoRoteamento
     armazenamento_oci: ArmazenamentoOCI
+    evidencias_campos: Optional[dict[str, Any]] = None
+    motivo_revisao: Optional[str] = None
 
 
 class DecisaoAuditoriaRequest(BaseModel):
     """Contrato para aprovação, correção ou rejeição no painel médico (Human-in-the-Loop)."""
-    status_aprovacao: Literal["aprovado", "corrigido", "rejeitado"] = Field(
-        ..., json_schema_extra={"example": "aprovado"}, description="aprovado, corrigido ou rejeitado"
+    status_aprovacao: Literal["aprovado", "corrigido", "rejeitado", "solicitar_reenvio"] = Field(
+        ..., json_schema_extra={"example": "aprovado"}, description="aprovado, corrigido, rejeitado ou solicitar_reenvio"
     )
     auditor_nome: str = Field(..., json_schema_extra={"example": "Dr. Roberto Silva"})
     justificativa: str = Field(..., json_schema_extra={"example": "Dados conferidos e aprovados clinicamente."})

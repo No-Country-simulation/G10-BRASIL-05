@@ -21,7 +21,7 @@ def sanitizar_dados_lgpd(texto: str) -> str:
         texto = str(texto)
 
     # Não mascara em ambiente local de desenvolvimento
-    if settings.APP_ENV.lower() == "development":
+    if settings.APP_ENV.lower() in {"local", "development", "dev"}:
         return texto
 
     # Mascaramento em produção

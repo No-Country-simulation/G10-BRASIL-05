@@ -1,0 +1,86 @@
+[
+  {
+    "documento_id": "DOC-CLIN-2026-0003",
+    "tipo_documento": "RECEITA",
+    "nivel_prioridade": "ROTINA",
+    "score_confianca": 0.58,
+    "dados_extraidos": {
+      "paciente": {
+        "nome": "João P. Lima",
+        "idade": null
+      },
+      "medico_solicitante": {
+        "nome": "Não legível",
+        "crm": null
+      },
+      "medicamentos": [
+        {
+          "medicamento": "Losartana (trecho ilegível)",
+          "dosagem": null
+        }
+      ],
+      "diagnostico_principal": null,
+      "cid_sugerido": null
+    },
+    "justificativa_roteamento": "CRM ausente e trechos ilegíveis reduziram a confiança da extração.",
+    "caminho_objeto_oci": "auditoria_humana/DOC-CLIN-2026-0003.json",
+    "documento_texto": "RECEITUARIO MEDICO. Paciente: João P. Lima. Medico: nome ilegivel, CRM ausente. Prescricao: Losartana (trecho ilegivel).",
+    "created_at": "2026-10-27T09:30:00"
+  },
+  {
+    "documento_id": "DOC-CLIN-2026-0006",
+    "tipo_documento": "RECEITA",
+    "nivel_prioridade": "URGENTE",
+    "score_confianca": 0.66,
+    "dados_extraidos": {
+      "paciente": {
+        "nome": "M. Souza",
+        "idade": null
+      },
+      "medico_solicitante": {
+        "nome": "Não legível",
+        "crm": null
+      },
+      "medicamentos": [
+        {
+          "medicamento": "Losartana (trecho ilegível)",
+          "dosagem": null
+        }
+      ],
+      "diagnostico_principal": null,
+      "cid_sugerido": null
+    },
+    "justificativa_roteamento": "CRM ausente e trechos ilegíveis reduziram a confiança da extração.",
+    "caminho_objeto_oci": "auditoria_humana/DOC-CLIN-2026-0006.json",
+    "documento_texto": "RECEITUARIO MEDICO. Paciente: M. Souza. Medico: nome ilegivel, CRM ausente. Prescricao: Losartana (trecho ilegivel).",
+    "created_at": "2026-10-27T09:45:00"
+  },
+  {
+    "documento_id": "DOC-CLIN-2026-0007",
+    "tipo_documento": "RECEITA",
+    "nivel_prioridade": "EMERGENCIA",
+    "score_confianca": 0.62,
+    "dados_extraidos": {
+      "paciente": {
+        "nome": "Paulo R. Nunes",
+        "idade": null
+      },
+      "medico_solicitante": {
+        "nome": "Não legível",
+        "crm": null
+      },
+      "medicamentos": [
+        {
+          "medicamento": "Losartana (trecho ilegível)",
+          "dosagem": null
+        }
+      ],
+      "diagnostico_principal": null,
+      "cid_sugerido": null
+    },
+    "justificativa_roteamento": "CRM ausente e trechos ilegíveis reduziram a confiança da extração.",
+    "caminho_objeto_oci": "auditoria_humana/DOC-CLIN-2026-0007.json",
+    "documento_texto": "RECEITUARIO MEDICO. Paciente: Paulo R. Nunes. Medico: nome ilegivel, CRM ausente. Prescricao: Losartana (trecho ilegivel).",
+    "created_at": "2026-10-27T10:00:00"
+  }
+]

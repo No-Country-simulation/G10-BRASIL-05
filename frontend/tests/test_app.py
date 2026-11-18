@@ -25,11 +25,13 @@ def test_todas_as_paginas_estao_registradas_na_navegacao():
     assert nao_registradas == []
 
 
-def test_demonstracao_e_identificada_na_pagina_e_na_barra_lateral():
+def test_modo_nao_e_exposto_na_tela_e_dados_ficticios_sao_identificados():
     at = _abrir_app()
 
-    assert "MODO DEMONSTRAÇÃO" in at.warning[0].value
-    assert "Modo demonstração" in at.sidebar.warning[0].value
+    assert "MODO DEMONSTRAÇÃO" not in at.warning[0].value
+    assert "Dados fictícios para teste" in at.warning[0].value
+    assert not at.sidebar.warning
+    assert not at.sidebar.success
 
 
 def test_modo_real_nao_mostra_aviso_de_demonstracao(modo_api_real):
@@ -38,4 +40,4 @@ def test_modo_real_nao_mostra_aviso_de_demonstracao(modo_api_real):
     assert not at.exception
     assert not at.warning
     assert not at.sidebar.warning
-    assert "Modo API" in at.sidebar.success[0].value
+    assert not at.sidebar.success

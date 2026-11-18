@@ -1,4 +1,4 @@
-from services import cliente_http, cliente_mock, cliente_whatsapp
+from services import cliente_http, cliente_whatsapp
 from services.configuracao import usar_dados_simulados
 from services.erros import ErroDeApi
 
@@ -19,9 +19,31 @@ def listar_fila_auditoria() -> list[dict]:
     return _cliente().listar_fila_auditoria()
 
 
+def obter_fonte_original(documento_id: str):
+    _exigir_api_real("abrir a fonte original da auditoria")
+    return cliente_http.obter_fonte_original(documento_id)
+
+
 def registrar_decisao(documento_id: str, decisao: dict) -> dict:
     _exigir_api_real("registrar a decisão de auditoria")
     return cliente_http.registrar_decisao(documento_id, decisao)
+
+
+def obter_status_lock_auditoria(documento_id: str) -> dict:
+    _exigir_api_real("consultar o bloqueio da auditoria")
+    return cliente_http.obter_status_lock_auditoria(documento_id)
+
+
+def bloquear_documento_auditoria(
+    documento_id: str, auditor_nome: str, ttl_segundos: int = 300
+) -> dict:
+    _exigir_api_real("bloquear o documento para auditoria")
+    return cliente_http.bloquear_documento_auditoria(documento_id, auditor_nome, ttl_segundos)
+
+
+def desbloquear_documento_auditoria(documento_id: str, auditor_nome: str) -> dict:
+    _exigir_api_real("liberar o documento da auditoria")
+    return cliente_http.desbloquear_documento_auditoria(documento_id, auditor_nome)
 
 
 def obter_status_whatsapp() -> dict:
@@ -50,7 +72,12 @@ def enviar_teste_whatsapp(numero: str, texto: str) -> dict:
 
 
 def _cliente():
-    return cliente_mock if usar_dados_simulados() else cliente_http
+    if usar_dados_simulados():
+        # Carrega fixtures JSON apenas quando o modo local de demonstração foi pedido.
+        from services import cliente_mock
+
+        return cliente_mock
+    return cliente_http
 
 
 def _exigir_api_real(acao: str) -> None:

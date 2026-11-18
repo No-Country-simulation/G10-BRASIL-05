@@ -215,3 +215,37 @@ class StorageRepository:
             "caminho_objeto": caminho_objeto,
             "status_backup": "sucesso (local_simulado)",
         }
+
+    def excluir_artefatos_triagem(
+        self,
+        documento_id: str,
+        caminho_fonte: Optional[str] = None,
+        caminho_objeto: Optional[str] = None,
+    ) -> None:
+        """Apaga fonte e artefatos da triagem após confirmação humana de conteúdo fora de escopo."""
+        raiz = os.path.realpath(self.local_storage_dir)
+        candidatos = [
+            os.path.join(raiz, "auditoria_humana", f"{documento_id}.json"),
+            os.path.join(raiz, "processados", "urgentes", f"{documento_id}.json"),
+            os.path.join(raiz, "processados", "rotina", f"{documento_id}.json"),
+        ]
+        if caminho_fonte:
+            fonte = os.path.realpath(caminho_fonte)
+            if os.path.commonpath([raiz, fonte]) == raiz:
+                candidatos.append(fonte)
+        for candidato in candidatos:
+            try:
+                if os.path.isfile(candidato):
+                    os.remove(candidato)
+            except OSError as erro:
+                logger.warning(f"Falha ao remover artefato local de documento fora de escopo: {erro}")
+
+        if self.client and settings.OCI_NAMESPACE and caminho_objeto:
+            try:
+                self.client.delete_object(
+                    namespace_name=settings.OCI_NAMESPACE,
+                    bucket_name=self.bucket_name,
+                    object_name=caminho_objeto,
+                )
+            except Exception as erro:
+                logger.warning(f"Falha ao remover objeto OCI de documento fora de escopo: {erro}")

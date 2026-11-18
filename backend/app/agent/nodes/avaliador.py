@@ -31,7 +31,7 @@ def node_avaliacao(state: GraphState) -> GraphState:
     if not paciente.get("nome"):
         inconsistencias.append("Nome do paciente ausente ou não identificado com segurança.")
 
-    if not medico.get("crm"):
+    if not (medico.get("crm") or medico.get("crm_uf")):
         inconsistencias.append("Número de CRM do médico ausente ou inconsistente.")
 
     if len(texto) < 40 or not state.get("diagnostico_principal"):
@@ -48,7 +48,12 @@ def node_avaliacao(state: GraphState) -> GraphState:
     if is_urgente and len(texto) > 40:
         score_final = max(0.95, score_final)
 
-    requer_auditoria = (score_final < DEFAULT_CONFIDENCE_THRESHOLD) or (len(inconsistencias) > 0 and not is_urgente)
+    revisao_ja_concluida = bool(state.get("revisao_concluida"))
+    requer_auditoria = not revisao_ja_concluida and (
+        score_final < DEFAULT_CONFIDENCE_THRESHOLD
+        or len(inconsistencias) > 0
+        or is_urgente
+    )
 
     return {
         **state,
@@ -57,5 +62,15 @@ def node_avaliacao(state: GraphState) -> GraphState:
         "inconsistencias": inconsistencias,
         "score_confianca_classificacao": score_final,
         "requer_auditoria_humana": requer_auditoria,
+        "motivo_revisao": (
+            motivo_urgencia
+            if is_urgente
+            else "; ".join(inconsistencias)
+            if inconsistencias
+            else "Confiança abaixo do limiar configurado."
+            if score_final < DEFAULT_CONFIDENCE_THRESHOLD
+            else None
+        ),
+        "etapa_revisao": "risco" if requer_auditoria else None,
         "status": "avaliado",
     }

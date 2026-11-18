@@ -113,6 +113,11 @@ def exibir_item_de_auditoria(item: dict) -> None:
         _exibir_confianca(item.get("score_confianca"))
     st.subheader("Dados extraídos")
     exibir_dados_extraidos(item.get("dados_extraidos") or {})
+    evidencias = item.get("evidencias_campos") or {}
+    if evidencias:
+        with st.expander("Evidências e campos bloqueados"):
+            st.write(item.get("motivo_revisao") or "Confira cada valor na fonte original.")
+            st.json(evidencias)
 
 
 def _exibir_selo_de_prioridade(prioridade: str | None) -> None:

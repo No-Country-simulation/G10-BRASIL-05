@@ -99,6 +99,10 @@ def init_db():
                 conn.execute(text("ALTER TABLE documentos_triagem ADD COLUMN IF NOT EXISTS paciente_id INTEGER REFERENCES pacientes(id);"))
                 conn.execute(text("ALTER TABLE documentos_triagem ADD COLUMN IF NOT EXISTS medico_id INTEGER REFERENCES medicos(id);"))
                 conn.execute(text("ALTER TABLE documentos_triagem ADD COLUMN IF NOT EXISTS hospital_id INTEGER REFERENCES hospitais(id);"))
+                conn.execute(text("ALTER TABLE documentos_triagem ADD COLUMN IF NOT EXISTS evidencias_campos JSONB;"))
+                conn.execute(text("ALTER TABLE documentos_triagem ADD COLUMN IF NOT EXISTS motivo_revisao TEXT;"))
+                conn.execute(text("ALTER TABLE documentos_triagem ADD COLUMN IF NOT EXISTS etapa_revisao VARCHAR(50);"))
+                conn.execute(text("ALTER TABLE documentos_triagem ADD COLUMN IF NOT EXISTS caminho_fonte VARCHAR(500);"))
                 conn.commit()
     except Exception:
         pass
@@ -302,6 +306,10 @@ class DatabaseRepository:
             existente.status_processamento = model.status_processamento
             existente.justificativa_roteamento = model.justificativa_roteamento
             existente.dados_extraidos = model.dados_extraidos
+            existente.evidencias_campos = model.evidencias_campos
+            existente.motivo_revisao = model.motivo_revisao
+            existente.etapa_revisao = model.etapa_revisao
+            existente.caminho_fonte = model.caminho_fonte
             existente.bucket_oci = model.bucket_oci
             existente.caminho_objeto_oci = model.caminho_objeto_oci
             existente.paciente_id = model.paciente_id
@@ -332,6 +340,10 @@ class DatabaseRepository:
                 existente.status_processamento = model.status_processamento
                 existente.justificativa_roteamento = model.justificativa_roteamento
                 existente.dados_extraidos = model.dados_extraidos
+                existente.evidencias_campos = model.evidencias_campos
+                existente.motivo_revisao = model.motivo_revisao
+                existente.etapa_revisao = model.etapa_revisao
+                existente.caminho_fonte = model.caminho_fonte
                 existente.bucket_oci = model.bucket_oci
                 existente.caminho_objeto_oci = model.caminho_objeto_oci
                 existente.paciente_id = model.paciente_id
@@ -346,6 +358,16 @@ class DatabaseRepository:
         return self.db.query(DocumentoTriagemModel).filter(
             DocumentoTriagemModel.documento_id == documento_id
         ).first()
+
+    def excluir_documento_e_auditoria(self, documento_id: str) -> None:
+        """Remove conteúdo e metadados de um arquivo que a revisão marcou como fora de escopo."""
+        self.db.query(TrilhaAuditoriaModel).filter(
+            TrilhaAuditoriaModel.documento_id == documento_id
+        ).delete(synchronize_session=False)
+        self.db.query(DocumentoTriagemModel).filter(
+            DocumentoTriagemModel.documento_id == documento_id
+        ).delete(synchronize_session=False)
+        self.db.commit()
 
     def listar_todos(self, skip: int = 0, limit: int = 50) -> List[DocumentoTriagemModel]:
         return (

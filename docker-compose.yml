@@ -1,5 +1,6 @@
 services:
   postgres:
+    profiles: ["infra"]
     image: postgres:16
     container_name: g10-postgres
     restart: unless-stopped
@@ -18,6 +19,7 @@ services:
       retries: 5
 
   redis:
+    profiles: ["infra"]
     image: redis:7-alpine
     container_name: g10-redis
     restart: unless-stopped
@@ -32,6 +34,7 @@ services:
       retries: 5
 
   mongodb:
+    profiles: ["infra"]
     image: mongo:7
     container_name: g10-mongodb
     restart: unless-stopped
@@ -48,6 +51,7 @@ services:
       retries: 5
 
   evolution-api:
+    profiles: ["integrations"]
     image: evoapicloud/evolution-api:v2.2.2
     container_name: g10-evolution-api
     restart: unless-stopped
@@ -71,10 +75,55 @@ services:
       - CACHE_REDIS_SAVE_INSTANCES=true
     volumes:
       - evolutiondata:/evolution/store
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: g10-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-root}@postgres:5432/${DB_NAME:-mediflow_db}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_ENABLED: "true"
+      MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DATABASE: ${MONGO_DB:-mediflow_auditoria}
+      MONGODB_ENABLED: "true"
+      EVOLUTION_API_URL: http://evolution-api:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-mediflow_secret_evolution_key}
+      CORS_ORIGINS: '["http://localhost:8501", "http://127.0.0.1:8501"]'
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./Storage:/app/Storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: g10-frontend
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env
+    environment:
+      # Dentro do Compose, localhost aponta ao container Streamlit; use o serviço backend.
+      API_URL_LOCAL: http://backend:8000
+      STREAMLIT_SERVER_HEADLESS: "true"
+      BROWSER_GATHER_USAGE_STATS: "false"
+    ports:
+      - "${FRONTEND_PORT:-8501}:8501"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
+      backend:
         condition: service_healthy
 
 volumes:

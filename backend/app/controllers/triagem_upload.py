@@ -1,0 +1,84 @@
+import uuid
+from typing import Optional
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy.orm import Session
+
+from app.config.logger import logger
+from app.agent.nodes.filtro_elegibilidade import avaliar_elegibilidade
+from app.repositories.database import get_db
+from app.repositories.storage import StorageRepository
+from app.schemas.triagem import RequisicaoTriagem, RespostaTriagem
+from app.services.document_parser import DocumentParserService
+from app.services.triagem import TriagemService
+
+router = APIRouter(prefix="/triagem", tags=["Triagem Clínica"])
+
+@router.post("/upload", response_model=RespostaTriagem, status_code=status.HTTP_200_OK)
+async def processar_upload_triagem(
+    file: UploadFile = File(
+        ...,
+        description="Arquivo clínico nos formatos PDF (.pdf) ou Imagem (.png, .jpg, .jpeg, .webp)",
+    ),
+    canal_origem: Optional[str] = Form(
+        "Pronto_Socorro",
+        description="Canal de entrada hospitalar (ex: Pronto_Socorro, Ambulatorio, Telemedicina)",
+    ),
+    documento_id: Optional[str] = Form(
+        None,
+        description="Identificador único opcional do documento (se omitido, será gerado automaticamente)",
+    ),
+    db: Session = Depends(get_db),
+):
+    """Endpoint multipart para ingestão de arquivos PDF e Imagens clínicas (SCRUM-67).
+
+    - Valida extensão e MIME-type (PDF, PNG, JPG, WebP)
+    - Limite máximo de arquivo: 10 MB
+    - Extrai texto vetorial do PDF ou metadados de imagem para pipeline clínico
+    - Encaminha automaticamente para classificação, extração e roteamento
+    """
+    conteudo = await file.read()
+    extensao = DocumentParserService.validar_arquivo(file, conteudo)
+    texto_extraido, tipo_arquivo = DocumentParserService.extrair_texto(
+        conteudo=conteudo,
+        extensao=extensao,
+        nome_arquivo=file.filename or "documento_clinico",
+    )
+
+    doc_id = documento_id or f"DOC-UP-{uuid.uuid4().hex[:8].upper()}"
+
+    elegibilidade, _, justificativa = avaliar_elegibilidade(texto_extraido)
+    if elegibilidade == "nao_medico":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="O documento enviado não é médico. O processamento foi recusado.",
+        )
+
+    # Persistência do documento na pasta local Storage (Storage/imagem ou Storage/pdf)
+    referencia_fonte = None
+    try:
+        storage_repo = StorageRepository()
+        info_storage = storage_repo.salvar_arquivo_whatsapp(
+            documento_id=doc_id,
+            conteudo=conteudo,
+            nome_original=file.filename,
+            extensao=extensao,
+            mimetype=file.content_type,
+        )
+        logger.info(
+            f"Arquivo de upload web persistido na pasta Storage: '{info_storage['nome_arquivo']}' "
+            f"({info_storage['tamanho_bytes']} bytes) em {info_storage['caminho_local']}"
+        )
+        referencia_fonte = info_storage.get("caminho_local")
+    except Exception as st_err:
+        logger.warning(f"Aviso ao persistir arquivo de upload no Storage local: {st_err}")
+
+    requisicao = RequisicaoTriagem(
+        documento_id=doc_id,
+        tipo_arquivo=tipo_arquivo,
+        canal_origem=canal_origem or "Pronto_Socorro",
+        documento_texto=texto_extraido,
+    )
+
+    service = TriagemService(db)
+    return service.processar_triagem(requisicao, referencia_fonte=referencia_fonte)

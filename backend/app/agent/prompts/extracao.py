@@ -19,13 +19,13 @@ PROMPT_EXTRACAO_USER = """Extraia as entidades clínicas do documento abaixo e r
 
 Campos obrigatórios no JSON:
 - paciente_nome: str ou null (nome completo do paciente)
-- paciente_idade: int ou null (idade em anos; se houver apenas data de nascimento, calcule a idade com base no ano atual)
+- paciente_idade: int ou null (idade em anos somente se estiver escrita no documento; não calcule)
 - medico_nome: str ou null (médico solicitante, atendente ou profissional de saúde responsável)
 - medico_crm: str ou null (CRM com UF se presente, ou null se não houver CRM explícito)
 - exame_realizado: str ou null (exame realizado, procedimento agendado, consulta médica ou atendimento)
-- medicamentos: lista de strings (ex: ['Enoxaparina 80mg', 'Dipirona 500mg'])
+- medicamentos: lista de objetos com medicamento, dosagem e posologia, cada valor copiado do documento
 - diagnostico_principal: str ou null
-- cid_sugerido: str ou null (código CID-10 se mencionado explicitamente ou fortemente evidenciado, senão null)
+- cid_sugerido: str ou null (código CID-10 somente se estiver escrito explicitamente, senão null)
 - achados_criticos: lista de strings (achados clínicos de urgência ou alerta)
 
 Documento:

@@ -6,6 +6,7 @@ from services.cliente_mock import (
     listar_documentos,
     listar_fila_auditoria,
 )
+from services.respostas_mock import PASTA_DOS_MOCKS
 
 CAMPOS_DA_LISTA = {
     "documento_id",
@@ -21,6 +22,19 @@ CAMPOS_DA_LISTA = {
 
 def _requisicao_com_texto(texto: str) -> dict:
     return {"documento_texto": texto}
+
+
+def test_datasets_mocados_ficam_em_json_separados():
+    arquivos = {caminho.name for caminho in PASTA_DOS_MOCKS.glob("*.json")}
+
+    assert arquivos == {
+        "triagem_rotina.json",
+        "triagem_urgencia.json",
+        "triagem_ambigua.json",
+        "historico.json",
+        "fila_auditoria.json",
+    }
+    assert all((PASTA_DOS_MOCKS / nome).is_file() for nome in arquivos)
 
 
 @pytest.mark.parametrize(

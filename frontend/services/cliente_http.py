@@ -36,6 +36,41 @@ def registrar_decisao(documento_id: str, decisao: dict) -> dict:
     return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/decisao", json=decisao)
 
 
+def obter_status_lock_auditoria(documento_id: str) -> dict:
+    return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/status-lock")
+
+
+def bloquear_documento_auditoria(documento_id: str, auditor_nome: str, ttl_segundos: int = 300) -> dict:
+    return requisitar(
+        "POST",
+        f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/bloquear",
+        json={"auditor_nome": auditor_nome, "ttl_segundos": ttl_segundos},
+    )
+
+
+def desbloquear_documento_auditoria(documento_id: str, auditor_nome: str) -> dict:
+    return requisitar(
+        "POST",
+        f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/desbloquear",
+        json={"auditor_nome": auditor_nome},
+    )
+
+
+def obter_fonte_original(documento_id: str) -> tuple[bytes, str, str]:
+    caminho = f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/fonte"
+    try:
+        with _criar_cliente() as cliente:
+            resposta = cliente.get(caminho)
+    except httpx.TimeoutException as erro:
+        raise ErroDeApi("A API demorou demais para entregar o documento original.") from erro
+    except httpx.HTTPError as erro:
+        raise ErroDeApi("Não foi possível conectar à API para abrir o documento original.") from erro
+    if resposta.is_error:
+        raise ErroDeApi(_extrair_mensagem_de_erro(resposta))
+    nome = resposta.headers.get("content-disposition", "").split("filename=")[-1].strip('"')
+    return resposta.content, resposta.headers.get("content-type", "application/octet-stream"), nome
+
+
 def _enviar_arquivo(requisicao: dict, arquivo) -> dict:
     tipo_de_conteudo = arquivo.type or _adivinhar_tipo_de_conteudo(arquivo.name)
     arquivos = {"file": (arquivo.name, arquivo.getvalue(), tipo_de_conteudo)}
@@ -71,7 +106,14 @@ def _criar_cliente() -> httpx.Client:
 def _extrair_mensagem_de_erro(resposta: httpx.Response) -> str:
     mensagem_padrao = f"A API respondeu com erro {resposta.status_code}."
     try:
-        erro = resposta.json()["erro"]
+        payload = resposta.json()
+    except ValueError:
+        return mensagem_padrao
+    detalhe = payload.get("detail") if isinstance(payload, dict) else None
+    if isinstance(detalhe, str) and detalhe.strip():
+        return detalhe
+    try:
+        erro = payload["erro"]
         mensagem = erro["mensagem"]
     except (ValueError, KeyError, TypeError):
         return mensagem_padrao

@@ -8,15 +8,18 @@ URL_DA_API_DE_TESTE = "http://api.teste"
 
 @pytest.fixture(autouse=True)
 def usar_modo_demonstracao_nos_testes(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "local")
     monkeypatch.setenv("MODO_DEMONSTRACAO", "true")
-    monkeypatch.delenv("API_BASE_URL", raising=False)
+    monkeypatch.setenv("API_URL_LOCAL", URL_DA_API_DE_TESTE)
+    monkeypatch.delenv("API_URL_PRODUCTION", raising=False)
     monkeypatch.delenv("API_TIMEOUT", raising=False)
 
 
 @pytest.fixture
 def modo_api_real(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "local")
     monkeypatch.delenv("MODO_DEMONSTRACAO", raising=False)
-    monkeypatch.setenv("API_BASE_URL", URL_DA_API_DE_TESTE)
+    monkeypatch.setenv("API_URL_LOCAL", URL_DA_API_DE_TESTE)
 
 
 @pytest.fixture
