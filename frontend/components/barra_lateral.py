@@ -3,6 +3,7 @@ from pathlib import Path
 import streamlit as st
 
 CAMINHO_DA_LOGO = Path(__file__).resolve().parents[1] / "assets" / "logo.png"
+CAMINHO_DO_ICONE = Path(__file__).resolve().parents[1] / "assets" / "logo_icone.png"
 
 DESCRICAO = "Triagem inteligente de documentos clínicos."
 

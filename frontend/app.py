@@ -1,6 +1,10 @@
 import streamlit as st
 
-from components.barra_lateral import CAMINHO_DA_LOGO, exibir_barra_lateral
+from components.barra_lateral import (
+    CAMINHO_DA_LOGO,
+    CAMINHO_DO_ICONE,
+    exibir_barra_lateral,
+)
 from components.modo_de_execucao import (
     exibir_aviso_de_dados_ficticios,
     validar_configuracao_frontend,
@@ -48,14 +52,11 @@ st.markdown(
     }
     [data-testid="stSidebar"][data-collapsed="true"] [data-testid="stSidebarHeader"] img,
     [data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] img {
-        width: 48px !important;
-        max-width: 48px !important;
-        height: 48px !important;
-        max-height: 48px !important;
-        object-fit: cover !important;
-        object-position: 22% center !important;
-        border-radius: 10px !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+        width: 50px !important;
+        max-width: 50px !important;
+        height: 50px !important;
+        max-height: 50px !important;
+        object-fit: contain !important;
     }
 
     /* ========================================================
@@ -179,7 +180,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-st.logo(CAMINHO_DA_LOGO, size="large", icon_image=CAMINHO_DA_LOGO)
+st.logo(CAMINHO_DA_LOGO, size="large", icon_image=CAMINHO_DO_ICONE)
 validar_configuracao_frontend()
 
 paginas = [
