@@ -7,6 +7,7 @@ from app.agent.llm import ClienteLLM, obter_cliente_llm
 from app.agent.prompts.extracao import (
     PROMPT_EXTRACAO_SYSTEM,
     PROMPT_EXTRACAO_USER,
+    VERSAO as VERSAO_PROMPT,
 )
 from app.agent.state import GraphState
 from app.agent.texto import extrair_json, normalizar
@@ -149,7 +150,11 @@ def criar_node_extracao(cliente_llm: Optional[ClienteLLM]):
         dados_dict = dados.model_dump(mode="json")
         return {
             **state,
-            "dados_extraidos": {**dados_dict, "metodo": metodo},
+            "dados_extraidos": {
+                **dados_dict,
+                "metodo": metodo,
+                "versao_prompt": VERSAO_PROMPT if metodo == "llm_generativa" else None,
+            },
             "paciente": dados_dict["paciente"],
             "medico_solicitante": dados_dict["medico_solicitante"],
             "exame_realizado": dados_dict["exame_realizado"],

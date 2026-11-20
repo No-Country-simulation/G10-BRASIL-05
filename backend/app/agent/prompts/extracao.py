@@ -5,7 +5,39 @@ Diretrizes obrigatórias anti-alucinação:
 - NUNCA invente números de CRM ou códigos CID-10.
 """
 
-PROMPT_EXTRACAO_SYSTEM = """Você é um extrator de entidades clínicas especializado em prontuários eletrônicos e normas do CFM (Conselho Federal de Medicina).
+from typing import List
+
+from app.agent.prompts import ExemploPrompt, formatar_exemplos
+
+VERSAO = "1.1.0"
+
+EXEMPLOS: List[ExemploPrompt] = [
+    (
+        "Receituário\nPaciente: Fulano de Teste, 40 anos. Dr. Ciclano Exemplo CRM 12345-MG.\n"
+        "Amoxicilina 500mg de 8/8h por 7 dias. Diagnóstico: Amigdalite bacteriana. CID: J03.9",
+        {
+            "paciente": {"nome": "Fulano de Teste", "idade": 40},
+            "medico_solicitante": {"nome": "Dr. Ciclano Exemplo", "crm_uf": "12345-MG"},
+            "exame_realizado": None,
+            "diagnostico_principal": "Amigdalite bacteriana",
+            "cid_sugerido": "J03.9",
+            "medicamentos": [{"medicamento": "Amoxicilina", "dosagem": "500mg"}],
+        },
+    ),
+    (
+        "Laudo de Radiografia de Tórax\nConclusão: consolidação em lobo inferior direito, sugestiva de pneumonia.",
+        {
+            "paciente": {"nome": None, "idade": None},
+            "medico_solicitante": {"nome": None, "crm_uf": None},
+            "exame_realizado": "Radiografia de Tórax",
+            "diagnostico_principal": "Consolidação em lobo inferior direito, sugestiva de pneumonia",
+            "cid_sugerido": None,
+            "medicamentos": [],
+        },
+    ),
+]
+
+PROMPT_EXTRACAO_SYSTEM = f"""Você é um extrator de entidades clínicas especializado em prontuários eletrônicos e normas do CFM (Conselho Federal de Medicina).
 Sua tarefa é ler documentos hospitalares e extrair com rigor as entidades clínicas.
 
 Regras Críticas Anti-Alucinação:
@@ -13,7 +45,10 @@ Regras Críticas Anti-Alucinação:
 2. Se um campo não estiver explícito no texto, preencha com null (ou lista vazia para medicamentos).
 3. Copie nomes, CRM e CID exatamente como aparecem no texto.
 4. Só preencha cid_sugerido se o código CID-10 estiver escrito no documento; não deduza o código a partir do diagnóstico.
+   No exemplo 2, o diagnóstico indica pneumonia, mas o código não está escrito, então cid_sugerido é null.
 5. Se o CRM estiver ilegível ou sem UF, preencha crm_uf com null.
+
+{formatar_exemplos(EXEMPLOS)}
 """
 
 PROMPT_EXTRACAO_USER = """Extraia as entidades clínicas do documento abaixo e responda estritamente com um JSON neste formato:

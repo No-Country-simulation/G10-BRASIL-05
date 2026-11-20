@@ -151,5 +151,5 @@ def test_saida_do_no_respeita_schema_pydantic(texto):
 
     resultado = node({"documento_texto": texto})
 
-    dados = {chave: valor for chave, valor in resultado["dados_extraidos"].items() if chave != "metodo"}
+    dados = {chave: valor for chave, valor in resultado["dados_extraidos"].items() if chave not in ("metodo", "versao_prompt")}
     DadosExtraidos.model_validate(dados)
