@@ -8,6 +8,7 @@ from app.agent.llm import ClienteLLM, obter_cliente_llm
 from app.agent.prompts.classificacao import (
     PROMPT_CLASSIFICACAO_SYSTEM,
     PROMPT_CLASSIFICACAO_USER,
+    VERSAO as VERSAO_PROMPT,
 )
 from app.agent.state import GraphState
 from app.agent.texto import extrair_json, normalizar
@@ -99,7 +100,11 @@ def criar_node_classificacao(cliente_llm: Optional[ClienteLLM]):
         dados = classificacao.model_dump(mode="json")
         return {
             **state,
-            "classificacao": {**dados, "metodo": metodo},
+            "classificacao": {
+                **dados,
+                "metodo": metodo,
+                "versao_prompt": VERSAO_PROMPT if metodo == "llm_generativa" else None,
+            },
             "tipo_documento": dados["tipo_documento"],
             "especialidade": dados["especialidade"],
             "nivel_prioridade": dados["nivel_prioridade"],

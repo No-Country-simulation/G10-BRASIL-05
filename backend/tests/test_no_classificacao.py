@@ -91,7 +91,7 @@ def test_saida_do_no_respeita_schema_pydantic(tipo):
 
     resultado = node({"documento_texto": DOCUMENTOS_POR_TIPO[tipo]})
 
-    dados = {chave: valor for chave, valor in resultado["classificacao"].items() if chave != "metodo"}
+    dados = {chave: valor for chave, valor in resultado["classificacao"].items() if chave not in ("metodo", "versao_prompt")}
     ClassificacaoDocumento.model_validate(dados)
 
 
