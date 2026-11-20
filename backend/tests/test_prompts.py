@@ -4,19 +4,19 @@ import pytest
 
 from app.agent.nodes.classificador import criar_node_classificacao
 from app.agent.nodes.extrator import criar_node_extracao
-from app.agent.prompts import classificacao, extracao
+from app.agent.prompts import classificacao, extracao, transcricao
 from app.schemas.classificacao import ClassificacaoDocumento
 from app.schemas.dados_extraidos import DadosExtraidos
 
 PADRAO_VERSAO_SEMANTICA = re.compile(r"^\d+\.\d+\.\d+$")
 
 
-@pytest.mark.parametrize("modulo", [classificacao, extracao])
+@pytest.mark.parametrize("modulo", [classificacao, extracao, transcricao])
 def test_prompt_declara_versao_semantica(modulo):
     assert PADRAO_VERSAO_SEMANTICA.fullmatch(modulo.VERSAO)
 
 
-@pytest.mark.parametrize("modulo", [classificacao, extracao])
+@pytest.mark.parametrize("modulo", [classificacao, extracao, transcricao])
 def test_versao_do_prompt_registrada_no_changelog(modulo):
     from pathlib import Path
 
