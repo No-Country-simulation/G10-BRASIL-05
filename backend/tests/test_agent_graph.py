@@ -32,7 +32,8 @@ def test_grafo_cenario_urgencia_tep():
     assert resultado["notificacao_gerada"] is not None
     assert resultado["notificacao_gerada"]["canal"] == "Alerta_Plantao_Medico"
     assert "TEP" in resultado["diagnostico_principal"] or "Tromboembolismo" in resultado["diagnostico_principal"]
-    assert resultado["cid_sugerido"] == "I26.9"
+    # O laudo não traz o código CID escrito: o extrator não deduz o código (SCRUM-58)
+    assert resultado["cid_sugerido"] is None
 
 
 def test_grafo_cenario_rotina_receita():

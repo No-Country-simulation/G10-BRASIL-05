@@ -1,7 +1,7 @@
 from datetime import datetime
 
-CANAIS_DE_ORIGEM = ["Pronto_Socorro", "Ambulatorio", "Laboratorio", "Operadora_de_Saude"]
-EXTENSOES_ACEITAS = ["pdf", "png", "jpg", "jpeg", "txt", "json"]
+CANAIS_DE_ORIGEM = ["Pronto_Socorro", "Ambulatorio", "Telemedicina"]
+EXTENSOES_ACEITAS = ["pdf", "png", "jpg", "jpeg", "webp", "txt", "json"]
 
 OPCAO_ARQUIVO = "Enviar arquivo"
 OPCAO_TEXTO = "Colar texto"
@@ -11,6 +11,7 @@ TIPO_ARQUIVO_POR_EXTENSAO = {
     "png": "IMAGEM",
     "jpg": "IMAGEM",
     "jpeg": "IMAGEM",
+    "webp": "IMAGEM",
     "txt": "TEXTO",
     "json": "JSON",
 }
