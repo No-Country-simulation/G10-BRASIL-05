@@ -12,6 +12,9 @@ MensagemLLM = Tuple[str, str]
 ClienteLLM = Callable[[List[MensagemLLM]], str]
 ClienteVisao = Callable[[str, List[Dict[str, str]]], str]
 
+MODELO_PADRAO_GEMINI = "gemini-1.5-flash"
+MODELO_PADRAO_OPENAI = "gpt-4o-mini"
+
 
 def _criar_modelo_chat() -> Optional[Any]:
     """Instancia o modelo de chat do provedor configurado; None se não houver chave."""
@@ -19,7 +22,7 @@ def _criar_modelo_chat() -> Optional[Any]:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
         return ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model=settings.LLM_MODEL or MODELO_PADRAO_GEMINI,
             google_api_key=settings.GOOGLE_API_KEY,
             temperature=0.0,
         )
@@ -27,7 +30,7 @@ def _criar_modelo_chat() -> Optional[Any]:
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(
-            model="gpt-4o-mini",
+            model=settings.LLM_MODEL or MODELO_PADRAO_OPENAI,
             api_key=settings.OPENAI_API_KEY,
             temperature=0.0,
         )

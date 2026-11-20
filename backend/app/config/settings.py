@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "gemini"
     GOOGLE_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    LLM_MODEL: str = ""  # Vazio: usa o modelo padrão do provedor (ver app/agent/llm.py)
     CONFIDENCE_THRESHOLD: float = 0.75
 
     # OCI Object Storage Always Free
