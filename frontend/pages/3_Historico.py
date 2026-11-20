@@ -1,7 +1,7 @@
 import streamlit as st
 
 from components.cards import exibir_resultado_da_triagem
-from services.api_client import listar_documentos
+from services.api_client import buscar_documento, listar_documentos
 from utils.historico import FILTROS_DE_STATUS, filtrar_por_status, montar_linhas_da_tabela
 
 st.title("Histórico")
@@ -28,6 +28,10 @@ escolhido = st.selectbox(
 if escolhido is None:
     st.stop()
 
-documento = next(d for d in documentos_filtrados if d.get("documento_id") == escolhido)
+detalhe = buscar_documento(escolhido)
+if detalhe is None:
+    st.info("Detalhes indisponíveis para este documento.")
+    st.stop()
+
 st.subheader(f"Documento {escolhido}")
-exibir_resultado_da_triagem(documento)
+exibir_resultado_da_triagem(detalhe)
