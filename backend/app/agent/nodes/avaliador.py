@@ -31,7 +31,7 @@ def node_avaliacao(state: GraphState) -> GraphState:
     if not paciente.get("nome"):
         inconsistencias.append("Nome do paciente ausente ou não identificado com segurança.")
 
-    if not medico.get("crm"):
+    if not medico.get("crm_uf"):
         inconsistencias.append("Número de CRM do médico ausente ou inconsistente.")
 
     if len(texto) < 40 or not state.get("diagnostico_principal"):

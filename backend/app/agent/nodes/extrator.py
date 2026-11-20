@@ -1,129 +1,165 @@
-import json
 import re
-from typing import Dict, Any, Optional
-from app.agent.state import GraphState
-from app.config.settings import settings
-from app.config.logger import logger
+from typing import List, Optional
+
+from pydantic import ValidationError
+
+from app.agent.llm import ClienteLLM, obter_cliente_llm
 from app.agent.prompts.extracao import (
     PROMPT_EXTRACAO_SYSTEM,
     PROMPT_EXTRACAO_USER,
 )
+from app.agent.state import GraphState
+from app.agent.texto import extrair_json, normalizar
+from app.config.logger import logger
+from app.schemas.dados_extraidos import (
+    DadosExtraidos,
+    MedicamentoDosagem,
+    MedicoSolicitante,
+    PacienteExtraido,
+)
+
+LIMITE_CARACTERES_PROMPT = 4000
+
+_PALAVRA_NOME = r"(?!CRM\b|CID\b)[A-Za-zÀ-ÿ]+"
+_NOME = rf"({_PALAVRA_NOME}(?:[ \t]+{_PALAVRA_NOME}){{1,5}})"
+_PADRAO_PACIENTE = re.compile(rf"\bPaciente\s*:\s*{_NOME}", re.IGNORECASE)
+_PADRAO_IDADE = re.compile(r"\b(\d{1,3})\s*anos\b", re.IGNORECASE)
+_PADRAO_MEDICO = re.compile(rf"\b(?:M[ée]dic[oa](?:\s+solicitante)?\s*:\s*)?(Dra?\.\s*{_NOME})", re.IGNORECASE)
+_PADRAO_CRM = re.compile(r"\bCRM\s*[-:/]?\s*(?:([A-Z]{2})\s*[-:/]?\s*)?(\d{4,8})(?:\s*[-/]\s*([A-Z]{2}))?", re.IGNORECASE)
+_PADRAO_CID = re.compile(r"\bCID(?:-?10)?\s*[:\-]?\s*([A-Z]\d{2}(?:\.\d{1,2})?)\b", re.IGNORECASE)
+_PADRAO_DIAGNOSTICO = re.compile(
+    r"\b(?:Diagn[óo]stico(?:\s+principal)?|Hip[óo]tese\s+diagn[óo]stica|Conclus[ãa]o)\s*:\s*([^\n]+?)(?=[.;,]?\s*(?:CID\b|$))",
+    re.IGNORECASE | re.MULTILINE,
+)
+_PADRAO_EXAME = re.compile(r"\b(?:Exame(?:\s+realizado)?\s*:\s*([^\n]+)|Laudo\s+de\s+([^\n:.]+))", re.IGNORECASE)
+_PADRAO_MEDICAMENTO = re.compile(
+    r"([A-ZÀ-Ý][a-zà-ÿ]+(?:[ \t]+[A-ZÀ-Ýa-zà-ÿ]+){0,2})[ \t]+(\d+(?:[.,]\d+)?[ \t]?(?:mg|mcg|g|ml|UI))\b",
+)
 
 
-def _extrair_deterministico(texto: str) -> Dict[str, Any]:
-    """Plano C: Extrator baseado em padrões de expressões regulares médicas (SCRUM-58)."""
-    # 1. Paciente
-    match_paciente = re.search(r"(?:Paciente|Nome|Para)\s*:\s*([A-Za-zÀ-ÿ\s]{3,40})(?:\n|,|\.|\r|$)", texto, re.IGNORECASE)
-    nome_paciente = match_paciente.group(1).strip() if match_paciente else None
-
-    # Idade
-    match_idade = re.search(r"(\d{1,3})\s*(?:anos|ano|a\b)", texto, re.IGNORECASE)
-    idade = int(match_idade.group(1)) if match_idade else None
-
-    # 2. Médico & CRM
-    match_medico = re.search(r"(?:Dr[a]?\.?|Médico|Solicitante)\s*:\s*([A-Za-zÀ-ÿ\s]{3,40})(?:\n|,|\.|\r|$)", texto, re.IGNORECASE)
-    nome_medico = match_medico.group(1).strip() if match_medico else None
-
-    match_crm = re.search(r"CRM[^\d]*(\d{4,8}(?:-[A-Za-z]{2})?)", texto, re.IGNORECASE)
-    crm = match_crm.group(1).strip().upper() if match_crm else None
-
-    # 3. CID
-    match_cid = re.search(r"CID[^\w]*([A-Z]\d{2}(?:\.\d{1,2})?)", texto, re.IGNORECASE)
-    cid = match_cid.group(1).upper() if match_cid else None
-
-    # 4. Diagnóstico & Exame
-    texto_lower = texto.lower()
-    if "tromboembolismo" in texto_lower or "tep" in texto_lower or "embolia" in texto_lower:
-        diagnostico = "Tromboembolismo Pulmonar Agudo (TEP)"
-        cid = cid or "I26.9"
-        exame = "Tomografia de Tórax com protocolo para TEP"
-    elif "pneumonia" in texto_lower:
-        diagnostico = "Pneumonia Adquirida na Comunidade"
-        cid = cid or "J18.9"
-        exame = "Radiografia de Tórax"
-    elif "hipertensao" in texto_lower or "losartana" in texto_lower:
-        diagnostico = "Hipertensão Arterial Sistêmica (HAS)"
-        cid = cid or "I10"
-        exame = "Consulta de Rotina"
-    else:
-        diagnostico = "Avaliação Clínica em Triagem" if len(texto_lower) > 30 else None
-        exame = "Avaliação Clínica"
-
-    return {
-        "paciente": {
-            "nome": nome_paciente,
-            "idade": idade,
-        },
-        "medico_solicitante": {
-            "nome": nome_medico,
-            "crm": crm,
-        },
-        "exame_realizado": exame,
-        "diagnostico_principal": diagnostico,
-        "cid_sugerido": cid,
-        "metodo": "regex_heuristico",
-    }
+def _primeiro_grupo(padrao: re.Pattern, texto: str) -> Optional[str]:
+    correspondencia = padrao.search(texto)
+    if correspondencia is None:
+        return None
+    valor = next((grupo for grupo in correspondencia.groups() if grupo), None)
+    return valor.strip().rstrip(".,;") if valor else None
 
 
-def node_extracao(state: GraphState) -> GraphState:
-    """Nó 3: Extração semântica estruturada via LLM com fallback resiliente (SCRUM-58)."""
-    texto = state.get("documento_texto") or ""
+def _extrair_crm(texto: str) -> Optional[str]:
+    """Retorna o CRM no formato NUMERO-UF; sem UF explícita, retorna None."""
+    correspondencia = _PADRAO_CRM.search(texto)
+    if correspondencia is None:
+        return None
+    uf_antes, numero, uf_depois = correspondencia.groups()
+    uf = uf_antes or uf_depois
+    return f"{numero}-{uf.upper()}" if uf else None
 
-    dados_extraidos = None
-    if settings.GOOGLE_API_KEY or settings.OPENAI_API_KEY:
-        try:
-            if settings.GOOGLE_API_KEY:
-                from langchain_google_genai import ChatGoogleGenerativeAI
-                llm = ChatGoogleGenerativeAI(
-                    model="gemini-1.5-flash",
-                    google_api_key=settings.GOOGLE_API_KEY,
-                    temperature=0.0,
-                )
-            else:
-                from langchain_openai import ChatOpenAI
-                llm = ChatOpenAI(
-                    model="gpt-4o-mini",
-                    api_key=settings.OPENAI_API_KEY,
-                    temperature=0.0,
-                )
 
-            mensagens = [
-                ("system", PROMPT_EXTRACAO_SYSTEM),
-                ("human", PROMPT_EXTRACAO_USER.format(documento_texto=texto[:4000])),
-            ]
-            resposta = llm.invoke(mensagens)
-            conteudo = resposta.content
-            if isinstance(conteudo, str):
-                conteudo_limpo = conteudo.strip().strip("```json").strip("```").strip()
-                parsed = json.loads(conteudo_limpo)
-                dados_extraidos = {
-                    "paciente": {
-                        "nome": parsed.get("paciente_nome") or "Paciente Identificado",
-                        "idade": parsed.get("paciente_idade") or 45,
-                    },
-                    "medico_solicitante": {
-                        "nome": parsed.get("medico_nome") or "Médico Identificado",
-                        "crm": parsed.get("medico_crm") or "145892-SP",
-                    },
-                    "exame_realizado": parsed.get("exame_realizado") or "Avaliação Clínica",
-                    "diagnostico_principal": parsed.get("diagnostico_principal"),
-                    "cid_sugerido": parsed.get("cid_sugerido"),
-                    "metodo": "llm_generativa",
+def _extrair_medicamentos(texto: str) -> List[MedicamentoDosagem]:
+    return [
+        MedicamentoDosagem(medicamento=nome.strip(), dosagem=dosagem.strip())
+        for nome, dosagem in _PADRAO_MEDICAMENTO.findall(texto)
+    ]
+
+
+def _extrair_deterministico(texto: str) -> DadosExtraidos:
+    """Plano C: extrator por expressões regulares; só preenche o que está escrito no texto."""
+    idade = _primeiro_grupo(_PADRAO_IDADE, texto)
+    nome_medico = _primeiro_grupo(_PADRAO_MEDICO, texto)
+    crm_uf = _extrair_crm(texto)
+    cid = _primeiro_grupo(_PADRAO_CID, texto)
+
+    return DadosExtraidos(
+        paciente=PacienteExtraido(
+            nome=_primeiro_grupo(_PADRAO_PACIENTE, texto),
+            idade=int(idade) if idade else None,
+        ),
+        medico_solicitante=MedicoSolicitante(nome=nome_medico, crm_uf=crm_uf),
+        exame_realizado=_primeiro_grupo(_PADRAO_EXAME, texto),
+        diagnostico_principal=_primeiro_grupo(_PADRAO_DIAGNOSTICO, texto),
+        cid_sugerido=cid.upper() if cid else None,
+        medicamentos=_extrair_medicamentos(texto),
+    )
+
+
+def _presente_no_texto(valor: Optional[str], texto_normalizado: str) -> bool:
+    return valor is not None and normalizar(valor).strip() in texto_normalizado
+
+
+def _numero_presente_no_texto(valor: Optional[str], texto: str) -> bool:
+    numero = re.sub(r"\D", "", valor or "")
+    return bool(numero) and numero in re.sub(r"\D", " ", texto).split()
+
+
+def _descartar_valores_inventados(dados: DadosExtraidos, texto: str) -> DadosExtraidos:
+    """Anula nomes, CRM, CID e medicamentos que a LLM devolveu mas não aparecem no documento."""
+    texto_normalizado = normalizar(texto)
+    paciente = dados.paciente or PacienteExtraido()
+    medico = dados.medico_solicitante or MedicoSolicitante()
+
+    return dados.model_copy(
+        update={
+            "paciente": paciente.model_copy(
+                update={"nome": paciente.nome if _presente_no_texto(paciente.nome, texto_normalizado) else None}
+            ),
+            "medico_solicitante": medico.model_copy(
+                update={
+                    "nome": medico.nome if _presente_no_texto(medico.nome, texto_normalizado) else None,
+                    "crm_uf": medico.crm_uf if _numero_presente_no_texto(medico.crm_uf, texto) else None,
                 }
-        except Exception as e:
-            logger.warning(f"Falha ao executar LLM no nó de extração: {e}. Acionando Plano C (Fallback).")
-            dados_extraidos = None
+            ),
+            "cid_sugerido": dados.cid_sugerido if _presente_no_texto(dados.cid_sugerido, texto_normalizado) else None,
+            "medicamentos": [
+                item for item in dados.medicamentos if _presente_no_texto(item.medicamento, texto_normalizado)
+            ],
+        }
+    )
 
-    if not dados_extraidos:
-        dados_extraidos = _extrair_deterministico(texto)
 
-    return {
-        **state,
-        "dados_extraidos": dados_extraidos,
-        "paciente": dados_extraidos.get("paciente"),
-        "medico_solicitante": dados_extraidos.get("medico_solicitante"),
-        "exame_realizado": dados_extraidos.get("exame_realizado"),
-        "diagnostico_principal": dados_extraidos.get("diagnostico_principal"),
-        "cid_sugerido": dados_extraidos.get("cid_sugerido"),
-        "status": "extraido",
-    }
+def _extrair_com_llm(cliente_llm: ClienteLLM, texto: str) -> Optional[DadosExtraidos]:
+    """Plano B: extração via LLM com saída validada pelo schema; None em caso de falha."""
+    mensagens = [
+        ("system", PROMPT_EXTRACAO_SYSTEM),
+        ("human", PROMPT_EXTRACAO_USER.format(documento_texto=texto[:LIMITE_CARACTERES_PROMPT])),
+    ]
+    try:
+        resposta = cliente_llm(mensagens)
+        dados = DadosExtraidos.model_validate(extrair_json(resposta))
+        return _descartar_valores_inventados(dados, texto)
+    except (ValueError, ValidationError) as erro:
+        logger.warning(f"Resposta da LLM fora do schema de extração: {erro}. Acionando Plano C (Fallback).")
+    except Exception as erro:
+        logger.warning(f"Falha ao executar LLM no nó de extração: {erro}. Acionando Plano C (Fallback).")
+    return None
+
+
+def criar_node_extracao(cliente_llm: Optional[ClienteLLM]):
+    """Cria o nó de extração com o cliente LLM informado (None usa apenas o fallback)."""
+
+    def node_extracao(state: GraphState) -> GraphState:
+        """Nó 3: Extração de entidades clínicas via LLM (Plano B) com fallback por regex (Plano C) (SCRUM-58)."""
+        texto = state.get("documento_texto") or ""
+
+        dados = _extrair_com_llm(cliente_llm, texto) if cliente_llm else None
+        metodo = "llm_generativa"
+        if dados is None:
+            dados = _extrair_deterministico(texto)
+            metodo = "regex_heuristico"
+
+        dados_dict = dados.model_dump(mode="json")
+        return {
+            **state,
+            "dados_extraidos": {**dados_dict, "metodo": metodo},
+            "paciente": dados_dict["paciente"],
+            "medico_solicitante": dados_dict["medico_solicitante"],
+            "exame_realizado": dados_dict["exame_realizado"],
+            "diagnostico_principal": dados_dict["diagnostico_principal"],
+            "cid_sugerido": dados_dict["cid_sugerido"],
+            "medicamentos": dados_dict["medicamentos"],
+            "status": "extraido",
+        }
+
+    return node_extracao
+
+
+node_extracao = criar_node_extracao(obter_cliente_llm())

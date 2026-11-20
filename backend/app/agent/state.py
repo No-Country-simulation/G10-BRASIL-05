@@ -24,6 +24,7 @@ class GraphState(TypedDict, total=False):
     exame_realizado: Optional[str]
     diagnostico_principal: Optional[str]
     cid_sugerido: Optional[str]
+    medicamentos: List[Dict[str, Any]]
 
     # Detecção de Urgência & Consistência
     is_urgente: bool
