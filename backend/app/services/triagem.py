@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from app.config.settings import settings
 from app.schemas.triagem import (
@@ -14,6 +14,7 @@ from app.schemas.triagem import (
     DecisaoAuditoriaRequest,
 )
 from app.models.triagem import DocumentoTriagemModel
+from app.schemas.ingestao import ImagemDocumento
 from app.repositories.database import DatabaseRepository
 from app.repositories.storage import StorageRepository
 from app.agent.graph import executar_agente_triagem
@@ -26,13 +27,18 @@ class TriagemService:
         self.db_repo = DatabaseRepository(db)
         self.storage_repo = StorageRepository()
 
-    def processar_triagem(self, requisicao: RequisicaoTriagem) -> RespostaTriagem:
+    def processar_triagem(
+        self,
+        requisicao: RequisicaoTriagem,
+        imagens: Optional[List[ImagemDocumento]] = None,
+    ) -> RespostaTriagem:
         # 1. Execução do Agente Autônomo LangGraph (StateGraph)
         estado_inicial = {
             "documento_id": requisicao.documento_id,
             "tipo_arquivo": requisicao.tipo_arquivo,
             "canal_origem": requisicao.canal_origem,
             "documento_texto": requisicao.documento_texto,
+            "imagens_documento": [imagem.model_dump() for imagem in imagens or []],
         }
         resultado_grafo = executar_agente_triagem(estado_inicial)
 
@@ -109,7 +115,7 @@ class TriagemService:
             documento_id=requisicao.documento_id,
             tipo_arquivo=requisicao.tipo_arquivo,
             canal_origem=requisicao.canal_origem,
-            documento_texto=requisicao.documento_texto,
+            documento_texto=resultado_grafo.get("documento_texto") or requisicao.documento_texto,
             tipo_documento=classificacao.tipo_documento,
             especialidade=classificacao.especialidade,
             nivel_prioridade=classificacao.nivel_prioridade,

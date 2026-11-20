@@ -1,9 +1,11 @@
+import base64
 import io
 import os
-from typing import Tuple
 from fastapi import HTTPException, UploadFile, status
 from pypdf import PdfReader
 from PIL import Image
+
+from app.schemas.ingestao import DocumentoIngerido, FormatoDocumento, ImagemDocumento
 
 # Limite máximo de arquivo: 10 MB
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
@@ -65,54 +67,54 @@ class DocumentParserService:
         return extensao
 
     @staticmethod
-    def extrair_texto(conteudo: bytes, extensao: str, nome_arquivo: str) -> Tuple[str, str]:
-        """Extrai o texto clínico do conteúdo binário.
+    def preparar_documento(conteudo: bytes, extensao: str, nome_arquivo: str) -> DocumentoIngerido:
+        """Converte o arquivo enviado no formato padronizado da ingestão (SCRUM-56).
 
-        Retorna:
-            Tuple[str, str]: (texto_extraido, tipo_arquivo)
+        - PDF com camada de texto: texto extraído das páginas.
+        - PDF escaneado (sem texto): imagens das páginas, para leitura multimodal.
+        - Imagem: a própria imagem, para leitura multimodal.
         """
         if extensao == ".pdf":
-            try:
-                reader = PdfReader(io.BytesIO(conteudo))
-                paginas_texto = []
-                for idx, page in enumerate(reader.pages):
-                    texto_pagina = page.extract_text()
-                    if texto_pagina and texto_pagina.strip():
-                        paginas_texto.append(texto_pagina.strip())
+            return DocumentParserService._preparar_pdf(conteudo, nome_arquivo)
+        return DocumentParserService._preparar_imagem(conteudo, extensao, nome_arquivo)
 
-                texto_completo = "\n\n".join(paginas_texto)
-                if not texto_completo.strip():
-                    # PDF puramente escaneado sem camada de texto vetorial
-                    texto_completo = (
-                        f"[Documento PDF Escaneado: {nome_arquivo} - Sem camada de texto nativa. "
-                        "Encaminhado para auditoria humana / OCR multimodal]"
-                    )
+    @staticmethod
+    def _preparar_pdf(conteudo: bytes, nome_arquivo: str) -> DocumentoIngerido:
+        try:
+            reader = PdfReader(io.BytesIO(conteudo))
+            paginas_texto = [
+                texto.strip() for texto in (page.extract_text() for page in reader.pages) if texto and texto.strip()
+            ]
+            if paginas_texto:
+                return DocumentoIngerido(formato=FormatoDocumento.PDF, texto="\n\n".join(paginas_texto))
 
-                return texto_completo, "pdf"
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Não foi possível processar o arquivo PDF '{nome_arquivo}': {str(e)}",
+            imagens = [
+                ImagemDocumento(
+                    mime_type=EXTENSOES_PERMITIDAS.get(os.path.splitext(imagem.name.lower())[1], "image/png"),
+                    dados_base64=base64.b64encode(imagem.data).decode("ascii"),
                 )
+                for page in reader.pages
+                for imagem in page.images
+            ]
+            return DocumentoIngerido(formato=FormatoDocumento.PDF, imagens=imagens)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Não foi possível processar o arquivo PDF '{nome_arquivo}': {str(e)}",
+            )
 
-        else:
-            # Imagem (PNG, JPEG, WebP)
-            try:
-                img = Image.open(io.BytesIO(conteudo))
-                img.verify()  # Valida integridade da imagem
+    @staticmethod
+    def _preparar_imagem(conteudo: bytes, extensao: str, nome_arquivo: str) -> DocumentoIngerido:
+        try:
+            Image.open(io.BytesIO(conteudo)).verify()  # Valida integridade da imagem
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Arquivo de imagem corrompido ou inválido '{nome_arquivo}': {str(e)}",
+            )
 
-                # Reabre pois verify() invalida o ponteiro para leitura posterior
-                img = Image.open(io.BytesIO(conteudo))
-                formato = img.format or "IMAGEM"
-                largura, altura = img.size
-
-                texto_imagem = (
-                    f"[Documento Clínico Imagem: {nome_arquivo} | Formato: {formato} | "
-                    f"Dimensões: {largura}x{altura} px - Aguardando OCR / Visão Computacional]"
-                )
-                return texto_imagem, "imagem"
-            except Exception as e:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Arquivo de imagem corrompido ou inválido '{nome_arquivo}': {str(e)}",
-                )
+        imagem = ImagemDocumento(
+            mime_type=EXTENSOES_PERMITIDAS[extensao],
+            dados_base64=base64.b64encode(conteudo).decode("ascii"),
+        )
+        return DocumentoIngerido(formato=FormatoDocumento.IMAGEM, imagens=[imagem])

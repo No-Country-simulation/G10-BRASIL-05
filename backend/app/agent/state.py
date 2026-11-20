@@ -9,6 +9,8 @@ class GraphState(TypedDict, total=False):
     tipo_arquivo: str
     documento_texto: str
     canal_origem: str
+    imagens_documento: List[Dict[str, str]]
+    requer_ocr: bool
 
     # Classificação
     classificacao: Optional[Dict[str, Any]]
