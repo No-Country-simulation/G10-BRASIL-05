@@ -15,6 +15,8 @@ class GraphState(TypedDict, total=False):
     elegibilidade: Optional[str]
     confianca_elegibilidade: Optional[float]
     justificativa_elegibilidade: Optional[str]
+    legibilidade_documento: Optional[str]
+    avaliacao_escopo: Optional[Dict[str, Any]]
     qualidade_documento: Optional[Dict[str, Any]]
 
     # Evidências vinculadas aos valores extraídos
@@ -36,6 +38,9 @@ class GraphState(TypedDict, total=False):
     score_confianca_classificacao: Optional[float]
 
     # Extração de dados clínicos
+    identificacao_documento: Optional[Dict[str, Any]]
+    identificacao_cadastral: Optional[Dict[str, Any]]
+    etapa_atual: Optional[str]
     dados_extraidos: Optional[Dict[str, Any]]
     paciente: Optional[Dict[str, Any]]
     medico_solicitante: Optional[Dict[str, Any]]

@@ -1,8 +1,9 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.repositories.database import get_db, DatabaseRepository
+from app.services.autenticacao import exigir_papeis
 from app.schemas.ecossistema import (
     PacienteResponse,
     MedicoResponse,
@@ -11,10 +12,8 @@ from app.schemas.ecossistema import (
     DocumentoHistoricoItem,
 )
 
-router = APIRouter(tags=["Ecossistema Clínico (Hospitais, Médicos e Pacientes)"])
 
 
-@router.get("/pacientes", response_model=List[PacienteResponse], status_code=status.HTTP_200_OK)
 def listar_pacientes(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -25,7 +24,6 @@ def listar_pacientes(
     return repo.listar_pacientes(skip=skip, limit=limit)
 
 
-@router.get("/pacientes/{paciente_id}", response_model=PacienteResponse, status_code=status.HTTP_200_OK)
 def obter_paciente(
     paciente_id: int,
     db: Session = Depends(get_db),
@@ -41,11 +39,6 @@ def obter_paciente(
     return paciente
 
 
-@router.get(
-    "/pacientes/{paciente_id}/historico",
-    response_model=PacienteHistoricoResponse,
-    status_code=status.HTTP_200_OK,
-)
 def obter_historico_paciente(
     paciente_id: int,
     db: Session = Depends(get_db),
@@ -81,7 +74,6 @@ def obter_historico_paciente(
     )
 
 
-@router.get("/medicos", response_model=List[MedicoResponse], status_code=status.HTTP_200_OK)
 def listar_medicos(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -92,7 +84,6 @@ def listar_medicos(
     return repo.listar_medicos(skip=skip, limit=limit)
 
 
-@router.get("/hospitais", response_model=List[HospitalResponse], status_code=status.HTTP_200_OK)
 def listar_hospitais(db: Session = Depends(get_db)):
     """Lista todas as unidades hospitalares e polos de atendimento cadastrados."""
     repo = DatabaseRepository(db)

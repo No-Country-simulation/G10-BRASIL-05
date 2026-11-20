@@ -2,7 +2,11 @@ from typing import Any, Dict
 
 from app.config.logger import logger
 from app.agent.graph import excluir_checkpoint_triagem
-from app.agent.nodes.filtro_elegibilidade import avaliar_elegibilidade
+from app.agent.harness import (
+    avaliar_escopo,
+    mensagem_para_escopo,
+    priorizar_revisao_medica_ilegivel,
+)
 from app.repositories.database import SessionLocal
 from app.repositories.storage import StorageRepository
 from app.schemas.triagem import RequisicaoTriagem
@@ -14,12 +18,13 @@ from app.services.triagem import TriagemService
 async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
     """Worker assíncrono executado em background para processar mídia e devolver triagem."""
     evolution = EvolutionService()
-    numero = dados["numero"]
+    numero = dados.get("numero")
+    destinatario = dados.get("numero") or dados.get("remote_jid")
 
     try:
         # 1. Envia confirmação imediata de recebimento no chat
         msg_recebido = EvolutionService.formatar_mensagem_recebido(doc_id)
-        await evolution.enviar_resposta(numero, msg_recebido)
+        await evolution.enviar_resposta(destinatario, msg_recebido)
 
         # 2. Baixa o arquivo binário (via base64 direto ou pela Evolution API)
         conteudo = await evolution.baixar_midia_bytes(
@@ -30,7 +35,7 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
         if not conteudo:
             logger.error(f"Falha ao obter mídia da mensagem {dados['message_id']} ({doc_id})")
             msg_erro = EvolutionService.formatar_mensagem_erro("Não foi possível recuperar a mídia enviada.")
-            await evolution.enviar_resposta(numero, msg_erro)
+            await evolution.enviar_resposta(destinatario, msg_erro)
             return
 
         # 3. Validação do arquivo e extração de texto clínico
@@ -40,26 +45,28 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
             content_type=dados.get("mimetype"),
         )
 
-        texto_extraido, tipo_arquivo = DocumentParserService.extrair_texto(
+        texto_extraido, tipo_arquivo, avaliacao_visual = DocumentParserService.inspecionar_arquivo(
             conteudo=conteudo,
             extensao=extensao,
             nome_arquivo=dados.get("filename") or "documento_clinico",
         )
 
+        avaliacao_escopo = priorizar_revisao_medica_ilegivel(
+            avaliacao_visual or avaliar_escopo(texto_extraido)
+        )
+        if avaliacao_escopo.escopo in {"nao_medico", "incerto"}:
+            await evolution.enviar_resposta(
+                destinatario,
+                EvolutionService.formatar_mensagem_erro(
+                    mensagem_para_escopo(avaliacao_escopo.escopo)
+                ),
+            )
+            return
+
         # Se houver legenda enviada pelo usuário, anexa ao texto clínico
         legenda = dados.get("legenda")
         if legenda:
             texto_extraido = f"{texto_extraido}\n\n[Observação/Mensagem do Usuário]: {legenda}"
-
-        elegibilidade, _, _ = avaliar_elegibilidade(texto_extraido)
-        if elegibilidade == "nao_medico":
-            await evolution.enviar_resposta(
-                numero,
-                EvolutionService.formatar_mensagem_erro(
-                    "O documento enviado não é médico. O processamento foi recusado."
-                ),
-            )
-            return
 
         # Salva a fonte original somente depois do filtro de escopo.
         storage_repo = StorageRepository()
@@ -85,10 +92,14 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
                 tipo_arquivo=tipo_arquivo,
                 canal_origem="WhatsApp",
                 documento_texto=texto_extraido,
+                whatsapp_numero=numero,
+                whatsapp_nome=dados.get("push_name"),
+                whatsapp_message_id=dados.get("message_id"),
             )
             resposta_triagem = service.processar_triagem(
                 requisicao,
                 referencia_fonte=info_storage.get("caminho_local"),
+                avaliacao_escopo=avaliacao_escopo.model_dump(mode="json"),
             )
         except Exception:
             storage_repo.rollback_tentativa(
@@ -106,11 +117,11 @@ async def worker_processar_triagem_whatsapp(dados: Dict[str, Any], doc_id: str):
 
         # 5. Formatação da Devolutiva e Envio ao Paciente/Médico no WhatsApp
         msg_devolutiva = EvolutionService.formatar_devolutiva_triagem(resposta_triagem)
-        await evolution.enviar_resposta(numero, msg_devolutiva)
-        logger.info(f"Triagem clínica {doc_id} concluída e entregue via WhatsApp para {numero}.")
+        await evolution.enviar_resposta(destinatario, msg_devolutiva)
+        logger.info(f"Triagem clínica {doc_id} concluída e entregue via WhatsApp para {destinatario}.")
 
     except Exception as exc:
         logger.exception(f"Erro inesperado no worker de WhatsApp para documento {doc_id}: {exc}")
         detalhe = getattr(exc, "detail", str(exc))
         msg_falha = EvolutionService.formatar_mensagem_erro(str(detalhe))
-        await evolution.enviar_resposta(numero, msg_falha)
+        await evolution.enviar_resposta(destinatario, msg_falha)

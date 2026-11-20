@@ -1,14 +1,14 @@
+import logging
+
 import streamlit as st
 
 from components.erros import chamar_api_ou_parar
 from services.api_client import (
-    configurar_webhook_whatsapp,
     desconectar_whatsapp,
     enviar_teste_whatsapp,
     gerar_qrcode_whatsapp,
     obter_status_whatsapp,
 )
-from services.configuracao import usar_dados_simulados
 from utils.whatsapp import (
     NIVEL_AVISO,
     NIVEL_SUCESSO,
@@ -21,6 +21,7 @@ from utils.whatsapp import (
 CHAVE_DO_QR_CODE = "whatsapp_qr_code"
 CHAVE_DO_AVISO = "whatsapp_aviso"
 MENSAGEM_DE_TESTE = "🏥 *MediFlow:* teste de comunicação via WhatsApp."
+logger = logging.getLogger(__name__)
 
 st.title("Conectar WhatsApp")
 st.write(
@@ -28,19 +29,15 @@ st.write(
     "Escaneie o QR Code para conectar e habilitar o recebimento automático de laudos e exames."
 )
 
-if usar_dados_simulados():
-    st.info("A integração com o WhatsApp não está disponível no modo demonstração.")
-    st.stop()
-
 aviso = st.session_state.pop(CHAVE_DO_AVISO, None)
 if aviso:
-    st.success(aviso)
+    st.toast(aviso, icon="ℹ️")
 
 status = chamar_api_ou_parar(obter_status_whatsapp)
 conectado = bool(status.get("conectado"))
 nivel, titulo, ajuda = descrever_conexao(status)
 
-coluna_status, coluna_webhook = st.columns(2, gap="large")
+coluna_status, _ = st.columns([1, 1], gap="large")
 
 with coluna_status:
     st.subheader("Estado da conexão")
@@ -54,9 +51,6 @@ with coluna_status:
     if ajuda:
         st.caption(ajuda)
 
-    if st.button("Atualizar status"):
-        st.rerun()
-
     if conectado and st.button("Desconectar WhatsApp"):
         with st.spinner("Desconectando..."):
             chamar_api_ou_parar(desconectar_whatsapp)
@@ -64,32 +58,16 @@ with coluna_status:
         st.session_state[CHAVE_DO_AVISO] = "Sessão do WhatsApp desconectada."
         st.rerun()
 
-with coluna_webhook:
-    st.subheader("Webhook")
-    url_do_webhook = st.text_input(
-        "URL do webhook (opcional)",
-        help=(
-            "Deixe em branco para usar a URL padrão do backend. Se a Evolution API não alcançar "
-            "essa URL, informe o endereço do backend visível para o container, com o token do webhook."
-        ),
-    )
-    if st.button("Salvar e ativar webhook"):
-        with st.spinner("Configurando o webhook..."):
-            chamar_api_ou_parar(configurar_webhook_whatsapp, url_do_webhook.strip() or None)
-        st.success("Webhook configurado.")
-
-st.divider()
-st.subheader("Conectar dispositivo")
-
-if conectado:
-    st.success("O aparelho já está pareado. Para trocar de número, desconecte o WhatsApp acima.")
-else:
+if not conectado:
+    st.divider()
+    st.subheader("Conectar dispositivo")
     st.markdown(
         "1. No celular (use um **número de teste**), abra o **WhatsApp**.\n"
         "2. Vá em **Aparelhos conectados** e toque em **Conectar um aparelho**.\n"
         "3. Clique em **Gerar QR Code** e aponte a câmera para a imagem."
     )
     if st.button("Gerar QR Code", type="primary"):
+        logger.info("Clique em Gerar QR Code recebido pelo frontend.")
         with st.spinner("Obtendo o QR Code..."):
             resultado = chamar_api_ou_parar(gerar_qrcode_whatsapp)
         if resultado.get("conectado"):
@@ -103,8 +81,6 @@ else:
             st.image(decodificar_qrcode(qr_code), caption="Escaneie no WhatsApp", width=280)
         except ValueError as erro:
             st.error(str(erro))
-        else:
-            st.info("Depois de escanear, clique em **Atualizar status**.")
 
 st.divider()
 st.subheader("Mensagem de teste")
@@ -124,4 +100,4 @@ if st.button("Enviar mensagem de teste"):
         st.stop()
     with st.spinner("Enviando..."):
         chamar_api_ou_parar(enviar_teste_whatsapp, normalizar_numero(numero), texto.strip())
-    st.success(f"Mensagem enviada para {normalizar_numero(numero)}.")
+    st.toast(f"Mensagem enviada para {normalizar_numero(numero)}.", icon="✅")

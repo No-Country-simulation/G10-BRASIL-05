@@ -1,4 +1,12 @@
+import io
+
 import streamlit as st
+from PIL import Image
+
+try:
+    from pillow_heif import register_heif_opener
+except ImportError:
+    register_heif_opener = None
 
 from utils.aparencia import (
     montar_alerta_de_emergencia,
@@ -21,13 +29,15 @@ DESTINO_EMERGENCIA = "Fila_Emergencia_Medica"
 TITULO_DA_EMERGENCIA = "URGENTE: encaminhado para a fila de emergência médica"
 
 ALERTAS_POR_DESTINO = {
-    "Auditoria_Humana": (st.warning, "👨‍⚕️", "Revisão humana necessária"),
-    "Fluxo_Padrao": (st.success, "✅", "Rotina: aprovado automaticamente"),
-    "Farmacia_Hospitalar": (st.success, "💊", "Rotina: encaminhado para a farmácia hospitalar"),
+    "Auditoria_Humana": (st.warning, ":material/clinical_notes:", "Revisão humana necessária"),
+    "Fluxo_Padrao": (st.success, ":material/check_circle:", "Rotina: aprovado automaticamente"),
+    "Farmacia_Hospitalar": (st.success, ":material/medication:", "Rotina: encaminhado para a farmácia hospitalar"),
 }
-ALERTA_DESTINO_DESCONHECIDO = (st.info, "ℹ️", "Destino não reconhecido")
+ALERTA_DESTINO_DESCONHECIDO = (st.info, ":material/info:", "Destino não reconhecido")
 
-EXTENSOES_DE_IMAGEM = ("png", "jpg", "jpeg", "webp")
+EXTENSOES_DE_IMAGEM = ("png", "jpg", "jpeg", "webp", "heic")
+if register_heif_opener is not None:
+    register_heif_opener(thumbnails=False)
 BYTES_POR_KB = 1024
 ALTURA_DA_PREVIA_EM_PIXELS = 280
 
@@ -37,9 +47,16 @@ def exibir_previa_do_arquivo(arquivo) -> None:
     if extensao in EXTENSOES_DE_IMAGEM:
         with st.container(height=ALTURA_DA_PREVIA_EM_PIXELS, border=True):
             st.caption(f"Pré-visualização: {arquivo.name}")
-            st.image(arquivo, width="stretch")
+            if extensao == "heic":
+                imagem = Image.open(io.BytesIO(arquivo.getvalue())).convert("RGB")
+                st.image(imagem, width="stretch")
+            else:
+                st.image(arquivo, width="stretch")
     elif extensao == "pdf":
-        st.info(f"📄 PDF carregado: **{arquivo.name}** ({arquivo.size / BYTES_POR_KB:.1f} KB)")
+        st.info(
+            f"PDF carregado: **{arquivo.name}** ({arquivo.size / BYTES_POR_KB:.1f} KB)",
+            icon=":material/description:",
+        )
 
 
 def exibir_alerta_de_roteamento(decisao: dict) -> None:
@@ -77,7 +94,7 @@ def exibir_armazenamento(armazenamento: dict | None) -> None:
     nivel, texto = situacao
     exibir = {NIVEL_SUCESSO: st.success, NIVEL_AVISO: st.warning, NIVEL_ERRO: st.error}[nivel]
     st.subheader("Armazenamento")
-    exibir(texto, icon="☁️")
+    exibir(texto, icon=":material/cloud_done:")
 
 
 def exibir_dados_extraidos(dados: dict) -> None:
@@ -105,7 +122,7 @@ def exibir_resultado_da_triagem(resposta: dict) -> None:
 def exibir_item_de_auditoria(item: dict) -> None:
     _exibir_selo_de_prioridade(item.get("nivel_prioridade"))
     motivo = item.get("justificativa_roteamento") or NAO_INFORMADO
-    st.warning(f"**Revisão humana necessária**\n\n{motivo}", icon="👨‍⚕️")
+    st.warning(f"**Revisão humana necessária**\n\n{motivo}", icon=":material/clinical_notes:")
     coluna_tipo, coluna_confianca = st.columns(2)
     with coluna_tipo:
         _exibir_campo("Tipo de documento", rotular_tipo_documento(item.get("tipo_documento")))

@@ -1,6 +1,7 @@
 """Checagens conservadoras de legibilidade antes da classificação clínica."""
 
 from app.agent.state import GraphState
+from app.agent.harness import texto_clinico_sem_metadados
 
 
 _MARCADORES_SEM_TEXTO_CONFIAVEL = (
@@ -13,7 +14,7 @@ _MARCADORES_SEM_TEXTO_CONFIAVEL = (
 
 def node_qualidade_documento(state: GraphState) -> GraphState:
     """Avalia sinais disponíveis; não trata OCR como prova da imagem original."""
-    texto = (state.get("documento_texto") or "").strip()
+    texto = texto_clinico_sem_metadados(state.get("documento_texto") or "")
     tipo_arquivo = (state.get("tipo_arquivo") or "").lower()
     marcadores = [m for m in _MARCADORES_SEM_TEXTO_CONFIAVEL if m in texto.lower()]
     motivos = []
@@ -22,12 +23,12 @@ def node_qualidade_documento(state: GraphState) -> GraphState:
         motivos.append("Texto insuficiente para classificação e extração confiáveis.")
     if marcadores:
         motivos.append("A origem informa ausência de texto nativo ou legibilidade insuficiente.")
-    if tipo_arquivo not in {"texto", "json"}:
+    if state.get("legibilidade_documento") != "legivel":
+        motivos.append("O gate de escopo não confirmou legibilidade suficiente para a triagem automática.")
+    if tipo_arquivo not in {"texto", "json"} and not state.get("referencia_fonte"):
         motivos.append(
-            "O arquivo original ainda não tem métricas/localização automatizadas suficientes; exige conferência humana."
+            "A fonte original não está vinculada para conferência humana."
         )
-    if tipo_arquivo in {"imagem", "image", "png", "jpg", "jpeg", "webp"} and not state.get("referencia_fonte"):
-        motivos.append("A imagem original não está vinculada para conferência visual.")
 
     adequado = not motivos
     qualidade = {

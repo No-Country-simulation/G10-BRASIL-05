@@ -1,33 +1,33 @@
+import time
 import uuid
+import hmac
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request, status
+from fastapi import BackgroundTasks, Depends, Header, HTTPException, Request, status
+from sqlalchemy.orm import Session
 
 from app.config.logger import logger
 from app.config.settings import settings
+from app.repositories.database import DatabaseRepository, get_db
 from app.services.evolution_service import EvolutionService
 from app.services.evolution_triage_worker import worker_processar_triagem_whatsapp
 from app.services.redis_service import RedisAuditService
 
-router = APIRouter(prefix="/webhook/evolution", tags=["WhatsApp (Evolution API)"])
 
-@router.get("", status_code=status.HTTP_200_OK)
 def verificar_status_webhook():
     """Endpoint de checagem de saúde e conectividade do Webhook da Evolution API."""
     return {
         "status": "online",
         "provedor": "Evolution API (WhatsApp)",
         "instancia_configurada": settings.EVOLUTION_INSTANCE_NAME,
-        "evolution_url": settings.EVOLUTION_API_URL,
     }
 
-@router.post("", status_code=status.HTTP_200_OK)
 async def receber_webhook_evolution(
     request: Request,
     background_tasks: BackgroundTasks,
-    token: Optional[str] = Query(None, description="Token de autenticação do webhook"),
     x_webhook_token: Optional[str] = Header(None, alias="x-webhook-token"),
     apikey: Optional[str] = Header(None, alias="apikey"),
+    db: Session = Depends(get_db),
 ):
     """Recebe eventos disparados pela Evolution API (especialmente MESSAGES_UPSERT).
 
@@ -36,17 +36,6 @@ async def receber_webhook_evolution(
     - Responde HTTP 200 imediatamente.
     - Processa o documento e responde no WhatsApp de forma assíncrona.
     """
-    # 1. Validação de Segurança do Webhook
-    secret_esperado = settings.EVOLUTION_WEBHOOK_SECRET
-    token_recebido = token or x_webhook_token or apikey
-
-    if secret_esperado and token_recebido != secret_esperado:
-        logger.warning(f"Tentativa de webhook não autorizada com token: '{token_recebido}'")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de webhook inválido ou não informado.",
-        )
-
     # 2. Leitura do Payload JSON
     try:
         payload = await request.json()
@@ -54,6 +43,25 @@ async def receber_webhook_evolution(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Payload JSON inválido.",
+        )
+
+    # 1. Validação de Segurança do Webhook (aceita token dedicado ou apikey da Evolution)
+    secret_esperado = settings.EVOLUTION_WEBHOOK_SECRET
+    api_key_esperada = settings.EVOLUTION_API_KEY
+    token_recebido = x_webhook_token or apikey or (payload.get("apikey") if isinstance(payload, dict) else None)
+
+    token_valido = False
+    if token_recebido:
+        if secret_esperado and hmac.compare_digest(token_recebido, secret_esperado):
+            token_valido = True
+        elif api_key_esperada and hmac.compare_digest(token_recebido, api_key_esperada):
+            token_valido = True
+
+    if not token_valido:
+        logger.warning("Tentativa de webhook não autorizada; credencial não reconhecida.")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de webhook inválido ou não informado.",
         )
 
     # 3. Filtragem de Eventos
@@ -80,12 +88,15 @@ async def receber_webhook_evolution(
             logger.info(f"Mensagem {message_id} já processada anteriormente (idempotência acionada).")
             return {"status": "ignored", "motivo": "já_processado", "message_id": message_id}
 
-    # 6. Roteamento: Mídia vs Texto Simples
-    evolution = EvolutionService()
-
+    # 6. Mídia segue para triagem; texto simples orienta o envio de documento ou consulta protocolo.
     if dados.get("tipo") == "midia":
         doc_id = f"DOC-WPP-{uuid.uuid4().hex[:8].upper()}"
         logger.info(f"Enfileirando triagem WhatsApp: {doc_id} para o número {numero}")
+        if numero:
+            redis_service.salvar_sessao_whatsapp(
+                numero,
+                {"ultimo_documento_id": doc_id, "tipo": "midia", "timestamp": time.time()},
+            )
         background_tasks.add_task(worker_processar_triagem_whatsapp, dados, doc_id)
         return {
             "status": "queued",
@@ -94,14 +105,23 @@ async def receber_webhook_evolution(
             "numero": numero,
         }
 
-    # Se for mensagem de texto comum, responde com informações de ajuda
-    background_tasks.add_task(
-        evolution.enviar_resposta,
-        numero,
-        EvolutionService.formatar_mensagem_ajuda(),
+    texto_recebido = dados.get("texto") or ""
+    if numero:
+        redis_service.salvar_sessao_whatsapp(
+            numero,
+            {"ultimo_texto": texto_recebido[:100], "tipo": "texto", "timestamp": time.time()},
+        )
+    protocolo_consultado = EvolutionService.extrair_protocolo_do_texto(texto_recebido)
+    mensagem_resposta = EvolutionService.responder_mensagem_texto_autonomo(
+        texto=texto_recebido,
+        push_name=dados.get("push_name") or "Paciente",
+        db_repo=DatabaseRepository(db),
     )
+    destinatario = dados.get("numero") or dados.get("remote_jid")
+    background_tasks.add_task(EvolutionService().enviar_resposta, destinatario, mensagem_resposta)
     return {
         "status": "replied_info",
         "message_id": message_id,
         "numero": numero,
+        **({"protocolo_consultado": protocolo_consultado} if protocolo_consultado else {}),
     }

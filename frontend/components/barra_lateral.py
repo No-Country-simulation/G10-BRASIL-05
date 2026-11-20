@@ -22,6 +22,7 @@ def exibir_barra_lateral() -> None:
             '<div style="height: 1px; background: rgba(11, 60, 122, 0.08); margin: 6px 0 14px 0;"></div>',
             unsafe_allow_html=True,
         )
+
         st.caption(DESCRICAO)
 
         with st.expander("Guia rápido de uso", expanded=False):

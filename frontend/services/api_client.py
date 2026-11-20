@@ -1,89 +1,95 @@
 from services import cliente_http, cliente_whatsapp
-from services.configuracao import usar_dados_simulados
-from services.erros import ErroDeApi
 
 
 def enviar_documento(requisicao: dict, arquivo=None) -> dict:
-    return _cliente().enviar_documento(requisicao, arquivo)
+    return cliente_http.enviar_documento(requisicao, arquivo)
+
+
+def enfileirar_documento(requisicao: dict, arquivo) -> dict:
+    return cliente_http.enfileirar_documento(requisicao, arquivo)
+
+
+def enfileirar_documentos(arquivos: list, canal_origem: str = "Pronto_Socorro") -> dict:
+    return cliente_http.enfileirar_documentos(arquivos, canal_origem)
+
+
+def enfileirar_texto_documento(requisicao: dict) -> dict:
+    return cliente_http.enfileirar_texto_documento(requisicao)
+
+
+def obter_status_triagem(documento_id: str) -> dict:
+    return cliente_http.obter_status_triagem(documento_id)
+
+
+def inspecionar_extracao(requisicao: dict, arquivo=None) -> dict:
+    return cliente_http.inspecionar_extracao(requisicao, arquivo)
 
 
 def listar_documentos() -> list[dict]:
-    return _cliente().listar_documentos()
+    return cliente_http.listar_documentos()
+
+
+def listar_usuarios() -> list[dict]:
+    return cliente_http.listar_usuarios()
+
+
+def provisionar_usuario(dados: dict) -> dict:
+    return cliente_http.provisionar_usuario(dados)
+
+
+def atualizar_usuario(usuario_id: int, dados: dict) -> dict:
+    return cliente_http.atualizar_usuario(usuario_id, dados)
+
+
+def desativar_usuario(usuario_id: int) -> None:
+    cliente_http.desativar_usuario(usuario_id)
 
 
 def buscar_documento(documento_id: str) -> dict | None:
-    return _cliente().buscar_documento(documento_id)
+    return cliente_http.buscar_documento(documento_id)
 
 
 def listar_fila_auditoria() -> list[dict]:
-    return _cliente().listar_fila_auditoria()
+    return cliente_http.listar_fila_auditoria()
 
 
 def obter_fonte_original(documento_id: str):
-    _exigir_api_real("abrir a fonte original da auditoria")
     return cliente_http.obter_fonte_original(documento_id)
 
 
 def registrar_decisao(documento_id: str, decisao: dict) -> dict:
-    _exigir_api_real("registrar a decisão de auditoria")
     return cliente_http.registrar_decisao(documento_id, decisao)
 
 
 def obter_status_lock_auditoria(documento_id: str) -> dict:
-    _exigir_api_real("consultar o bloqueio da auditoria")
     return cliente_http.obter_status_lock_auditoria(documento_id)
 
 
 def bloquear_documento_auditoria(
     documento_id: str, auditor_nome: str, ttl_segundos: int = 300
 ) -> dict:
-    _exigir_api_real("bloquear o documento para auditoria")
     return cliente_http.bloquear_documento_auditoria(documento_id, auditor_nome, ttl_segundos)
 
 
 def desbloquear_documento_auditoria(documento_id: str, auditor_nome: str) -> dict:
-    _exigir_api_real("liberar o documento da auditoria")
     return cliente_http.desbloquear_documento_auditoria(documento_id, auditor_nome)
 
 
 def obter_status_whatsapp() -> dict:
-    _exigir_api_real("consultar o status do WhatsApp")
     return cliente_whatsapp.obter_status()
 
 
 def gerar_qrcode_whatsapp() -> dict:
-    _exigir_api_real("gerar o QR Code do WhatsApp")
     return cliente_whatsapp.gerar_qrcode()
 
 
 def configurar_webhook_whatsapp(url: str | None = None) -> dict:
-    _exigir_api_real("configurar o webhook do WhatsApp")
     return cliente_whatsapp.configurar_webhook(url)
 
 
 def desconectar_whatsapp() -> dict:
-    _exigir_api_real("desconectar o WhatsApp")
     return cliente_whatsapp.desconectar()
 
 
 def enviar_teste_whatsapp(numero: str, texto: str) -> dict:
-    _exigir_api_real("enviar a mensagem de teste do WhatsApp")
     return cliente_whatsapp.enviar_mensagem_de_teste(numero, texto)
-
-
-def _cliente():
-    if usar_dados_simulados():
-        # Carrega fixtures JSON apenas quando o modo local de demonstração foi pedido.
-        from services import cliente_mock
-
-        return cliente_mock
-    return cliente_http
-
-
-def _exigir_api_real(acao: str) -> None:
-    # Ações que gravam ou enviam algo nunca são simuladas: sem API real, falham
-    if usar_dados_simulados():
-        raise ErroDeApi(
-            f"Não foi possível {acao}: o modo demonstração não usa a API real. "
-            "Nada foi salvo nem enviado."
-        )

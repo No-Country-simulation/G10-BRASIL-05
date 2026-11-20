@@ -59,8 +59,9 @@ def test_webhook_ignora_mensagem_do_proprio_bot():
         },
     }
     response = client.post(
-        f"/webhook/evolution?token={settings.EVOLUTION_WEBHOOK_SECRET}",
+        "/webhook/evolution",
         json=payload,
+        headers={"x-webhook-token": settings.EVOLUTION_WEBHOOK_SECRET},
     )
     assert response.status_code == 200
     dados = response.json()
@@ -81,8 +82,9 @@ def test_webhook_ignora_grupo_ou_broadcast():
         },
     }
     response = client.post(
-        f"/webhook/evolution?token={settings.EVOLUTION_WEBHOOK_SECRET}",
+        "/webhook/evolution",
         json=payload,
+        headers={"x-webhook-token": settings.EVOLUTION_WEBHOOK_SECRET},
     )
     assert response.status_code == 200
     dados = response.json()
@@ -106,8 +108,9 @@ def test_webhook_mensagem_texto_responde_ajuda():
     with patch.object(EvolutionService, "enviar_resposta", new_callable=AsyncMock) as mock_send:
         mock_send.return_value = True
         response = client.post(
-            f"/webhook/evolution?token={settings.EVOLUTION_WEBHOOK_SECRET}",
+            "/webhook/evolution",
             json=payload,
+            headers={"x-webhook-token": settings.EVOLUTION_WEBHOOK_SECRET},
         )
         assert response.status_code == 200
         dados = response.json()
@@ -137,8 +140,9 @@ def test_webhook_mensagem_midia_enfileira_triagem():
         },
     }
     response = client.post(
-        f"/webhook/evolution?token={settings.EVOLUTION_WEBHOOK_SECRET}",
+        "/webhook/evolution",
         json=payload,
+        headers={"x-webhook-token": settings.EVOLUTION_WEBHOOK_SECRET},
     )
     assert response.status_code == 200
     dados = response.json()
@@ -163,15 +167,17 @@ def test_webhook_idempotencia_duplicada():
     }
     # Primeira chamada: deve processar
     r1 = client.post(
-        f"/webhook/evolution?token={settings.EVOLUTION_WEBHOOK_SECRET}",
+        "/webhook/evolution",
         json=payload,
+        headers={"x-webhook-token": settings.EVOLUTION_WEBHOOK_SECRET},
     )
     assert r1.status_code == 200
 
     # Segunda chamada imediata com o mesmo ID: deve ignorar por idempotência
     r2 = client.post(
-        f"/webhook/evolution?token={settings.EVOLUTION_WEBHOOK_SECRET}",
+        "/webhook/evolution",
         json=payload,
+        headers={"x-webhook-token": settings.EVOLUTION_WEBHOOK_SECRET},
     )
     assert r2.status_code == 200
     dados2 = r2.json()
@@ -222,3 +228,190 @@ def test_formatacao_devolutiva_triagem():
     assert "98%" in texto_formatado
     assert "UTI Semi Intensiva" in texto_formatado
     assert "Alerta:" in texto_formatado
+
+
+def test_endpoint_antigo_de_login_institucional_removido():
+    """O login institucional agora é servido exclusivamente pelo endpoint central."""
+    response = client.post(
+        "/webhook/evolution/autenticar-institucional",
+        json={"email": "mediflow@equipe.com.br", "senha": "senha-qualquer"},
+    )
+    assert response.status_code == 404
+
+
+def test_endpoints_gestao_instancia_exigem_jwt_institucional():
+    """O cabeçalho de identidade legado não concede acesso à gestão da instância."""
+    sem_identidade = client.get("/webhook/evolution/status-instancia")
+    assert sem_identidade.status_code in (401, 403)
+    identidade_legada = client.get(
+        "/webhook/evolution/status-instancia",
+        headers={"x-usuario-email": "mediflow@equipe.com.br"},
+    )
+    assert identidade_legada.status_code in (401, 403)
+
+
+def test_webhook_texto_consulta_protocolo_no_banco():
+    """Valida que o agente autônomo responde com o status real do protocolo quando consultado por texto."""
+    from app.models.triagem import DocumentoTriagemModel
+    from app.repositories.database import DatabaseRepository, SessionLocal, init_db
+
+    init_db()
+    db = SessionLocal()
+    try:
+        repo = DatabaseRepository(db)
+        doc_id = f"DOC-WPP-{uuid.uuid4().hex[:8].upper()}"
+        repo.salvar(
+            DocumentoTriagemModel(
+                documento_id=doc_id,
+                tipo_arquivo="PDF",
+                canal_origem="WhatsApp",
+                tipo_documento="Laudo Laboratorial",
+                especialidade="Hematologia",
+                nivel_prioridade="Rotina",
+                score_confianca=0.95,
+                destino_principal="Ambulatorio_Geral",
+                requer_auditoria_humana=False,
+                status_processamento="processado",
+                dados_extraidos={
+                    "paciente": {"nome": "CarlosConsulta", "idade": 41},
+                    "medico_solicitante": {"nome": "Dra. Silvia", "crm": "54321-SP"},
+                    "exame_realizado": "Hemograma Completo",
+                    "diagnostico_principal": "Exame dentro da normalidade",
+                    "cid_sugerido": "Z00.0",
+                },
+                whatsapp_numero="5511999993333",
+                whatsapp_nome="Carlos Consulta",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    payload = {
+        "event": "messages.upsert",
+        "data": {
+            "key": {
+                "remoteJid": "5511999993333@s.whatsapp.net",
+                "fromMe": False,
+                "id": f"MSG-PROTO-{uuid.uuid4().hex[:8]}",
+            },
+            "pushName": "Carlos Consulta",
+            "message": {"conversation": f"Olá, quero saber o resultado do protocolo {doc_id}"},
+        },
+    }
+    with patch.object(EvolutionService, "enviar_resposta", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = True
+        response = client.post(
+            "/webhook/evolution",
+            json=payload,
+            headers={"x-webhook-token": settings.EVOLUTION_WEBHOOK_SECRET},
+        )
+        assert response.status_code == 200
+        dados = response.json()
+        assert dados["status"] == "replied_info"
+        assert dados["protocolo_consultado"] == doc_id
+        texto_enviado = mock_send.call_args[0][1]
+        assert doc_id in texto_enviado
+        assert "CarlosConsulta" in texto_enviado
+        assert "Hemograma Completo" in texto_enviado
+
+
+def test_retencao_diagnostico_em_revisao_humana_e_notificacao_pos_auditoria():
+    """Garante que documentos em revisão humana não expõem diagnóstico/CID antes da decisão e notificam após auditoria."""
+    resposta_pendente = RespostaTriagem(
+        status="em_auditoria",
+        documento_id="DOC-WPP-AUDIT01",
+        classificacao=ClassificacaoDocumento(
+            tipo_documento="Receituário Médico",
+            especialidade="Clínica Geral",
+            nivel_prioridade="Rotina",
+            score_confianca_classificacao=0.55,
+        ),
+        dados_extraidos=DadosExtraidos(
+            paciente=Paciente(nome="Joana Pendente", idade=33),
+            medico_solicitante=MedicoSolicitante(nome="Dr. Teste", crm="99999-SP"),
+            exame_realizado="Consulta",
+            diagnostico_principal="DIAGNOSTICO_NAO_VALIDADO_SECRETO",
+            cid_sugerido="R69",
+        ),
+        decisao_roteamento=DecisaoRoteamento(
+            destino_principal="Auditoria_Humana",
+            requer_auditoria_humana=True,
+            justificativa_roteamento="Baixa legibilidade no carimbo médico.",
+        ),
+        armazenamento_oci=ArmazenamentoOCI(
+            bucket="mediflow-bucket",
+            caminho_objeto="auditoria/DOC-WPP-AUDIT01.json",
+            status_backup="sucesso",
+        ),
+        motivo_revisao="Baixa legibilidade no carimbo médico.",
+    )
+
+    msg_retida = EvolutionService.formatar_devolutiva_triagem(resposta_pendente)
+    assert "DOCUMENTO EM REVISÃO HUMANA" in msg_retida
+    assert "DOC-WPP-AUDIT01" in msg_retida
+    assert "DIAGNOSTICO_NAO_VALIDADO_SECRETO" not in msg_retida
+    assert "R69" not in msg_retida
+
+    class _DocFicticio:
+        documento_id = "DOC-WPP-AUDIT01"
+        status_processamento = "aguardando_reenvio"
+        requer_auditoria_humana = False
+        justificativa_roteamento = "Foto desfocada."
+
+    msg_reenvio = EvolutionService.formatar_notificacao_pos_auditoria(
+        _DocFicticio(),
+        status_aprovacao="solicitar_reenvio",
+        justificativa="Foto desfocada, envie nova imagem nítida.",
+    )
+    assert "ATUALIZAÇÃO DO PROTOCOLO DOC-WPP-AUDIT01" in msg_reenvio
+    assert "Foto desfocada" in msg_reenvio
+
+
+def test_decisao_auditoria_dispara_notificacao_ativa_no_whatsapp():
+    """Valida que registrar_decisao_medica envia mensagem automática ao WhatsApp do remetente."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from app.schemas.triagem import DecisaoAuditoriaRequest
+    from app.services.triagem import TriagemService
+
+    service = TriagemService.__new__(TriagemService)
+    service.db_repo = Mock()
+    service.db_repo.buscar_por_documento_id.return_value = SimpleNamespace(
+        documento_id="DOC-WPP-CALLBACK1",
+        whatsapp_numero="5511977771234",
+        caminho_fonte=None,
+        caminho_objeto_oci=None,
+    )
+    doc_final = SimpleNamespace(
+        documento_id="DOC-WPP-CALLBACK1",
+        whatsapp_numero="5511977771234",
+        status_processamento="aguardando_reenvio",
+        requer_auditoria_humana=False,
+        tipo_documento="Receituário Médico",
+        especialidade="Clínica Geral",
+        nivel_prioridade="Rotina",
+        score_confianca=0.8,
+        destino_principal="Aguardando_Reenvio",
+        justificativa_roteamento="Foto ilegível.",
+        dados_extraidos={},
+    )
+    service.db_repo.registrar_decisao.return_value = doc_final
+    service.storage_repo = Mock()
+    service.redis_service = Mock()
+    service.nosql_repo = Mock()
+
+    payload = DecisaoAuditoriaRequest(
+        status_aprovacao="solicitar_reenvio",
+        auditor_nome="Dr. Roberto Silva",
+        justificativa="Imagem borrada, por favor reenvie.",
+    )
+
+    with patch(
+        "app.services.triagem.retomar_agente_triagem",
+        return_value={"status": "aguardando_reenvio", "justificativa_roteamento": "Imagem borrada."},
+    ), patch.object(EvolutionService, "enviar_resposta_sincrona", return_value=True) as mock_sync:
+        service.registrar_decisao_medica("DOC-WPP-CALLBACK1", payload)
+        assert mock_sync.called
+        assert mock_sync.call_args[0][0] == "5511977771234"
+        assert "DOC-WPP-CALLBACK1" in mock_sync.call_args[0][1]

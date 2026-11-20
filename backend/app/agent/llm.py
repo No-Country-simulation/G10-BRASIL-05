@@ -4,10 +4,10 @@ Os nós dependem apenas do tipo `ClienteLLM`; o provedor concreto (OpenRouter/Ge
 fica isolado aqui e pode ser substituído por um cliente falso nos testes.
 """
 
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Tuple
 
-from app.config.logger import logger
 from app.config.settings import settings
+from app.errors import DependencyUnavailableError
 
 MensagemLLM = Tuple[str, str]
 ClienteLLM = Callable[[List[MensagemLLM]], str]
@@ -20,60 +20,34 @@ class AdaptadorLLM:
         self._raw_llm = raw_llm
 
     def __call__(self, mensagens: List[MensagemLLM]) -> str:
-        conteudo = self._raw_llm.invoke(mensagens).content
+        conteudo = self.invoke(mensagens).content
         return conteudo if isinstance(conteudo, str) else str(conteudo)
 
     def invoke(self, mensagens: List[MensagemLLM]) -> Any:
-        return self._raw_llm.invoke(mensagens)
-
-
-def obter_cliente_llm() -> Optional[AdaptadorLLM]:
-    """Monta o cliente LLM a partir das settings; retorna None se não houver chave configurada."""
-    raw_llm = None
-
-    if settings.OPENROUTER_API_KEY:
         try:
-            from langchain_openai import ChatOpenAI
+            return self._raw_llm.invoke(mensagens)
+        except Exception as erro:
+            raise DependencyUnavailableError("O serviço de IA está indisponível.") from erro
 
-            modelo = settings.OPENROUTER_MODEL or "google/gemma-3-27b-it"
-            raw_llm = ChatOpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=settings.OPENROUTER_API_KEY,
-                model=modelo,
-                temperature=0.0,
-                default_headers={
-                    "HTTP-Referer": "http://localhost:8000",
-                    "X-Title": "MediFlow Triagem Clinica",
-                },
-            )
-        except Exception as e:
-            logger.warning(f"Erro ao instanciar ChatOpenAI para OpenRouter: {e}")
 
-    elif settings.GOOGLE_API_KEY:
-        try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
+def obter_cliente_llm() -> AdaptadorLLM:
+    """Cria o cliente OpenRouter e propaga erros de configuração ou conexão."""
+    if not settings.OPENROUTER_API_KEY:
+        raise DependencyUnavailableError("OPENROUTER_API_KEY não configurada; triagem indisponível.")
 
-            raw_llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash",
-                google_api_key=settings.GOOGLE_API_KEY,
-                temperature=0.0,
-            )
-        except Exception as e:
-            logger.warning(f"Erro ao instanciar ChatGoogleGenerativeAI: {e}")
+    try:
+        from langchain_openai import ChatOpenAI
 
-    elif settings.OPENAI_API_KEY:
-        try:
-            from langchain_openai import ChatOpenAI
-
-            raw_llm = ChatOpenAI(
-                model="gpt-4o-mini",
-                api_key=settings.OPENAI_API_KEY,
-                temperature=0.0,
-            )
-        except Exception as e:
-            logger.warning(f"Erro ao instanciar ChatOpenAI: {e}")
-
-    if raw_llm is None:
-        return None
-
-    return AdaptadorLLM(raw_llm)
+        cliente = ChatOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            model=settings.OPENROUTER_MODEL,
+            api_key=settings.OPENROUTER_API_KEY,
+            timeout=35.0,
+            default_headers={
+                "HTTP-Referer": "http://localhost:8000",
+                "X-Title": "MediFlow Triagem Clinica",
+            },
+        )
+        return AdaptadorLLM(cliente)
+    except Exception as erro:
+        raise DependencyUnavailableError("Não foi possível inicializar o cliente OpenRouter.") from erro

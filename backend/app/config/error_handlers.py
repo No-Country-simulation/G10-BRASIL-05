@@ -7,6 +7,14 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config.logger import logger
+from app.errors import DependencyUnavailableError
+from app.repositories.storage_errors import StoragePersistenceError
+
+try:
+    from pymongo.errors import PyMongoError
+    from redis.exceptions import RedisError
+except ImportError:
+    PyMongoError = RedisError = ()
 
 HTTP_UNPROCESSABLE_ENTITY = 422
 
@@ -104,6 +112,25 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> 
     return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=payload)
 
 
+async def dependency_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Informa indisponibilidade de serviços requeridos sem ativar caminhos alternativos."""
+    if isinstance(exc, DependencyUnavailableError):
+        mensagem = str(exc)
+    elif isinstance(exc, StoragePersistenceError):
+        mensagem = "O armazenamento OCI está indisponível; a operação não foi concluída."
+    elif PyMongoError and isinstance(exc, PyMongoError):
+        mensagem = "MongoDB está indisponível; a operação de auditoria não foi concluída."
+    else:
+        mensagem = "Redis está indisponível; a operação de auditoria não foi concluída."
+    logger.error("Serviço obrigatório indisponível em %s: %s", request.url.path, mensagem, exc_info=exc)
+    payload = montar_envelope_erro(
+        codigo="SERVICO_INDISPONIVEL",
+        mensagem=mensagem,
+        path=request.url.path,
+    )
+    return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=payload)
+
+
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Handler catch-all para qualquer exceção não tratada (HTTP 500). Evita vazamento de stack trace."""
     logger.critical(
@@ -126,4 +153,10 @@ def register_error_handlers(app: FastAPI):
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(SQLAlchemyError, database_exception_handler)
+    app.add_exception_handler(DependencyUnavailableError, dependency_exception_handler)
+    app.add_exception_handler(StoragePersistenceError, dependency_exception_handler)
+    if PyMongoError:
+        app.add_exception_handler(PyMongoError, dependency_exception_handler)
+    if RedisError:
+        app.add_exception_handler(RedisError, dependency_exception_handler)
     app.add_exception_handler(Exception, global_exception_handler)

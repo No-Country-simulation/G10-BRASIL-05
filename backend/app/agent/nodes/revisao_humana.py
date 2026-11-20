@@ -12,6 +12,7 @@ def node_revisao_humana(state: GraphState) -> GraphState:
             "documento_id": state.get("documento_id"),
             "motivo": state.get("motivo_revisao") or state.get("justificativa_elegibilidade"),
             "elegibilidade": state.get("elegibilidade"),
+            "avaliacao_escopo": state.get("avaliacao_escopo"),
             "qualidade_documento": state.get("qualidade_documento"),
             "dados_extraidos": state.get("dados_extraidos"),
             "evidencias_campos": state.get("evidencias_campos"),

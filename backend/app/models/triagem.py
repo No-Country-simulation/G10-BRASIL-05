@@ -89,6 +89,12 @@ class DocumentoTriagemModel(Base):
     # Entidades extraídas (armazenamento flexível em JSON)
     dados_extraidos = Column(JSON, nullable=True)
     evidencias_campos = Column(JSON, nullable=True)
+    metadados_documento = Column(JSON, nullable=True)
+    campos_rotulados = Column(JSON, nullable=True)
+    escopo_documento = Column(String(30), nullable=True)
+    legibilidade_documento = Column(String(30), nullable=True)
+    evidencias_escopo = Column(JSON, nullable=True)
+    justificativa_escopo = Column(Text, nullable=True)
     motivo_revisao = Column(Text, nullable=True)
     etapa_revisao = Column(String(50), nullable=True)
     caminho_fonte = Column(String(500), nullable=True)
@@ -96,6 +102,11 @@ class DocumentoTriagemModel(Base):
     # OCI Object Storage
     bucket_oci = Column(String(150), nullable=True)
     caminho_objeto_oci = Column(String(255), nullable=True)
+
+    # Metadados de origem do Agente Autônomo WhatsApp
+    whatsapp_numero = Column(String(30), nullable=True, index=True)
+    whatsapp_nome = Column(String(150), nullable=True)
+    whatsapp_message_id = Column(String(150), nullable=True, index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -119,3 +130,37 @@ class TrilhaAuditoriaModel(Base):
     dados_finais = Column(JSON, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UsuarioSistemaModel(Base):
+    """Contas de acesso do sistema, profissionais e integrações institucionais."""
+    __tablename__ = "usuarios_sistema"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    email = Column(String(150), unique=True, index=True, nullable=False)
+    nome = Column(String(150), nullable=False)
+    senha_hash = Column(String(255), nullable=False)
+    papel = Column(String(50), default="INSTITUCIONAL_WHATSAPP", nullable=False)
+    trocar_senha_obrigatorio = Column(Boolean, nullable=False)
+    registro = Column(String(100), nullable=True)
+    especialidade = Column(String(150), nullable=True)
+    pode_gerenciar_whatsapp = Column(Boolean, default=False, nullable=False)
+    ativo = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class InstanciaWhatsAppModel(Base):
+    """Registro persistido da instância única do Agente Autônomo do WhatsApp no sistema."""
+    __tablename__ = "instancias_whatsapp"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    instance_name = Column(String(100), unique=True, index=True, nullable=False)
+    status_conexao = Column(String(50), default="close", nullable=False)
+    conectado = Column(Boolean, default=False, nullable=False)
+    numero_conectado = Column(String(30), nullable=True)
+    webhook_url = Column(String(500), nullable=True)
+    gerenciado_por_email = Column(String(150), default="mediflow@equipe.com.br", nullable=False)
+    modo_operacao = Column(String(50), default="AGENTE_AUTONOMO_UNICO", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

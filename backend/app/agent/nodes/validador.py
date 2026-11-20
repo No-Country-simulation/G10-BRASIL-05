@@ -8,16 +8,16 @@ from app.agent.state import GraphState
 from app.schemas.classificacao import TipoDocumento
 from app.schemas.dados_extraidos import DadosExtraidos
 from app.agent.nodes.validadores_clinicos import validar_dados_extraidos
+from app.agent.normalizacao_texto import localizar_trecho
 
 
 def _evidenciar(valor: Any, texto: str) -> dict[str, Any]:
     if valor is None or not isinstance(valor, (str, int, float)):
         return {"status": "ausente", "trecho": None, "inicio": None, "fim": None}
-    esperado = str(valor).strip()
-    inicio = texto.casefold().find(esperado.casefold()) if esperado else -1
-    if inicio < 0:
+    intervalo = localizar_trecho(texto, str(valor).strip())
+    if intervalo is None:
         return {"status": "sem_suporte_textual", "trecho": None, "inicio": None, "fim": None}
-    fim = inicio + len(esperado)
+    inicio, fim = intervalo
     return {"status": "trecho_encontrado", "trecho": texto[inicio:fim], "inicio": inicio, "fim": fim}
 
 

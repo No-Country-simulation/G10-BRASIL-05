@@ -6,15 +6,15 @@ from services.erros import ErroDeConfiguracao
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
-URL_PADRAO_DA_API = "http://localhost:8000"
-TEMPO_LIMITE_PADRAO_EM_SEGUNDOS = 60.0
-VALORES_QUE_ATIVAM_A_DEMONSTRACAO = ("1", "true", "sim")
 AMBIENTES_LOCAIS = {"local", "development", "dev"}
 AMBIENTES_PRODUCAO = {"production", "prod"}
 
 
 def obter_ambiente() -> str:
-    ambiente = os.getenv("APP_ENV", "local").strip().lower()
+    valor = os.getenv("APP_ENV")
+    if valor is None:
+        raise ErroDeConfiguracao("APP_ENV precisa estar configurado.")
+    ambiente = valor.strip().lower()
     if ambiente in AMBIENTES_LOCAIS:
         return "local"
     if ambiente in AMBIENTES_PRODUCAO:
@@ -34,7 +34,7 @@ def obter_url_do_backend() -> str:
                 "Configure a URL de produção; o frontend não usará a URL local."
             )
     else:
-        url = os.getenv("API_URL_LOCAL", URL_PADRAO_DA_API).strip().rstrip("/")
+        url = os.getenv("API_URL_LOCAL", "").strip().rstrip("/")
         if not url:
             raise ErroDeConfiguracao("APP_ENV=local exige API_URL_LOCAL.")
     if not url.startswith(("http://", "https://")):
@@ -42,19 +42,14 @@ def obter_url_do_backend() -> str:
     return url
 
 
-def usar_dados_simulados() -> bool:
-    valor = os.getenv("MODO_DEMONSTRACAO", "").strip().lower()
-    ativado = valor in VALORES_QUE_ATIVAM_A_DEMONSTRACAO
-    if ativado and obter_ambiente() != "local":
-        raise ErroDeConfiguracao(
-            "MODO_DEMONSTRACAO só pode ser ativado em APP_ENV=local."
-        )
-    return ativado
-
-
 def obter_tempo_limite_em_segundos() -> float:
+    valor = os.getenv("API_TIMEOUT")
+    if valor is None:
+        raise ErroDeConfiguracao("API_TIMEOUT precisa estar configurado.")
     try:
-        tempo = float(os.getenv("API_TIMEOUT", ""))
-    except ValueError:
-        return TEMPO_LIMITE_PADRAO_EM_SEGUNDOS
-    return tempo if tempo > 0 else TEMPO_LIMITE_PADRAO_EM_SEGUNDOS
+        tempo = float(valor)
+    except ValueError as erro:
+        raise ErroDeConfiguracao("API_TIMEOUT precisa ser um número positivo.") from erro
+    if tempo <= 0:
+        raise ErroDeConfiguracao("API_TIMEOUT precisa ser um número positivo.")
+    return tempo

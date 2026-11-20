@@ -5,6 +5,10 @@ from app.agent.config import (
     DESTINO_AUDITORIA_HUMANA,
     DESTINO_FLUXO_PADRAO,
     DESTINO_FARMACIA,
+    DESTINO_AUTORIZACOES,
+    DESTINO_ATESTADOS,
+    DESTINO_EXAMES,
+    DESTINO_ATENDIMENTO_GERAL,
 )
 from app.schemas.classificacao import TipoDocumento
 
@@ -33,6 +37,18 @@ def node_roteamento(state: GraphState) -> GraphState:
     elif tipo_doc == TipoDocumento.RECEITA.value:
         destino = DESTINO_FARMACIA
         justificativa = "Receituário médico em conformidade encaminhado para dispensação farmacêutica."
+    elif tipo_doc == TipoDocumento.GUIA_TISS.value:
+        destino = DESTINO_AUTORIZACOES
+        justificativa = "Guia TISS validada encaminhada para análise de autorizações."
+    elif tipo_doc == TipoDocumento.ATESTADO.value:
+        destino = DESTINO_ATESTADOS
+        justificativa = "Atestado validado encaminhado para a fila de atestados."
+    elif tipo_doc == TipoDocumento.LAUDO.value:
+        destino = DESTINO_EXAMES
+        justificativa = "Laudo validado encaminhado para a fila de exames."
+    elif tipo_doc == TipoDocumento.RELATORIO_ALTA.value:
+        destino = DESTINO_ATENDIMENTO_GERAL
+        justificativa = "Relatório de alta validado encaminhado para atendimento geral."
     else:
         destino = DESTINO_FLUXO_PADRAO
         justificativa = "Documento clínico analisado com sucesso, sem achados críticos pendentes."

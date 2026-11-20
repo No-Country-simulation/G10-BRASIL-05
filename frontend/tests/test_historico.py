@@ -112,7 +112,7 @@ def test_linha_da_tabela_traduz_codigos_e_formata_confianca_e_data():
 
     assert montar_linhas_da_tabela([documento])[0] == {
         "Documento": "DOC-1",
-        "Status": "✅ Aprovado",
+        "Status": "Aprovado",
         "Tipo": "Receituário Médico",
         "Prioridade": "Rotina",
         "Confiança": "96%",

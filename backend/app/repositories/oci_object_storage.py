@@ -15,9 +15,7 @@ class OCIObjectStorageRepository:
 
     @staticmethod
     def _criar_cliente():
-        modo = (settings.OCI_AUTH_MODE or "api_key").strip().lower()
-        if modo == "local_only":
-            return None
+        modo = settings.OCI_AUTH_MODE.strip().lower()
 
         if modo == "instance_principal":
             if not settings.OCI_NAMESPACE:
@@ -36,7 +34,7 @@ class OCIObjectStorageRepository:
                 ) from erro
 
         if modo != "api_key":
-            raise ValueError("OCI_AUTH_MODE deve ser 'api_key', 'instance_principal' ou 'local_only'.")
+            raise ValueError("OCI_AUTH_MODE deve ser 'api_key' ou 'instance_principal'.")
 
         configuracao_iniciada = any((
             settings.OCI_USER_OCID,
@@ -46,7 +44,7 @@ class OCIObjectStorageRepository:
             settings.OCI_NAMESPACE,
         ))
         if not configuracao_iniciada:
-            return None
+            raise StoragePersistenceError("Credenciais do OCI Object Storage não configuradas.")
 
         caminho_chave = os.path.expanduser(settings.OCI_KEY_FILE or "")
         obrigatorios = {
@@ -81,8 +79,6 @@ class OCIObjectStorageRepository:
         return self.client is not None
 
     def salvar(self, caminho: str, conteudo: bytes, content_type: str) -> None:
-        if not self.client:
-            return
         try:
             self.client.put_object(
                 namespace_name=settings.OCI_NAMESPACE,
@@ -96,7 +92,7 @@ class OCIObjectStorageRepository:
             raise StoragePersistenceError(f"Falha ao salvar objeto OCI '{caminho}'.") from erro
 
     def remover(self, caminho: Optional[str]) -> None:
-        if not self.client or not caminho:
+        if not caminho:
             return
         try:
             self.client.delete_object(
@@ -111,8 +107,6 @@ class OCIObjectStorageRepository:
             raise StoragePersistenceError(f"Falha ao remover objeto OCI durante rollback: '{caminho}'.") from erro
 
     def ler(self, caminho: str) -> bytes:
-        if not self.client:
-            raise RuntimeError("OCI Object Storage não configurado no modo local_only.")
         try:
             resposta = self.client.get_object(
                 namespace_name=settings.OCI_NAMESPACE,

@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Dict, Any
+from typing import Callable, Optional, Dict, Any
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.config.logger import logger
@@ -20,6 +20,7 @@ from app.models.triagem import DocumentoTriagemModel
 from app.repositories.database import DatabaseRepository
 from app.repositories.storage import StorageRepository
 from app.repositories.nosql_auditoria import MongoAuditoriaRepository
+from app.services.evolution_service import EvolutionService
 from app.services.redis_service import RedisAuditService
 from app.agent.graph import (
     excluir_checkpoint_triagem,
@@ -41,6 +42,10 @@ class TriagemService:
         self,
         requisicao: RequisicaoTriagem,
         referencia_fonte: Optional[str] = None,
+        avaliacao_escopo: Optional[Dict[str, Any]] = None,
+        metadados_documento: Optional[Dict[str, Any]] = None,
+        campos_rotulados: Optional[list[Dict[str, str]]] = None,
+        on_etapa: Optional[Callable[[str], None]] = None,
     ) -> RespostaTriagem:
         if self.db_repo.buscar_por_documento_id(requisicao.documento_id):
             raise HTTPException(
@@ -60,10 +65,15 @@ class TriagemService:
                 if requisicao.tipo_arquivo.lower() in {"texto", "json"}
                 else None
             ),
+            "avaliacao_escopo": avaliacao_escopo,
         }
-        resultado_grafo = executar_agente_triagem(estado_inicial)
+        resultado_grafo = executar_agente_triagem(
+            estado_inicial,
+            resolver_cadastro=self._resolver_cadastro_identificacao,
+            on_etapa=on_etapa,
+        )
 
-        if resultado_grafo.get("status") == "recusado":
+        if resultado_grafo.get("status") in {"recusado", "comprovacao_solicitada"}:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=resultado_grafo.get("mensagem_usuario", "Documento fora do escopo médico."),
@@ -152,6 +162,12 @@ class TriagemService:
                 tipo_arquivo=requisicao.tipo_arquivo,
                 canal_origem=requisicao.canal_origem,
                 documento_texto=requisicao.documento_texto,
+                paciente_id=(resultado_grafo.get("identificacao_cadastral") or {})
+                .get("paciente", {})
+                .get("registro_id"),
+                medico_id=(resultado_grafo.get("identificacao_cadastral") or {})
+                .get("medico_solicitante", {})
+                .get("registro_id"),
                 tipo_documento=classificacao.tipo_documento,
                 especialidade=classificacao.especialidade,
                 nivel_prioridade=classificacao.nivel_prioridade,
@@ -164,9 +180,18 @@ class TriagemService:
                 bucket_oci=armazenamento_oci.bucket,
                 caminho_objeto_oci=armazenamento_oci.caminho_objeto,
                 evidencias_campos=resultado_grafo.get("evidencias_campos"),
+                metadados_documento=metadados_documento,
+                campos_rotulados=campos_rotulados,
+                escopo_documento=(avaliacao_escopo or {}).get("escopo"),
+                legibilidade_documento=(avaliacao_escopo or {}).get("legibilidade"),
+                evidencias_escopo=(avaliacao_escopo or {}).get("evidencias"),
+                justificativa_escopo=(avaliacao_escopo or {}).get("justificativa"),
                 motivo_revisao=resultado_grafo.get("motivo_revisao") or justificativa if requer_auditoria else None,
                 etapa_revisao=resultado_grafo.get("etapa_revisao"),
                 caminho_fonte=(referencia_fonte if referencia_fonte != "texto_informado" else None),
+                whatsapp_numero=requisicao.whatsapp_numero,
+                whatsapp_nome=requisicao.whatsapp_nome,
+                whatsapp_message_id=requisicao.whatsapp_message_id,
             )
             self.db_repo.salvar(model)
             resposta_triagem = RespostaTriagem(
@@ -220,6 +245,68 @@ class TriagemService:
 
         return resposta_triagem
 
+    def _resolver_cadastro_identificacao(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Consulta cadastros por identificadores exatos e nunca cria registros nesta etapa."""
+        identificacao = state.get("identificacao_documento") or {}
+        paciente_documento = identificacao.get("paciente") or {}
+        medico_documento = identificacao.get("medico_solicitante") or {}
+
+        nome_paciente = (paciente_documento.get("nome") or "").strip()
+        idade_paciente = paciente_documento.get("idade")
+        candidatos_paciente = (
+            self.db_repo.buscar_pacientes_por_nome(nome_paciente) if nome_paciente else []
+        )
+        if not nome_paciente:
+            paciente_cadastro = {"status": "dados_insuficientes"}
+        elif len(candidatos_paciente) == 1:
+            paciente = candidatos_paciente[0]
+            paciente_cadastro = {
+                "status": "encontrado",
+                "registro_id": paciente.id,
+                "cadastro": {
+                    "nome": paciente.nome,
+                    "idade": paciente.idade,
+                    "cadastro_provisorio": paciente.cadastro_provisorio,
+                },
+            }
+        elif len(candidatos_paciente) > 1:
+            paciente_cadastro = {"status": "ambiguo", "candidatos": len(candidatos_paciente)}
+        else:
+            paciente_cadastro = {"status": "nao_encontrado"}
+        paciente_cadastro.update({"dados_documento": {"nome": nome_paciente or None, "idade": idade_paciente}})
+
+        nome_medico = (medico_documento.get("nome") or "").strip()
+        crm_medico = (medico_documento.get("crm") or "").strip().upper()
+        if not crm_medico:
+            medico_cadastro = {"status": "crm_ausente"}
+        else:
+            medico = self.db_repo.buscar_medico_por_crm(crm_medico)
+            medico_cadastro = (
+                {
+                    "status": "encontrado",
+                    "registro_id": medico.id,
+                    "cadastro": {
+                        "nome": medico.nome,
+                        "crm": medico.crm,
+                        "especialidade": medico.especialidade,
+                        "uf": medico.uf,
+                    },
+                }
+                if medico
+                else {"status": "nao_encontrado"}
+            )
+        medico_cadastro["dados_documento"] = {
+            "nome": nome_medico or None,
+            "crm": crm_medico or None,
+        }
+
+        return {
+            "identificacao_cadastral": {
+                "paciente": paciente_cadastro,
+                "medico_solicitante": medico_cadastro,
+            }
+        }
+
     def registrar_decisao_medica(self, documento_id: str, payload: DecisaoAuditoriaRequest):
         """Aprova, corrige ou rejeita um item na fila de Human-in-the-Loop."""
         dados_corrigidos = (
@@ -230,6 +317,8 @@ class TriagemService:
         doc_original = self.db_repo.buscar_por_documento_id(documento_id)
         if not doc_original:
             return None
+        raw_wpp = getattr(doc_original, "whatsapp_numero", None)
+        whatsapp_numero = raw_wpp if isinstance(raw_wpp, str) and raw_wpp.strip() else None
         try:
             resultado_grafo = retomar_agente_triagem(
                 documento_id,
@@ -265,6 +354,13 @@ class TriagemService:
             )
             excluir_checkpoint_triagem(documento_id)
             self.redis_service.liberar_lock(documento_id, payload.auditor_nome)
+            if whatsapp_numero:
+                EvolutionService().enviar_resposta_sincrona(
+                    whatsapp_numero,
+                    EvolutionService.formatar_mensagem_erro(
+                        "A revisão confirmou que o documento enviado não é médico. O protocolo foi encerrado."
+                    ),
+                )
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="A revisão confirmou que o documento não é médico. O processamento foi recusado e os dados transitórios foram removidos.",
@@ -357,5 +453,19 @@ class TriagemService:
                 )
             except Exception:
                 logger.exception("Falha ao registrar evento após decisão de auditoria: %s", documento_id)
+
+            # Disparo ativo para o WhatsApp de origem quando a revisão humana é concluída
+            raw_num = getattr(doc_atualizado, "whatsapp_numero", None)
+            numero_wpp = (raw_num if isinstance(raw_num, str) and raw_num.strip() else None) or whatsapp_numero
+            if numero_wpp and not bool(getattr(doc_atualizado, "requer_auditoria_humana", False) is True):
+                try:
+                    mensagem_wpp = EvolutionService.formatar_notificacao_pos_auditoria(
+                        doc_atualizado,
+                        status_aprovacao=payload.status_aprovacao,
+                        justificativa=payload.justificativa,
+                    )
+                    EvolutionService().enviar_resposta_sincrona(numero_wpp, mensagem_wpp)
+                except Exception:
+                    logger.exception("Falha ao notificar WhatsApp após decisão médica: %s", documento_id)
 
         return doc_atualizado

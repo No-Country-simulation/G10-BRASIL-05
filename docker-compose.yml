@@ -5,18 +5,48 @@ services:
     container_name: g10-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-root}
-      POSTGRES_DB: ${DB_NAME:-mediflow_db}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT:-5434}:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-mediflow_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  evolution-db-init:
+    profiles: ["infra"]
+    image: postgres:16
+    entrypoint: ["/bin/sh"]
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: ${DB_USER}
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: postgres
+      EVOLUTION_DB_NAME: ${EVOLUTION_DB_NAME:-evolution}
+      MEDIFLOW_DB_NAME: ${DB_NAME}
+    command:
+      - -ec
+      - |
+        case "$$EVOLUTION_DB_NAME" in
+          ''|*[!a-zA-Z0-9_]*) echo "EVOLUTION_DB_NAME deve conter apenas letras, números e sublinhado." >&2; exit 1 ;;
+        esac
+        if [ "$$EVOLUTION_DB_NAME" = "$$MEDIFLOW_DB_NAME" ]; then
+          echo "EVOLUTION_DB_NAME deve ser diferente de DB_NAME do MediFlow." >&2
+          exit 1
+        fi
+        database_exists="$$(psql -v ON_ERROR_STOP=1 -tAc "SELECT 1 FROM pg_database WHERE datname = '$$EVOLUTION_DB_NAME'")"
+        if [ "$$database_exists" != "1" ]; then
+          createdb "$$EVOLUTION_DB_NAME"
+        fi
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   redis:
     profiles: ["infra"]
@@ -24,7 +54,7 @@ services:
     container_name: g10-redis
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -39,9 +69,9 @@ services:
     container_name: g10-mongodb
     restart: unless-stopped
     environment:
-      MONGO_INITDB_DATABASE: ${MONGO_DB:-mediflow_auditoria}
+      MONGO_INITDB_DATABASE: ${MONGO_DB}
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "${MONGO_PORT}:27017"
     volumes:
       - mongodata:/data/db
     healthcheck:
@@ -50,23 +80,31 @@ services:
       timeout: 5s
       retries: 5
 
-  evolution-api:
-    profiles: ["integrations"]
+  # WhatsApp: Evolution API e dependências próprias
+  whatsapp:
+    profiles: ["infra"]
     image: evoapicloud/evolution-api:v2.2.2
-    container_name: g10-evolution-api
+    container_name: g10-whatsapp
     restart: unless-stopped
     ports:
-      - "${EVOLUTION_PORT:-8080}:8080"
+      - "${EVOLUTION_PORT}:8080"
     environment:
-      - SERVER_URL=${EVOLUTION_SERVER_URL:-http://localhost:8080}
+      - SERVER_URL=${EVOLUTION_SERVER_URL}
       - DOCKER_ENV=true
-      - LOG_LEVEL=ERROR,WARN,DEBUG,INFO,LOG
+      - LOG_LEVEL=ERROR,WARN,DEBUG,INFO,LOG,VERBOSE,DARK,WEBHOOKS,WEBSOCKET
       - LOG_COLOR=true
-      - LOG_BAILEYS=error
-      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY:-mediflow_secret_evolution_key}
+      - LOG_BAILEYS=info
+      - CONFIG_SESSION_PHONE_CLIENT=Ubuntu
+      - CONFIG_SESSION_PHONE_NAME=Chrome
+      - CONFIG_SESSION_PHONE_VERSION=2.3000.1043857760
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_URL=http://backend:8000/webhook/evolution
+      - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=false
+      - WEBHOOK_EVENTS_MESSAGES_UPSERT=true
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
       - DATABASE_ENABLED=true
       - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-root}@postgres:5432/${DB_NAME:-mediflow_db}
+      - DATABASE_CONNECTION_URI=postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${EVOLUTION_DB_NAME:-evolution}
       - DATABASE_SAVE_DATA_INSTANCE=true
       - DATABASE_SAVE_DATA_NEW_MESSAGE=true
       - CACHE_REDIS_ENABLED=true
@@ -75,6 +113,11 @@ services:
       - CACHE_REDIS_SAVE_INSTANCES=true
     volumes:
       - evolutiondata:/evolution/store
+    depends_on:
+      evolution-db-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   backend:
     build:
@@ -84,28 +127,66 @@ services:
     restart: unless-stopped
     env_file:
       - ./backend/.env
-    environment:
+    environment: &backend_environment
+      PYTHONUNBUFFERED: "1"
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-root}@postgres:5432/${DB_NAME:-mediflow_db}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       REDIS_URL: redis://redis:6379/0
-      REDIS_ENABLED: "true"
       MONGODB_URL: mongodb://mongodb:27017
-      MONGODB_DATABASE: ${MONGO_DB:-mediflow_auditoria}
-      MONGODB_ENABLED: "true"
-      EVOLUTION_API_URL: http://evolution-api:8080
-      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-mediflow_secret_evolution_key}
+      MONGODB_DATABASE: ${MONGO_DB}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL}
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD}
+      OCI_AUTH_MODE: ${OCI_AUTH_MODE}
+      OCI_USER_OCID: ${OCI_USER_OCID}
+      OCI_TENANCY_OCID: ${OCI_TENANCY_OCID}
+      OCI_FINGERPRINT: ${OCI_FINGERPRINT}
+      OCI_REGION: ${OCI_REGION}
+      OCI_NAMESPACE: ${OCI_NAMESPACE}
+      OCI_BUCKET_NAME: ${OCI_BUCKET_NAME}
+      EVOLUTION_API_URL: http://whatsapp:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY}
+      EVOLUTION_WEBHOOK_URL: ${EVOLUTION_WEBHOOK_URL:-http://backend:8000/webhook/evolution}
+      OCI_KEY_FILE: /run/secrets/oci_api_key.pem
+      EVOLUTION_INSTANCE_NAME: ${EVOLUTION_INSTANCE_NAME}
+      EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET}
       CORS_ORIGINS: '["http://localhost:8501", "http://127.0.0.1:8501"]'
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BACKEND_PORT}:8000"
     volumes:
+      - "${OCI_KEY_FILE}:/run/secrets/oci_api_key.pem:ro"
       - ./Storage:/app/Storage
+      - ./backend/app:/app/app
+      - ./backend/app:/app/app
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://localhost:8000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
       start_period: 30s
+
+  triagem-worker:
+    profiles: ["infra"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "-m", "app.queue_worker"]
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      <<: *backend_environment
+      TRIAGEM_WORKER_CONCURRENCY: ${TRIAGEM_WORKER_CONCURRENCY:-5}
+    volumes:
+      - "${OCI_KEY_FILE}:/run/secrets/oci_api_key.pem:ro"
+      - ./Storage:/app/Storage
+      - ./backend/app:/app/app
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
@@ -121,7 +202,9 @@ services:
       STREAMLIT_SERVER_HEADLESS: "true"
       BROWSER_GATHER_USAGE_STATS: "false"
     ports:
-      - "${FRONTEND_PORT:-8501}:8501"
+      - "${FRONTEND_PORT}:8501"
+    volumes:
+      - ./frontend:/app
     depends_on:
       backend:
         condition: service_healthy

@@ -25,9 +25,6 @@ class ArquivosOCIRepository(StorageRepository):
             extensao=os.path.splitext(nome_arquivo)[1].lower(),
             mimetype=content_type,
         )
-        if not self.client:
-            resultado["bucket"] = self.bucket_name
-            resultado["status_backup"] = "sucesso (local_simulado)"
         return resultado
 
     def ler_arquivo(self, caminho_objeto: str) -> bytes:

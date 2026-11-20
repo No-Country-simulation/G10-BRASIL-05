@@ -36,7 +36,7 @@ class StorageRepository:
 
     @property
     def oci_ativo(self) -> bool:
-        return self.client is not None
+        return True
 
     def _salvar_local_atomico(self, caminho: str, conteudo: bytes) -> None:
         self.local_storage.salvar_atomico(caminho, conteudo)
@@ -49,6 +49,23 @@ class StorageRepository:
 
     def _remover_arquivo_local(self, caminho: Optional[str]) -> None:
         self.local_storage.remover(caminho)
+
+    def _desfazer_persistencia_parcial(
+        self,
+        caminho_local: str,
+        caminho_objeto: str,
+        objeto_tentado: bool,
+        artefato: str,
+    ) -> None:
+        try:
+            self._remover_arquivo_local(caminho_local)
+        except OSError:
+            logger.exception("Falha ao remover cópia local durante rollback: %s", caminho_local)
+        if objeto_tentado:
+            try:
+                self._excluir_objeto_oci(caminho_objeto)
+            except StoragePersistenceError:
+                logger.exception("Rollback remoto incompleto para %s", artefato)
 
     def salvar_arquivo_original(
         self,
@@ -85,34 +102,27 @@ class StorageRepository:
 
         try:
             self._salvar_local_atomico(caminho_local, conteudo)
-            if self.client:
-                objeto_tentado = True
-                self._enviar_objeto_oci(caminho_objeto, conteudo, tipo_conteudo)
+            objeto_tentado = True
+            self._enviar_objeto_oci(caminho_objeto, conteudo, tipo_conteudo)
         except Exception as erro:
-            try:
-                self._remover_arquivo_local(caminho_local)
-            except OSError:
-                logger.exception("Falha ao remover cópia local durante rollback: %s", caminho_local)
-            if self.client and objeto_tentado:
-                try:
-                    self._excluir_objeto_oci(caminho_objeto)
-                except StoragePersistenceError:
-                    logger.exception("Rollback remoto incompleto para a fonte %s", documento_id)
+            self._desfazer_persistencia_parcial(
+                caminho_local, caminho_objeto, objeto_tentado, f"a fonte {documento_id}"
+            )
             if isinstance(erro, StoragePersistenceError):
                 raise
             raise StoragePersistenceError("Falha ao persistir documento original; operação desfeita.") from erro
 
         return {
-            "bucket": self.bucket_name if self.client else "local-storage",
+            "bucket": self.bucket_name,
             "caminho_objeto": caminho_objeto,
-            "caminho_objeto_fonte": caminho_objeto if self.client else None,
+            "caminho_objeto_fonte": caminho_objeto,
             "caminho_local": caminho_local,
             "caminho_relativo": os.path.relpath(caminho_local, os.path.dirname(self.local_storage_dir)),
             "nome_arquivo": nome_renomeado,
             "diretorio": destino_dir,
             "tamanho_bytes": len(conteudo),
             "mimetype": tipo_conteudo,
-            "status_backup": "sucesso" if self.client else "sucesso_local",
+            "status_backup": "sucesso",
         }
 
     @staticmethod
@@ -126,7 +136,7 @@ class StorageRepository:
         if extensao_limpa and not extensao_limpa.startswith("."):
             extensao_limpa = f".{extensao_limpa}"
         tipo_conteudo = (mimetype or "").split(";", 1)[0].strip().lower()
-        extensoes_imagem = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".img"}
+        extensoes_imagem = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".gif", ".bmp", ".tif", ".tiff", ".img"}
 
         if extensao_limpa == ".pdf" or tipo_conteudo == "application/pdf":
             pasta = "pdf"
@@ -229,19 +239,12 @@ class StorageRepository:
         objeto_tentado = False
         try:
             self._salvar_local_atomico(caminho_local, payload_bytes)
-            if self.client:
-                objeto_tentado = True
-                self._enviar_objeto_oci(caminho_objeto, payload_bytes, "application/json")
+            objeto_tentado = True
+            self._enviar_objeto_oci(caminho_objeto, payload_bytes, "application/json")
         except Exception as erro:
-            try:
-                self._remover_arquivo_local(caminho_local)
-            except OSError:
-                logger.exception("Falha ao remover JSON local durante rollback: %s", caminho_local)
-            if self.client and objeto_tentado:
-                try:
-                    self._excluir_objeto_oci(caminho_objeto)
-                except StoragePersistenceError:
-                    logger.exception("Rollback remoto incompleto para JSON de triagem %s", documento_id)
+            self._desfazer_persistencia_parcial(
+                caminho_local, caminho_objeto, objeto_tentado, f"JSON de triagem {documento_id}"
+            )
             if isinstance(erro, StoragePersistenceError):
                 raise
             raise StoragePersistenceError("Falha ao persistir JSON da triagem; operação desfeita.") from erro
@@ -250,7 +253,7 @@ class StorageRepository:
             "bucket": self.bucket_name,
             "caminho_objeto": caminho_objeto,
             "caminho_local": caminho_local,
-            "status_backup": "sucesso" if self.client else "sucesso (local_simulado)",
+            "status_backup": "sucesso",
         }
 
     def excluir_artefatos_triagem(
@@ -285,7 +288,7 @@ class StorageRepository:
             try:
                 self._excluir_objeto_oci(objeto)
             except StoragePersistenceError:
-                continue
+                raise
 
     def rollback_tentativa(
         self,
@@ -303,4 +306,4 @@ class StorageRepository:
             try:
                 self._excluir_objeto_oci(objeto)
             except StoragePersistenceError:
-                continue
+                raise

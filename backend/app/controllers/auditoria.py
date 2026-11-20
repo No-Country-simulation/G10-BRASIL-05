@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -9,10 +9,9 @@ from app.schemas.triagem import BloqueioAuditoriaRequest, DecisaoAuditoriaReques
 from app.services.redis_service import RedisAuditService
 from app.services.triagem import TriagemService
 from app.repositories.storage import StorageRepository
+from app.services.autenticacao import exigir_papeis
 
-router = APIRouter(prefix="/triagem", tags=["Auditoria Clínica"])
 
-@router.get("/auditoria", status_code=status.HTTP_200_OK)
 def listar_fila_auditoria(db: Session = Depends(get_db)):
     """Lista os documentos encaminhados para a fila médica de Human-in-the-Loop."""
     repo = DatabaseRepository(db)
@@ -36,7 +35,6 @@ def listar_fila_auditoria(db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/auditoria/{documento_id}/fonte", status_code=status.HTTP_200_OK)
 def baixar_fonte_original(documento_id: str, db: Session = Depends(get_db)):
     """Entrega a fonte original somente se o caminho estiver dentro do Storage do projeto."""
     doc = DatabaseRepository(db).buscar_por_documento_id(documento_id)
@@ -49,15 +47,16 @@ def baixar_fonte_original(documento_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fonte original não disponível.")
     return FileResponse(caminho, filename=caminho.name)
 
-@router.post("/auditoria/{documento_id}/decisao", status_code=status.HTTP_200_OK)
 def registrar_decisao_auditoria(
     documento_id: str,
     payload: DecisaoAuditoriaRequest,
+    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
     db: Session = Depends(get_db),
 ):
     """Permite ao médico/auditor aprovar, corrigir ou rejeitar uma triagem de baixa confiança."""
     service = TriagemService(db)
-    doc_atualizado = service.registrar_decisao_medica(documento_id, payload)
+    payload_validado = payload.model_copy(update={"auditor_nome": usuario.nome})
+    doc_atualizado = service.registrar_decisao_medica(documento_id, payload_validado)
     if not doc_atualizado:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -69,10 +68,10 @@ def registrar_decisao_auditoria(
         "novo_status": doc_atualizado.status_processamento,
     }
 
-@router.post("/auditoria/{documento_id}/bloquear", status_code=status.HTTP_200_OK)
 def bloquear_documento_auditoria(
     documento_id: str,
     payload: BloqueioAuditoriaRequest,
+    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
     db: Session = Depends(get_db),
 ):
     """Adquire lock exclusivo no Redis para evitar que dois médicos auditem o mesmo laudo simultaneamente."""
@@ -87,7 +86,7 @@ def bloquear_documento_auditoria(
     redis_service = RedisAuditService()
     adquiriu = redis_service.adquirir_lock(
         documento_id=documento_id,
-        auditor_nome=payload.auditor_nome,
+        auditor_nome=usuario.nome,
         ttl_segundos=payload.ttl_segundos,
     )
 
@@ -104,28 +103,28 @@ def bloquear_documento_auditoria(
     nosql_repo.gravar_evento(
         documento_id=documento_id,
         tipo_evento="BLOQUEIO_EXCLUSIVO",
-        autor=payload.auditor_nome,
+        autor=usuario.nome,
         payload={"ttl_segundos": payload.ttl_segundos},
     )
 
     return {
         "mensagem": "Documento bloqueado com sucesso para revisão médica exclusiva.",
         "documento_id": documento_id,
-        "auditor": payload.auditor_nome,
+        "auditor": usuario.nome,
         "bloqueado": True,
     }
 
-@router.post("/auditoria/{documento_id}/desbloquear", status_code=status.HTTP_200_OK)
 def desbloquear_documento_auditoria(
     documento_id: str,
     payload: BloqueioAuditoriaRequest,
+    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
     db: Session = Depends(get_db),
 ):
     """Libera o lock exclusivo no Redis caso o médico cancele ou finalize a revisão."""
     redis_service = RedisAuditService()
     liberou = redis_service.liberar_lock(
         documento_id=documento_id,
-        auditor_nome=payload.auditor_nome,
+        auditor_nome=usuario.nome,
     )
 
     if not liberou:
@@ -138,7 +137,7 @@ def desbloquear_documento_auditoria(
     nosql_repo.gravar_evento(
         documento_id=documento_id,
         tipo_evento="DESBLOQUEIO_AUDITORIA",
-        autor=payload.auditor_nome,
+        autor=usuario.nome,
         payload={},
     )
 
@@ -148,19 +147,16 @@ def desbloquear_documento_auditoria(
         "bloqueado": False,
     }
 
-@router.get("/auditoria/{documento_id}/status-lock", status_code=status.HTTP_200_OK)
 def verificar_status_lock(documento_id: str):
     """Consulta se o documento está bloqueado no Redis e quanto tempo resta de lock."""
     redis_service = RedisAuditService()
     return redis_service.obter_status_lock(documento_id)
 
-@router.get("/auditoria/{documento_id}/trilha-nosql", status_code=status.HTTP_200_OK)
 def consultar_trilha_nosql(documento_id: str):
     """Consulta a trilha completa e imutável de eventos gravada no MongoDB (NoSQL)."""
     nosql_repo = MongoAuditoriaRepository()
     return nosql_repo.listar_por_documento(documento_id)
 
-@router.get("/auditoria/eventos-redis", status_code=status.HTTP_200_OK)
 def listar_eventos_redis():
     """Consulta os eventos mais recentes publicados no canal de telemetria Redis."""
     redis_service = RedisAuditService()

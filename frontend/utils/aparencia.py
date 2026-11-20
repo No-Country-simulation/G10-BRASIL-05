@@ -73,9 +73,16 @@ def montar_selo_de_prioridade(prioridade: str | None) -> str | None:
 
 
 def montar_alerta_de_emergencia(titulo: str, justificativa: str | None, mensagem_do_plantao: str | None) -> str:
+    svg_alerta = (
+        '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8E1B1B" '
+        'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" '
+        'style="vertical-align:middle;margin-right:8px;margin-bottom:3px;">'
+        '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>'
+        '<line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+    )
     partes = [
         f'<div style="{ESTILO_DO_ALERTA_DE_EMERGENCIA}">',
-        f'<div style="{ESTILO_DO_TITULO_DA_EMERGENCIA}">🚨 {escape(titulo)}</div>',
+        f'<div style="{ESTILO_DO_TITULO_DA_EMERGENCIA}">{svg_alerta}{escape(titulo)}</div>',
     ]
     if justificativa:
         partes.append(f'<div style="{ESTILO_DO_TEXTO_DA_EMERGENCIA}">{escape(justificativa)}</div>')

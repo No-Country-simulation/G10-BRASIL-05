@@ -131,3 +131,16 @@ def test_detalhe_muito_longo_e_cortado(simular_api):
         cliente_whatsapp.desconectar()
 
     assert len(str(erro.value)) < 300
+
+
+def test_envia_jwt_da_sessao_nas_requisicoes(simular_api, monkeypatch):
+    requisicoes = simular_api(_ok({"instancia": "mediflow", "conectado": True, "estado": "open"}))
+    monkeypatch.setattr("services.cliente_http._obter_headers_autenticacao", lambda: {"Authorization": "Bearer token-da-api"})
+
+    cliente_whatsapp.obter_status()
+
+    assert requisicoes[0].headers.get("authorization") == "Bearer token-da-api"
+
+
+def test_cliente_nao_expoe_login_institucional_separado():
+    assert not hasattr(cliente_whatsapp, "autenticar_institucional")

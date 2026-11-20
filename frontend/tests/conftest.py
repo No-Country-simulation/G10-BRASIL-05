@@ -32,7 +32,11 @@ def simular_api(monkeypatch):
             return tratador(requisicao)
 
         def criar_cliente() -> httpx.Client:
-            return httpx.Client(base_url=URL_DA_API_DE_TESTE, transport=httpx.MockTransport(registrar))
+            return httpx.Client(
+                base_url=URL_DA_API_DE_TESTE,
+                transport=httpx.MockTransport(registrar),
+                headers=cliente_http._obter_headers_autenticacao(),
+            )
 
         monkeypatch.setattr(cliente_http, "_criar_cliente", criar_cliente)
         return requisicoes

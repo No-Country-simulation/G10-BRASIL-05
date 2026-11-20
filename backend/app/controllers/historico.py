@@ -1,11 +1,10 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.repositories.database import DatabaseRepository, get_db
+from app.services.autenticacao import exigir_papeis
 
-router = APIRouter(prefix="/triagem", tags=["Histórico de Triagem"])
 
-@router.get("/documentos", status_code=status.HTTP_200_OK)
 def listar_documentos(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),

@@ -9,6 +9,25 @@ class RequisicaoTriagem(BaseModel):
     tipo_arquivo: str = Field(..., json_schema_extra={"example": "PDF"}, description="Extensão ou tipo do arquivo (PDF, IMAGEM, TEXTO, JSON)")
     documento_texto: str = Field(..., description="Conteúdo textual bruto do documento extraído ou enviado diretamente")
     canal_origem: str = Field("Pronto_Socorro", json_schema_extra={"example": "Pronto_Socorro"}, description="Setor de origem do documento")
+    whatsapp_numero: Optional[str] = Field(None, description="Número do remetente no WhatsApp quando originado pelo agente autônomo")
+    whatsapp_nome: Optional[str] = Field(None, description="Nome do remetente no WhatsApp (pushName)")
+    whatsapp_message_id: Optional[str] = Field(None, description="Identificador da mensagem na Evolution API")
+
+
+class EnfileirarTextoTriagemRequest(BaseModel):
+    """Entrada para acompanhar texto colado pelo mesmo fluxo assíncrono dos uploads."""
+    documento_id: Optional[str] = None
+    tipo_arquivo: Literal["TEXTO", "JSON"] = "TEXTO"
+    documento_texto: str = Field(..., min_length=1)
+    canal_origem: str = "Pronto_Socorro"
+
+    @field_validator("documento_texto")
+    @classmethod
+    def validar_texto(cls, valor: str) -> str:
+        texto = valor.strip()
+        if not texto:
+            raise ValueError("O texto do documento não pode estar vazio.")
+        return texto
 
 
 class ClassificacaoDocumento(BaseModel):
@@ -76,6 +95,16 @@ class RespostaTriagem(BaseModel):
     """Contrato oficial de saída da triagem clínica (alinhado ao mediflow.pdf)."""
     status: str = Field("processado", json_schema_extra={"example": "processado"})
     documento_id: str = Field(..., json_schema_extra={"example": "DOC-CLIN-2026-8942"})
+    tipo_arquivo: Optional[str] = None
+    texto_extraido: Optional[str] = None
+    metadados_documento: Optional[dict[str, Any]] = None
+    campos_rotulados: Optional[List[dict[str, str]]] = None
+    escopo: Optional[str] = None
+    legibilidade: Optional[str] = None
+    evidencias_escopo: Optional[List[dict[str, Any]]] = None
+    justificativa_escopo: Optional[str] = None
+    persistido: bool = False
+    triagem_iniciada: bool = False
     classificacao: ClassificacaoDocumento
     dados_extraidos: DadosExtraidos
     decisao_roteamento: DecisaoRoteamento

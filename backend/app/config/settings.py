@@ -1,6 +1,4 @@
 from pathlib import Path
-from typing import List, Union
-from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _CONFIG_DIR = Path(__file__).resolve().parent
@@ -23,54 +21,56 @@ class Settings(BaseSettings):
     )
 
     # Aplicação
-    APP_NAME: str = "MediFlow API"
-    APP_ENV: str = "development"
-    APP_DEBUG: bool = True
-    APP_HOST: str = "0.0.0.0"
-    APP_PORT: int = 8000
-    API_V1_PREFIX: str = "/api/v1"
+    APP_NAME: str
+    APP_ENV: str
+    APP_DEBUG: bool
+    APP_HOST: str
+    APP_PORT: int
+    API_V1_PREFIX: str
 
     # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:8501",
-        "http://127.0.0.1:8501",
-    ]
+    CORS_ORIGINS: list[str]
 
     # Banco de Dados (PostgreSQL)
-    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/mediflow_db"
+    DATABASE_URL: str
+
+    # Autenticação: chave aleatória de pelo menos 32 caracteres fornecida via ambiente.
+    JWT_SECRET_KEY: str
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int
+
+    # Identidade do administrador inicial e senha temporária compartilhada por seeds.
+    ADMIN_BOOTSTRAP_EMAIL: str
+    ADMIN_BOOTSTRAP_PASSWORD: str
+    ADMIN_BOOTSTRAP_NAME: str
 
     # Cache & Fila de Auditoria (Redis)
-    REDIS_URL: str = "redis://localhost:6379/0"
-    REDIS_ENABLED: bool = True
+    REDIS_URL: str
 
     # Banco Não-Relacional de Auditoria (MongoDB)
-    MONGODB_URL: str = "mongodb://localhost:27017"
-    MONGODB_DATABASE: str = "mediflow_auditoria"
-    MONGODB_ENABLED: bool = True
+    MONGODB_URL: str
+    MONGODB_DATABASE: str
 
-    # IA & LLM
-    LLM_PROVIDER: str = "openrouter"
-    GOOGLE_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
-    OPENROUTER_API_KEY: str = ""
-    OPENROUTER_MODEL: str = "google/gemma-3-27b-it"
-    CONFIDENCE_THRESHOLD: float = 0.75
+    # LLM fixo: OpenRouter Free Models Router
+    OPENROUTER_API_KEY: str
+    OPENROUTER_MODEL: str
+    CONFIDENCE_THRESHOLD: float
 
     # OCI Object Storage Always Free
-    OCI_AUTH_MODE: str = "api_key"
-    OCI_USER_OCID: str = ""
-    OCI_TENANCY_OCID: str = ""
-    OCI_FINGERPRINT: str = ""
-    OCI_KEY_FILE: str = ""
-    OCI_REGION: str = "us-ashburn-1"
-    OCI_NAMESPACE: str = ""
-    OCI_BUCKET_NAME: str = "mediflow-documentos-clinicos"
+    OCI_AUTH_MODE: str
+    OCI_USER_OCID: str
+    OCI_TENANCY_OCID: str
+    OCI_FINGERPRINT: str
+    OCI_KEY_FILE: str
+    OCI_REGION: str
+    OCI_NAMESPACE: str
+    OCI_BUCKET_NAME: str
 
     # WhatsApp & Evolution API
-    EVOLUTION_API_URL: str = "http://localhost:8080"
-    EVOLUTION_API_KEY: str = "mediflow_secret_evolution_key"
-    EVOLUTION_INSTANCE_NAME: str = "mediflow"
-    EVOLUTION_WEBHOOK_SECRET: str = "mediflow_webhook_token"
+    EVOLUTION_API_URL: str
+    EVOLUTION_API_KEY: str
+    EVOLUTION_INSTANCE_NAME: str
+    EVOLUTION_WEBHOOK_SECRET: str
+    EVOLUTION_WEBHOOK_URL: str
 
 
 settings = Settings()

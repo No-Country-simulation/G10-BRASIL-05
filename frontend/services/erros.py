@@ -3,4 +3,4 @@ class ErroDeApi(Exception):
 
 
 class ErroDeConfiguracao(ErroDeApi):
-    """Configuração inválida que impede escolher com segurança a API ou o mock."""
+    """Configuração inválida que impede conectar o frontend aos serviços necessários."""

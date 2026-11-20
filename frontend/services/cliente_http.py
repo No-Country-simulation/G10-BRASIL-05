@@ -19,8 +19,79 @@ def enviar_documento(requisicao: dict, arquivo=None) -> dict:
     return requisitar("POST", PREFIXO_DA_TRIAGEM, json=requisicao)
 
 
+def enfileirar_documento(requisicao: dict, arquivo) -> dict:
+    tipo_de_conteudo = arquivo.type or _adivinhar_tipo_de_conteudo(arquivo.name)
+    arquivos = {"file": (arquivo.name, arquivo.getvalue(), tipo_de_conteudo)}
+    dados = {"canal_origem": requisicao["canal_origem"], "documento_id": requisicao["documento_id"]}
+    return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/upload/enfileirar", files=arquivos, data=dados)
+
+
+def enfileirar_documentos(arquivos_carregados: list, canal_origem: str = "Pronto_Socorro") -> dict:
+    """Envia vários arquivos na mesma requisição multipart; a API devolve um ID por arquivo."""
+    arquivos = [
+        (
+            "files",
+            (arquivo.name, arquivo.getvalue(), arquivo.type or _adivinhar_tipo_de_conteudo(arquivo.name)),
+        )
+        for arquivo in arquivos_carregados
+    ]
+    return requisitar(
+        "POST",
+        f"{PREFIXO_DA_TRIAGEM}/upload/enfileirar",
+        files=arquivos,
+        data={"canal_origem": canal_origem},
+    )
+
+
+def enfileirar_texto_documento(requisicao: dict) -> dict:
+    """Envia texto colado para acompanhamento por etapas, igual ao upload assíncrono."""
+    return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/texto/enfileirar", json=requisicao)
+
+
+def obter_status_triagem(documento_id: str) -> dict:
+    return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/trabalhos/{documento_id}")
+
+
+def inspecionar_extracao(requisicao: dict, arquivo=None) -> dict:
+    dados = {
+        "tipo_arquivo": requisicao["tipo_arquivo"],
+        "documento_texto": requisicao["documento_texto"],
+    }
+    arquivos = None
+    if arquivo is not None and requisicao["tipo_arquivo"] in TIPOS_COM_UPLOAD:
+        tipo_de_conteudo = arquivo.type or _adivinhar_tipo_de_conteudo(arquivo.name)
+        arquivos = {"file": (arquivo.name, arquivo.getvalue(), tipo_de_conteudo)}
+        dados.pop("documento_texto")
+    return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/inspecionar", files=arquivos, data=dados)
+
+
 def listar_documentos() -> list[dict]:
     return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/documentos")
+
+
+def listar_usuarios() -> list[dict]:
+    return requisitar("GET", "/api/v1/auth/usuarios")
+
+
+def provisionar_usuario(dados: dict) -> dict:
+    return requisitar("POST", "/api/v1/auth/usuarios", json=dados)
+
+
+def atualizar_usuario(usuario_id: int, dados: dict) -> dict:
+    return requisitar("PATCH", f"/api/v1/auth/usuarios/{usuario_id}", json=dados)
+
+
+def desativar_usuario(usuario_id: int) -> None:
+    caminho = f"/api/v1/auth/usuarios/{usuario_id}"
+    try:
+        with _criar_cliente() as cliente:
+            resposta = cliente.delete(caminho)
+    except httpx.TimeoutException as erro:
+        raise ErroDeApi("A API demorou demais para responder. Tente novamente.") from erro
+    except httpx.HTTPError as erro:
+        raise ErroDeApi("Não foi possível conectar à API. Verifique se ela está em execução.") from erro
+    if resposta.is_error:
+        raise ErroDeApi(_extrair_mensagem_de_erro(resposta))
 
 
 def buscar_documento(documento_id: str) -> dict | None:
@@ -99,8 +170,23 @@ def requisitar(metodo: str, caminho: str, **opcoes):
         raise ErroDeApi("A API devolveu uma resposta inválida.") from erro
 
 
+def _obter_headers_autenticacao() -> dict[str, str]:
+    try:
+        import streamlit as st
+        from services.autenticacao import obter_cabecalho_autorizacao
+
+        return obter_cabecalho_autorizacao(st.session_state)
+    except Exception:
+        return {}
+
+
 def _criar_cliente() -> httpx.Client:
-    return httpx.Client(base_url=obter_url_do_backend(), timeout=obter_tempo_limite_em_segundos())
+    headers = _obter_headers_autenticacao()
+    return httpx.Client(
+        base_url=obter_url_do_backend(),
+        timeout=obter_tempo_limite_em_segundos(),
+        headers=headers if headers else None,
+    )
 
 
 def _extrair_mensagem_de_erro(resposta: httpx.Response) -> str:

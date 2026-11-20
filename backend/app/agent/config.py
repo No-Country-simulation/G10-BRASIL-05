@@ -1,7 +1,7 @@
 from app.config.settings import settings
 
 # Limiares e configurações do agente clínico
-DEFAULT_CONFIDENCE_THRESHOLD = settings.CONFIDENCE_THRESHOLD
+DEFAULT_CONFIDENCE_THRESHOLD = max(settings.CONFIDENCE_THRESHOLD, 0.80)
 
 # Termos críticos indicativos de urgência médica para detecção rápida determinística
 TERMOS_URGENCIA_CRITICA = [
@@ -47,3 +47,6 @@ DESTINO_AUDITORIA_HUMANA = "Auditoria_Humana"
 DESTINO_FLUXO_PADRAO = "Fluxo_Padrao"
 DESTINO_FARMACIA = "Farmacia_Hospitalar"
 DESTINO_AUTORIZACOES = "Auditoria_Autorizacoes"
+DESTINO_ATESTADOS = "Fila_Atestados"
+DESTINO_EXAMES = "Fila_Exames"
+DESTINO_ATENDIMENTO_GERAL = "Atendimento_Geral"
