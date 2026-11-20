@@ -54,12 +54,12 @@ async def processar_upload_triagem(
 
     - Valida extensão e MIME-type (PDF, PNG, JPG, WebP)
     - Limite máximo de arquivo: 10 MB
-    - Extrai texto vetorial do PDF ou metadados de imagem para pipeline clínico
+    - Extrai o texto vetorial do PDF; imagens e PDFs escaneados seguem como imagem para leitura multimodal
     - Encaminha automaticamente para classificação, extração e roteamento
     """
     conteudo = await file.read()
     extensao = DocumentParserService.validar_arquivo(file, conteudo)
-    texto_extraido, tipo_arquivo = DocumentParserService.extrair_texto(
+    documento = DocumentParserService.preparar_documento(
         conteudo=conteudo,
         extensao=extensao,
         nome_arquivo=file.filename or "documento_clinico",
@@ -69,13 +69,13 @@ async def processar_upload_triagem(
 
     requisicao = RequisicaoTriagem(
         documento_id=doc_id,
-        tipo_arquivo=tipo_arquivo,
+        tipo_arquivo=documento.formato.value,
         canal_origem=canal_origem or "Pronto_Socorro",
-        documento_texto=texto_extraido,
+        documento_texto=documento.texto,
     )
 
     service = TriagemService(db)
-    return service.processar_triagem(requisicao)
+    return service.processar_triagem(requisicao, imagens=documento.imagens)
 
 
 @router.get("/documentos", status_code=status.HTTP_200_OK)
