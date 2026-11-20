@@ -1,40 +1,71 @@
-"""Adaptador do cliente LLM usado pelos nós do agente (SCRUM-57).
+"""Adaptador do cliente LLM usado pelos nós do agente (SCRUM-57, SCRUM-96).
 
-Os nós dependem apenas do tipo `ClienteLLM`; o provedor concreto (Gemini/OpenAI)
-fica isolado aqui e pode ser substituído por um cliente falso nos testes.
+Os nós dependem apenas dos tipos `ClienteLLM` e `ClienteVisao`; o provedor concreto
+(Gemini/OpenAI) fica isolado aqui e pode ser substituído por um cliente falso nos testes.
 """
 
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from app.config.settings import settings
 
 MensagemLLM = Tuple[str, str]
 ClienteLLM = Callable[[List[MensagemLLM]], str]
+ClienteVisao = Callable[[str, List[Dict[str, str]]], str]
 
 
-def obter_cliente_llm() -> Optional[ClienteLLM]:
-    """Monta o cliente LLM a partir das settings; retorna None se não houver chave configurada."""
+def _criar_modelo_chat() -> Optional[Any]:
+    """Instancia o modelo de chat do provedor configurado; None se não houver chave."""
     if settings.GOOGLE_API_KEY:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
-        llm = ChatGoogleGenerativeAI(
+        return ChatGoogleGenerativeAI(
             model="gemini-1.5-flash",
             google_api_key=settings.GOOGLE_API_KEY,
             temperature=0.0,
         )
-    elif settings.OPENAI_API_KEY:
+    if settings.OPENAI_API_KEY:
         from langchain_openai import ChatOpenAI
 
-        llm = ChatOpenAI(
+        return ChatOpenAI(
             model="gpt-4o-mini",
             api_key=settings.OPENAI_API_KEY,
             temperature=0.0,
         )
-    else:
+    return None
+
+
+def _conteudo_como_texto(conteudo: Any) -> str:
+    return conteudo if isinstance(conteudo, str) else str(conteudo)
+
+
+def obter_cliente_llm() -> Optional[ClienteLLM]:
+    """Monta o cliente LLM de texto a partir das settings; retorna None se não houver chave configurada."""
+    llm = _criar_modelo_chat()
+    if llm is None:
         return None
 
     def invocar(mensagens: List[MensagemLLM]) -> str:
-        conteudo = llm.invoke(mensagens).content
-        return conteudo if isinstance(conteudo, str) else str(conteudo)
+        return _conteudo_como_texto(llm.invoke(mensagens).content)
+
+    return invocar
+
+
+def obter_cliente_visao() -> Optional[ClienteVisao]:
+    """Monta o cliente multimodal (instrução + imagens em base64); None sem chave configurada (SCRUM-96)."""
+    llm = _criar_modelo_chat()
+    if llm is None:
+        return None
+
+    from langchain_core.messages import HumanMessage
+
+    def invocar(instrucao: str, imagens: List[Dict[str, str]]) -> str:
+        partes = [{"type": "text", "text": instrucao}] + [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{imagem['mime_type']};base64,{imagem['dados_base64']}"},
+            }
+            for imagem in imagens
+        ]
+        return _conteudo_como_texto(llm.invoke([HumanMessage(content=partes)]).content)
 
     return invocar

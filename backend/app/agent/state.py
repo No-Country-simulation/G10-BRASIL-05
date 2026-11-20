@@ -11,6 +11,7 @@ class GraphState(TypedDict, total=False):
     canal_origem: str
     imagens_documento: List[Dict[str, str]]
     requer_ocr: bool
+    transcricao: Optional[Dict[str, Any]]
 
     # Classificação
     classificacao: Optional[Dict[str, Any]]

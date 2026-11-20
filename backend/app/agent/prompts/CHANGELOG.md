@@ -17,6 +17,11 @@ A saída de cada nó registra a versão usada em `versao_prompt`, o que permite 
 ### 1.0.0 (2026-10-29, SCRUM-57)
 - Respostas com os códigos dos enums de `ClassificacaoDocumento` e a chave `score_confianca_classificacao`.
 
+## transcricao.py
+
+### 1.0.0 (2026-11-20, SCRUM-96)
+- Transcrição literal de imagens e PDFs escaneados, com `[ilegível]` para trechos que não podem ser lidos e `SEM_TEXTO_LEGIVEL` quando nada é legível.
+
 ## extracao.py
 
 ### 1.1.0 (2026-11-20, SCRUM-64)
