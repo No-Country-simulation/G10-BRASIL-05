@@ -58,7 +58,10 @@ class DatabaseRepository:
         return self._pacientes.buscar_por_nome(nome)
 
     def listar_historico_paciente(self, paciente_id: int) -> List[DocumentoTriagemModel]:
-        return self._pacientes.listar_historico_paciente(paciente_id)
+        documentos = self._pacientes.listar_historico_paciente(paciente_id)
+        for documento in documentos:
+            self._documentos.hidratar_payload_clinico(documento)
+        return documentos
 
     def obter_ou_criar_medico(
         self,

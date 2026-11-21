@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, ConfigDict
 
@@ -9,6 +9,7 @@ class PacienteResponse(BaseModel):
     id: int
     nome: str
     cpf: Optional[str] = None
+    data_nascimento: Optional[date] = None
     idade: Optional[int] = None
     created_at: Optional[datetime] = None
 
