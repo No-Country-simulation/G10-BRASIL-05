@@ -1,24 +1,95 @@
-"""Cria o esquema relacional MediFlow V4.
-
-Revision ID: 0001_v4_baseline
-Revises:
-"""
+"""Cria o baseline PostgreSQL MediFlow V4 (DDL congelado)."""
 from alembic import op
-
-from app.models.triagem import Base
-
 
 revision = "0001_v4_baseline"
 down_revision = None
 branch_labels = None
 depends_on = None
 
+SCHEMA_DDL = [
+    'CREATE TABLE categorias_hospital (\n\tid SERIAL NOT NULL, \n\tnome VARCHAR(80) NOT NULL, \n\tdescricao VARCHAR(250), \n\tPRIMARY KEY (id), \n\tUNIQUE (nome)\n)',
+    'CREATE TABLE cidades (\n\tid SERIAL NOT NULL, \n\tnome VARCHAR(100) NOT NULL, \n\tuf VARCHAR(2) NOT NULL, \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_cidades_nome_uf UNIQUE (nome, uf)\n)',
+    'CREATE TABLE contatos_whatsapp (\n\tid SERIAL NOT NULL, \n\tnumero VARCHAR(30) NOT NULL, \n\tnome VARCHAR(150), \n\tPRIMARY KEY (id), \n\tUNIQUE (numero)\n)',
+    'CREATE TABLE enfermeiros (\n\tid SERIAL NOT NULL, \n\tcoren VARCHAR(30) NOT NULL, \n\tuf VARCHAR(2) NOT NULL, \n\tnome VARCHAR(150) NOT NULL, \n\tarea_atuacao VARCHAR(100), \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_enfermeiros_coren_uf UNIQUE (coren, uf)\n)',
+    'CREATE TABLE especialidades (\n\tid SERIAL NOT NULL, \n\tnome VARCHAR(100) NOT NULL, \n\tPRIMARY KEY (id), \n\tUNIQUE (nome)\n)',
+    'CREATE TABLE medicos (\n\tid SERIAL NOT NULL, \n\tcrm VARCHAR(30) NOT NULL, \n\tuf VARCHAR(2) NOT NULL, \n\tnome VARCHAR(150) NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_medicos_crm_uf UNIQUE (crm, uf)\n)',
+    'CREATE TABLE pacientes (\n\tid SERIAL NOT NULL, \n\tcpf VARCHAR(20), \n\tnome VARCHAR(150) NOT NULL, \n\tdata_nascimento DATE, \n\tcadastro_provisorio BOOLEAN DEFAULT false NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tUNIQUE (cpf)\n)',
+    "CREATE TABLE estabelecimentos_saude (\n\tid SERIAL NOT NULL, \n\ttipo VARCHAR(20) NOT NULL, \n\tnome VARCHAR(180) NOT NULL, \n\tcnpj VARCHAR(30), \n\tlogradouro VARCHAR(180), \n\tnumero VARCHAR(30), \n\tcomplemento VARCHAR(120), \n\tbairro VARCHAR(100), \n\tcep VARCHAR(12), \n\tcidade_id INTEGER NOT NULL, \n\tativo BOOLEAN DEFAULT true NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tCONSTRAINT ck_estabelecimentos_tipo CHECK (tipo IN ('HOSPITAL', 'CLINICA')), \n\tUNIQUE (cnpj), \n\tFOREIGN KEY(cidade_id) REFERENCES cidades (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)",
+    'CREATE TABLE medico_especialidades (\n\tmedico_id INTEGER NOT NULL, \n\tespecialidade_id INTEGER NOT NULL, \n\tPRIMARY KEY (medico_id, especialidade_id), \n\tFOREIGN KEY(medico_id) REFERENCES medicos (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(especialidade_id) REFERENCES especialidades (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    "CREATE TABLE usuarios_sistema (\n\tid SERIAL NOT NULL, \n\temail VARCHAR(150) NOT NULL, \n\tnome VARCHAR(150) NOT NULL, \n\tsenha_hash VARCHAR(255) NOT NULL, \n\tpapel VARCHAR(50) DEFAULT 'SOMENTE_LEITURA' NOT NULL, \n\tespecialidade VARCHAR(150), \n\ttrocar_senha_obrigatorio BOOLEAN DEFAULT false NOT NULL, \n\tmedico_id INTEGER, \n\tenfermeiro_id INTEGER, \n\tpode_gerenciar_whatsapp BOOLEAN DEFAULT false NOT NULL, \n\tativo BOOLEAN DEFAULT true NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tUNIQUE (email), \n\tFOREIGN KEY(medico_id) REFERENCES medicos (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(enfermeiro_id) REFERENCES enfermeiros (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)",
+    "CREATE TABLE atendimentos (\n\tid SERIAL NOT NULL, \n\tpaciente_id INTEGER NOT NULL, \n\testabelecimento_id INTEGER NOT NULL, \n\tdata_atendimento TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tstatus VARCHAR(30) DEFAULT 'ABERTO' NOT NULL, \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_atendimentos_id_paciente UNIQUE (id, paciente_id), \n\tCONSTRAINT uq_atendimentos_id_estabelecimento UNIQUE (id, estabelecimento_id), \n\tFOREIGN KEY(paciente_id) REFERENCES pacientes (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(estabelecimento_id) REFERENCES estabelecimentos_saude (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)",
+    'CREATE TABLE clinicas (\n\testabelecimento_id INTEGER NOT NULL, \n\tPRIMARY KEY (estabelecimento_id), \n\tFOREIGN KEY(estabelecimento_id) REFERENCES estabelecimentos_saude (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    "CREATE TABLE destinos_roteamento (\n\tid SERIAL NOT NULL, \n\tcodigo VARCHAR(50) NOT NULL, \n\ttipo VARCHAR(25) NOT NULL, \n\testabelecimento_id INTEGER, \n\tdescricao VARCHAR(250), \n\tPRIMARY KEY (id), \n\tCONSTRAINT ck_destino_tipo CHECK (tipo IN ('FILA', 'ESTABELECIMENTO')), \n\tCONSTRAINT ck_destino_estabelecimento CHECK ((tipo = 'ESTABELECIMENTO') = (estabelecimento_id IS NOT NULL)), \n\tUNIQUE (codigo), \n\tFOREIGN KEY(estabelecimento_id) REFERENCES estabelecimentos_saude (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)",
+    'CREATE TABLE estabelecimento_enfermeiros (\n\testabelecimento_id INTEGER NOT NULL, \n\tenfermeiro_id INTEGER NOT NULL, \n\tinicio_vinculo TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tfim_vinculo TIMESTAMP WITH TIME ZONE, \n\tfuncao VARCHAR(50), \n\tPRIMARY KEY (estabelecimento_id, enfermeiro_id, inicio_vinculo), \n\tFOREIGN KEY(estabelecimento_id) REFERENCES estabelecimentos_saude (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(enfermeiro_id) REFERENCES enfermeiros (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    'CREATE TABLE estabelecimento_profissionais (\n\testabelecimento_id INTEGER NOT NULL, \n\tmedico_id INTEGER NOT NULL, \n\tinicio_vinculo TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tfim_vinculo TIMESTAMP WITH TIME ZONE, \n\tfuncao VARCHAR(50), \n\tPRIMARY KEY (estabelecimento_id, medico_id, inicio_vinculo), \n\tFOREIGN KEY(estabelecimento_id) REFERENCES estabelecimentos_saude (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(medico_id) REFERENCES medicos (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    'CREATE TABLE hospitais (\n\testabelecimento_id INTEGER NOT NULL, \n\tcategoria_id INTEGER, \n\tPRIMARY KEY (estabelecimento_id), \n\tFOREIGN KEY(estabelecimento_id) REFERENCES estabelecimentos_saude (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(categoria_id) REFERENCES categorias_hospital (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    "CREATE TABLE instancias_whatsapp (\n\tid SERIAL NOT NULL, \n\tinstance_name VARCHAR(100) NOT NULL, \n\tstatus_conexao VARCHAR(50) DEFAULT 'close' NOT NULL, \n\tnumero_conectado VARCHAR(30), \n\twebhook_url VARCHAR(500), \n\tgerenciado_por_usuario_id INTEGER, \n\tmodo_operacao VARCHAR(50) DEFAULT 'AGENTE_AUTONOMO_UNICO' NOT NULL, \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tUNIQUE (instance_name), \n\tFOREIGN KEY(gerenciado_por_usuario_id) REFERENCES usuarios_sistema (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)",
+    'CREATE TABLE atendimento_enfermeiros (\n\tatendimento_id INTEGER NOT NULL, \n\tenfermeiro_id INTEGER NOT NULL, \n\tfuncao VARCHAR(50), \n\tPRIMARY KEY (atendimento_id, enfermeiro_id), \n\tFOREIGN KEY(atendimento_id) REFERENCES atendimentos (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(enfermeiro_id) REFERENCES enfermeiros (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    'CREATE TABLE atendimento_profissionais (\n\tatendimento_id INTEGER NOT NULL, \n\tmedico_id INTEGER NOT NULL, \n\tfuncao VARCHAR(50), \n\tPRIMARY KEY (atendimento_id, medico_id), \n\tFOREIGN KEY(atendimento_id) REFERENCES atendimentos (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(medico_id) REFERENCES medicos (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    "CREATE TABLE documentos_triagem (\n\tid SERIAL NOT NULL, \n\tdocumento_externo_id VARCHAR(100) NOT NULL, \n\ttipo_arquivo VARCHAR(50) NOT NULL, \n\tcanal_origem VARCHAR(100), \n\tpaciente_id INTEGER, \n\tmedico_id INTEGER, \n\testabelecimento_id INTEGER, \n\tatendimento_id INTEGER, \n\ttipo_documento VARCHAR(100), \n\tcid_principal VARCHAR(10), \n\tnivel_prioridade VARCHAR(50) DEFAULT 'Indefinida' NOT NULL, \n\tscore_confianca NUMERIC(5, 4), \n\tdestino_id INTEGER, \n\tstatus_processamento VARCHAR(30) DEFAULT 'RECEBIDO' NOT NULL, \n\tversao INTEGER DEFAULT '0' NOT NULL, \n\tultima_sequencia INTEGER DEFAULT '0' NOT NULL, \n\tmongo_audit_stream_id UUID NOT NULL, \n\twhatsapp_numero VARCHAR(30), \n\twhatsapp_nome VARCHAR(150), \n\twhatsapp_message_id VARCHAR(150), \n\thash_sha256 VARCHAR(64), \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tupdated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(atendimento_id, paciente_id) REFERENCES atendimentos (id, paciente_id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(atendimento_id, estabelecimento_id) REFERENCES atendimentos (id, estabelecimento_id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tCONSTRAINT uq_documentos_id_atendimento UNIQUE (id, atendimento_id), \n\tCONSTRAINT ck_documento_score CHECK (score_confianca IS NULL OR score_confianca BETWEEN 0 AND 1), \n\tCONSTRAINT ck_documento_status CHECK (status_processamento IN ('RECEBIDO','EM_PROCESSAMENTO','PENDENTE_IDENTIFICACAO','EM_REVISAO_HUMANA','ROTEADO','CONCLUIDO','REJEITADO','ERRO','AGUARDANDO_REENVIO')), \n\tCONSTRAINT ck_documento_concluido_identificado CHECK (status_processamento <> 'CONCLUIDO' OR (paciente_id IS NOT NULL AND estabelecimento_id IS NOT NULL)), \n\tCONSTRAINT ck_documento_atendimento_identificado CHECK (atendimento_id IS NULL OR (paciente_id IS NOT NULL AND estabelecimento_id IS NOT NULL)), \n\tCONSTRAINT ck_documento_destino_final CHECK (status_processamento NOT IN ('ROTEADO','CONCLUIDO') OR destino_id IS NOT NULL), \n\tUNIQUE (documento_externo_id), \n\tFOREIGN KEY(paciente_id) REFERENCES pacientes (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(medico_id) REFERENCES medicos (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(estabelecimento_id) REFERENCES estabelecimentos_saude (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(destino_id) REFERENCES destinos_roteamento (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tUNIQUE (mongo_audit_stream_id)\n)",
+    'CREATE TABLE hospital_diretores (\n\thospital_id INTEGER NOT NULL, \n\tusuario_id INTEGER NOT NULL, \n\tinicio_vinculo TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tfim_vinculo TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (hospital_id, usuario_id, inicio_vinculo), \n\tFOREIGN KEY(hospital_id) REFERENCES hospitais (estabelecimento_id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(usuario_id) REFERENCES usuarios_sistema (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    "CREATE TABLE auditoria_outbox (\n\tevento_id UUID NOT NULL, \n\tdocumento_id INTEGER NOT NULL, \n\tdocumento_externo_id VARCHAR(100) NOT NULL, \n\tsequencia INTEGER NOT NULL, \n\ttipo_evento VARCHAR(60) NOT NULL, \n\tocorrido_em TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tpayload JSON NOT NULL, \n\tpayload_hash VARCHAR(64) NOT NULL, \n\tstatus VARCHAR(20) DEFAULT 'PENDENTE' NOT NULL, \n\ttentativas INTEGER DEFAULT '0' NOT NULL, \n\tclaim_token UUID, \n\tlease_ate TIMESTAMP WITH TIME ZONE, \n\tproxima_tentativa_em TIMESTAMP WITH TIME ZONE, \n\terro_ultimo TEXT, \n\tmongo_evento_id VARCHAR(100), \n\tcriado_em TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tpublicado_em TIMESTAMP WITH TIME ZONE, \n\tPRIMARY KEY (evento_id), \n\tCONSTRAINT uq_outbox_documento_sequencia UNIQUE (documento_id, sequencia), \n\tCONSTRAINT ck_outbox_status CHECK (status IN ('PENDENTE','EM_PUBLICACAO','PUBLICADO','ERRO','ERRO_INTEGRIDADE')), \n\tFOREIGN KEY(documento_id) REFERENCES documentos_triagem (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)",
+    'CREATE TABLE documento_arquivos (\n\tid SERIAL NOT NULL, \n\tdocumento_id INTEGER NOT NULL, \n\tpapel VARCHAR(20) NOT NULL, \n\tbucket VARCHAR(150) NOT NULL, \n\tcaminho_atual VARCHAR(500) NOT NULL, \n\thash_sha256 VARCHAR(64), \n\tcreated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tCONSTRAINT uq_documento_arquivo_objeto UNIQUE (bucket, caminho_atual), \n\tFOREIGN KEY(documento_id) REFERENCES documentos_triagem (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    'CREATE TABLE documento_especialidades (\n\tdocumento_id INTEGER NOT NULL, \n\tespecialidade_id INTEGER NOT NULL, \n\tPRIMARY KEY (documento_id, especialidade_id), \n\tFOREIGN KEY(documento_id) REFERENCES documentos_triagem (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(especialidade_id) REFERENCES especialidades (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    'CREATE TABLE documento_origem_whatsapp (\n\tdocumento_id INTEGER NOT NULL, \n\tcontato_id INTEGER NOT NULL, \n\tinstancia_id INTEGER NOT NULL, \n\tmessage_id VARCHAR(150) NOT NULL, \n\tPRIMARY KEY (documento_id), \n\tCONSTRAINT uq_whatsapp_instancia_mensagem UNIQUE (instancia_id, message_id), \n\tFOREIGN KEY(documento_id) REFERENCES documentos_triagem (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(contato_id) REFERENCES contatos_whatsapp (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(instancia_id) REFERENCES instancias_whatsapp (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    "CREATE TABLE encaminhamentos (\n\tid SERIAL NOT NULL, \n\tatendimento_id INTEGER NOT NULL, \n\tdocumento_id INTEGER NOT NULL, \n\tdestino_id INTEGER NOT NULL, \n\tstatus VARCHAR(25) DEFAULT 'SOLICITADO' NOT NULL, \n\tsolicitado_em TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tconcluido_em TIMESTAMP WITH TIME ZONE, \n\tusuario_responsavel_id INTEGER, \n\tobservacao TEXT, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(documento_id, atendimento_id) REFERENCES documentos_triagem (id, atendimento_id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tCONSTRAINT ck_encaminhamento_status CHECK (status IN ('SOLICITADO','ACEITO','CONCLUIDO','RECUSADO','CANCELADO')), \n\tFOREIGN KEY(atendimento_id) REFERENCES atendimentos (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(destino_id) REFERENCES destinos_roteamento (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(usuario_responsavel_id) REFERENCES usuarios_sistema (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)",
+    'CREATE TABLE revisoes (\n\tid SERIAL NOT NULL, \n\tdocumento_id INTEGER NOT NULL, \n\trevisor_id INTEGER NOT NULL, \n\tdecisao VARCHAR(30) NOT NULL, \n\tobservacao TEXT, \n\trevisado_em TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(documento_id) REFERENCES documentos_triagem (id) ON DELETE RESTRICT ON UPDATE RESTRICT, \n\tFOREIGN KEY(revisor_id) REFERENCES usuarios_sistema (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    'CREATE TABLE arquivo_movimentacoes (\n\tid SERIAL NOT NULL, \n\tarquivo_id INTEGER NOT NULL, \n\tbucket_origem VARCHAR(150), \n\tcaminho_origem VARCHAR(500) NOT NULL, \n\tbucket_destino VARCHAR(150), \n\tcaminho_destino VARCHAR(500) NOT NULL, \n\tmotivo VARCHAR(60), \n\tmovido_em TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, \n\tPRIMARY KEY (id), \n\tFOREIGN KEY(arquivo_id) REFERENCES documento_arquivos (id) ON DELETE RESTRICT ON UPDATE RESTRICT\n)',
+    'CREATE INDEX ix_estabelecimentos_saude_cidade_id ON estabelecimentos_saude (cidade_id)',
+    'CREATE INDEX ix_atendimentos_paciente_id ON atendimentos (paciente_id)',
+    'CREATE INDEX ix_atendimentos_estabelecimento_id ON atendimentos (estabelecimento_id)',
+    'CREATE INDEX ix_documentos_triagem_medico_id ON documentos_triagem (medico_id)',
+    'CREATE INDEX ix_documentos_triagem_atendimento_id ON documentos_triagem (atendimento_id)',
+    'CREATE INDEX ix_documentos_status_created ON documentos_triagem (status_processamento, created_at)',
+    'CREATE INDEX ix_documentos_triagem_whatsapp_message_id ON documentos_triagem (whatsapp_message_id)',
+    "CREATE INDEX ix_documentos_revisao_fila ON documentos_triagem (created_at) WHERE status_processamento = 'EM_REVISAO_HUMANA'",
+    'CREATE INDEX ix_documentos_triagem_paciente_id ON documentos_triagem (paciente_id)',
+    'CREATE INDEX ix_documentos_triagem_estabelecimento_id ON documentos_triagem (estabelecimento_id)',
+    'CREATE INDEX ix_documentos_triagem_destino_id ON documentos_triagem (destino_id)',
+    "CREATE INDEX ix_outbox_pendente ON auditoria_outbox (criado_em) WHERE status = 'PENDENTE'",
+    'CREATE INDEX ix_outbox_stream_sequencia ON auditoria_outbox (documento_id, sequencia)',
+    'CREATE INDEX ix_documento_arquivos_documento_id ON documento_arquivos (documento_id)',
+    'CREATE INDEX ix_documento_arquivos_hash_sha256 ON documento_arquivos (hash_sha256)',
+    'CREATE INDEX ix_documento_origem_whatsapp_contato_id ON documento_origem_whatsapp (contato_id)',
+    'CREATE INDEX ix_encaminhamentos_atendimento_id ON encaminhamentos (atendimento_id)',
+    'CREATE INDEX ix_encaminhamentos_destino_status ON encaminhamentos (destino_id, status)',
+    'CREATE INDEX ix_encaminhamentos_documento_atendimento ON encaminhamentos (documento_id, atendimento_id)',
+    'CREATE INDEX ix_revisoes_documento_id ON revisoes (documento_id)',
+    'CREATE INDEX ix_revisoes_revisor_id ON revisoes (revisor_id)',
+]
+
 
 def upgrade() -> None:
-    # Baseline do banco descartável após reset local; alterações futuras devem
-    # ser migrations explícitas, sem depender do estado atual dos modelos.
-    Base.metadata.create_all(bind=op.get_bind(), checkfirst=True)
+    for statement in SCHEMA_DDL:
+        op.execute(statement)
 
 
 def downgrade() -> None:
-    Base.metadata.drop_all(bind=op.get_bind(), checkfirst=True)
+    op.execute('DROP TABLE IF EXISTS "arquivo_movimentacoes" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "revisoes" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "encaminhamentos" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "documento_origem_whatsapp" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "documento_especialidades" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "documento_arquivos" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "auditoria_outbox" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "hospital_diretores" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "documentos_triagem" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "atendimento_profissionais" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "atendimento_enfermeiros" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "instancias_whatsapp" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "hospitais" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "estabelecimento_profissionais" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "estabelecimento_enfermeiros" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "destinos_roteamento" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "clinicas" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "atendimentos" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "usuarios_sistema" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "medico_especialidades" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "estabelecimentos_saude" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "pacientes" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "medicos" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "especialidades" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "enfermeiros" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "contatos_whatsapp" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "cidades" CASCADE')
+    op.execute('DROP TABLE IF EXISTS "categorias_hospital" CASCADE')
