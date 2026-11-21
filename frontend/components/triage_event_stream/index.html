@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+  <body>
+    <script>
+      const STATE_KEY = "__mediflowTriagemEventSource";
+
+      function sendComponentValue(value) {
+        window.parent.postMessage(
+          { isStreamlitMessage: true, type: "streamlit:setComponentValue", value },
+          "*",
+        );
+      }
+
+      function enviarEvento(evento) {
+        try {
+          sendComponentValue({
+            id: evento.lastEventId || "",
+            evento: evento.type,
+            dados: JSON.parse(evento.data),
+          });
+        } catch (_error) {
+          // Um evento malformado não deve interromper a conexão do stream.
+        }
+      }
+
+      function abrirStream(url) {
+        const origemPagina = window.parent.location.origin;
+        const endereco = new URL(url, origemPagina);
+        if (["backend", "localhost", "127.0.0.1"].includes(endereco.hostname)) {
+          endereco.hostname = window.parent.location.hostname;
+        }
+        const urlFinal = endereco.toString();
+        const existente = window[STATE_KEY];
+        if (existente?.url === urlFinal && existente?.source?.readyState !== EventSource.CLOSED) {
+          return;
+        }
+        existente?.source?.close();
+
+        const source = new EventSource(urlFinal, { withCredentials: true });
+        const estado = { url: urlFinal, source };
+        window[STATE_KEY] = estado;
+
+        ["status_update", "paciente_identificado", "concluido", "falha"].forEach((nome) => {
+          source.addEventListener(nome, enviarEvento);
+        });
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.source !== window.parent || event.data?.type !== "streamlit:render") {
+          return;
+        }
+        const url = event.data.args?.stream_url;
+        if (typeof url === "string" && (url.startsWith("http") || url.startsWith("/"))) {
+          abrirStream(url);
+        }
+        window.parent.postMessage(
+          { isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: 0 },
+          "*",
+        );
+      });
+
+      window.parent.postMessage(
+        { isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1 },
+        "*",
+      );
+    </script>
+  </body>
+</html>

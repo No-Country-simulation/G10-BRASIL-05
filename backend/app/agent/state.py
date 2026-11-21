@@ -9,6 +9,26 @@ class GraphState(TypedDict, total=False):
     tipo_arquivo: str
     documento_texto: str
     canal_origem: str
+    referencia_fonte: Optional[str]
+
+    # Elegibilidade e qualidade pré-classificação
+    elegibilidade: Optional[str]
+    confianca_elegibilidade: Optional[float]
+    justificativa_elegibilidade: Optional[str]
+    legibilidade_documento: Optional[str]
+    avaliacao_escopo: Optional[Dict[str, Any]]
+    qualidade_documento: Optional[Dict[str, Any]]
+
+    # Evidências vinculadas aos valores extraídos
+    evidencias_campos: Dict[str, Any]
+    campos_bloqueados: List[str]
+    validacao_schema: Optional[Dict[str, Any]]
+    validacao_fonte: Optional[Dict[str, Any]]
+    motivo_revisao: Optional[str]
+    etapa_revisao: Optional[str]
+    decisao_humana: Optional[Dict[str, Any]]
+    mensagem_usuario: Optional[str]
+    revisao_concluida: bool
 
     # Classificação
     classificacao: Optional[Dict[str, Any]]
@@ -18,12 +38,18 @@ class GraphState(TypedDict, total=False):
     score_confianca_classificacao: Optional[float]
 
     # Extração de dados clínicos
+    identificacao_documento: Optional[Dict[str, Any]]
+    identificacao_cadastral: Optional[Dict[str, Any]]
+    etapa_atual: Optional[str]
     dados_extraidos: Optional[Dict[str, Any]]
     paciente: Optional[Dict[str, Any]]
+    cpf_releitura_visual: bool
+    cpf_validacao_falhou: bool
     medico_solicitante: Optional[Dict[str, Any]]
     exame_realizado: Optional[str]
     diagnostico_principal: Optional[str]
     cid_sugerido: Optional[str]
+    medicamentos: List[Dict[str, Any]]
 
     # Detecção de Urgência & Consistência
     is_urgente: bool

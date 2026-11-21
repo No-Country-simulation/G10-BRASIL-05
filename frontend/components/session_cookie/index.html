@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <body>
+    <script>
+      function sendComponentValue(value) {
+        window.parent.postMessage(
+          { isStreamlitMessage: true, type: "streamlit:setComponentValue", value },
+          "*",
+        );
+      }
+
+      function urlDaApi(base, caminho) {
+        const url = new URL(`${base || ""}${caminho}`, window.parent.location.origin);
+        if (["backend", "localhost", "127.0.0.1"].includes(url.hostname)) {
+          url.hostname = window.parent.location.hostname;
+        }
+        return url.toString();
+      }
+
+      async function sincronizar(args) {
+        const assinatura = `${args.action}:${args.attempt}:${args.token || ""}`;
+        if (window.__mediflowCookieRequest === assinatura) return;
+        window.__mediflowCookieRequest = assinatura;
+
+        const definindo = args.action === "definir";
+        const caminho = definindo ? "/api/v1/auth/session-cookie" : "/api/v1/auth/logout";
+        const headers = definindo ? { Authorization: `Bearer ${args.token}` } : {};
+        try {
+          const resposta = await fetch(urlDaApi(args.api_base, caminho), {
+            method: "POST",
+            credentials: "include",
+            headers,
+          });
+          if (resposta.ok) {
+            try {
+              window.parent.sessionStorage.removeItem("mediflow_access_token");
+            } catch (_error) {}
+          }
+          sendComponentValue({ ok: resposta.ok });
+        } catch (_error) {
+          sendComponentValue({ ok: false });
+        }
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.source !== window.parent || event.data?.type !== "streamlit:render") {
+          return;
+        }
+        sincronizar(event.data.args || {});
+        window.parent.postMessage(
+          { isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: 0 },
+          "*",
+        );
+      });
+
+      window.parent.postMessage(
+        { isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1 },
+        "*",
+      );
+    </script>
+  </body>
+</html>

@@ -4,11 +4,16 @@ env/
 venv/
 __pycache__/
 *.pyc
+*pytest_cache/
 
 # Segredos e Variáveis de Ambiente
 .env
 .env.*
+.env_*
 !.env.example
+ACESSOS.md
+**/ACESSOS.md
+*.tar.gz
 
 # Node / Dependências
 node_modules/
@@ -20,3 +25,9 @@ build/
 .idea/
 .DS_Store
 *.log
+*.pem
+
+# Diretório Local de Armazenamento de Arquivos Clínicos
+Storage/*
+!Storage/.gitkeep
+

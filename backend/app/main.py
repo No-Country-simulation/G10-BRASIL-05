@@ -1,19 +1,46 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import settings
-from app.controllers.triagem import router as triagem_router
+from app.config.logger import setup_logging, logger
+from app.config.error_handlers import register_error_handlers
+from app.api.router import api_router
 from app.repositories.database import init_db
+from app.agent.graph import configurar_checkpointer
+from app.seeders.errors import BootstrapAdminError
+
+# Inicializa sistema de logging estruturado JSON
+setup_logging()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicializa tabelas se o banco estiver acessível
+    logger.info(f"Iniciando {settings.APP_NAME} em ambiente [{settings.APP_ENV}]...")
+    ambiente_producao = settings.APP_ENV.lower() in {"production", "prod"}
+    if ambiente_producao and len(settings.JWT_SECRET_KEY) < 32:
+        raise RuntimeError("Produção exige JWT_SECRET_KEY com pelo menos 32 caracteres.")
+    init_db()
+    logger.info("Conexão e inicialização com o banco de dados concluídas.")
+
+    checkpoint_context = None
+    if "sqlite" in settings.DATABASE_URL.lower():
+        raise RuntimeError("O checkpointer persistente exige uma URL PostgreSQL.")
     try:
-        init_db()
-    except Exception as e:
-        print(f"[Database Warning] Não foi possível conectar ao banco de dados no startup: {e}")
+        from langgraph.checkpoint.postgres import PostgresSaver
+
+        checkpoint_context = PostgresSaver.from_conn_string(settings.DATABASE_URL)
+        checkpointer = checkpoint_context.__enter__()
+        checkpointer.setup()
+        configurar_checkpointer(checkpointer)
+        logger.info("Checkpoint durável do LangGraph conectado ao PostgreSQL.")
+    except Exception as erro:
+        if checkpoint_context is not None:
+            checkpoint_context.__exit__(type(erro), erro, erro.__traceback__)
+        raise RuntimeError("Checkpoint PostgreSQL do LangGraph indisponível; inicialização cancelada.") from erro
     yield
+    if checkpoint_context is not None:
+        checkpoint_context.__exit__(None, None, None)
+    logger.info(f"Encerrando {settings.APP_NAME}...")
 
 
 app = FastAPI(
@@ -34,27 +61,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Registro de Routers
-app.include_router(triagem_router, prefix=settings.API_V1_PREFIX)
-app.include_router(triagem_router)  # Suporte direto a /triagem sem prefixo para compatibilidade
+# Registro de Handlers Globais de Erro (RFC / JSON Envelope)
+register_error_handlers(app)
 
 
-@app.get("/", tags=["Root"])
-def root():
-    """Rota raiz com metadados básicos da API MediFlow."""
-    return {
-        "app": settings.APP_NAME,
-        "version": "0.1.0",
-        "status": "online",
-        "docs": "/docs",
-    }
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"--> HTTP {request.method} {request.url.path}", flush=True)
+    response = await call_next(request)
+    print(f"<-- HTTP {request.method} {request.url.path} status={response.status_code}", flush=True)
+    return response
 
 
-@app.get("/health", tags=["Health"])
-def health_check():
-    """Endpoint de verificação de saúde da aplicação."""
-    return {
-        "status": "healthy",
-        "environment": settings.APP_ENV,
-        "database": "configured",
-    }
+app.include_router(api_router)

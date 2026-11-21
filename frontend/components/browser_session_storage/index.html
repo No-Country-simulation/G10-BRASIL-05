@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+  <body>
+    <script>
+      const STORAGE_KEY = "mediflow_access_token";
+
+      function sendComponentValue(value) {
+        window.parent.postMessage(
+          {
+            isStreamlitMessage: true,
+            type: "streamlit:setComponentValue",
+            value,
+          },
+          "*",
+        );
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.source !== window.parent || event.data?.type !== "streamlit:render") {
+          return;
+        }
+
+        const args = event.data.args || {};
+        try {
+          if (args.action === "read") {
+            sendComponentValue(sessionStorage.getItem(STORAGE_KEY));
+          } else if (args.action === "write" && typeof args.token === "string") {
+            sessionStorage.setItem(STORAGE_KEY, args.token);
+            sendComponentValue(true);
+          } else if (args.action === "clear") {
+            sessionStorage.removeItem(STORAGE_KEY);
+            sendComponentValue(true);
+          } else {
+            sendComponentValue(null);
+          }
+        } catch (_error) {
+          sendComponentValue(null);
+        }
+      });
+
+      window.parent.postMessage(
+        { isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1 },
+        "*",
+      );
+      window.parent.postMessage(
+        { isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: 0 },
+        "*",
+      );
+    </script>
+  </body>
+</html>
