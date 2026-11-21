@@ -120,8 +120,9 @@ def montar_decisao(
     justificativa: str,
     dados_extraidos: dict,
     correcoes: dict,
+    versao: int | None = None,
 ) -> dict:
-    return {
+    decisao = {
         "status_aprovacao": STATUS_POR_ACAO[acao],
         "auditor_nome": auditor.strip(),
         "justificativa": justificativa.strip(),
@@ -129,6 +130,9 @@ def montar_decisao(
             aplicar_correcoes(dados_extraidos, correcoes) if acao == DECISAO_CORRIGIR else None
         ),
     }
+    if versao is not None:
+        decisao["versao"] = versao
+    return decisao
 
 
 def _chave_de_ordenacao(item: dict) -> tuple[int, float, str]:

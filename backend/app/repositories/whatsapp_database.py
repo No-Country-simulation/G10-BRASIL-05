@@ -26,7 +26,6 @@ class InstanciasWhatsAppRepository:
                 instance_name=nome_instancia,
                 status_conexao="close",
                 conectado=False,
-                gerenciado_por_email=EMAIL_INSTITUCIONAL_WHATSAPP,
                 modo_operacao="AGENTE_AUTONOMO_UNICO",
             )
             self.db.add(instancia)
@@ -50,7 +49,6 @@ class InstanciasWhatsAppRepository:
                 instance_name=nome,
                 status_conexao="close",
                 conectado=False,
-                gerenciado_por_email=EMAIL_INSTITUCIONAL_WHATSAPP,
                 modo_operacao="AGENTE_AUTONOMO_UNICO",
             )
             self.db.add(instancia)

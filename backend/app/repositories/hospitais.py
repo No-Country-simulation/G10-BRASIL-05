@@ -2,32 +2,53 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from app.models.triagem import HospitalModel
+from app.models.triagem import (
+    CategoriaHospitalModel,
+    CidadeModel,
+    EstabelecimentoSaudeModel,
+    HospitalModel,
+)
+
 
 class HospitaisRepository:
-    """Busca, cadastra e lista hospitais ativos."""
+    """Busca e cadastra hospitais pelo estabelecimento de saúde associado."""
 
     def __init__(self, db: Session):
         self.db = db
 
     def obter_ou_criar_hospital(self, nome_ou_canal: str) -> HospitalModel:
-        """Busca unidade hospitalar ou cadastra o canal como polo de atendimento."""
-        nome_limpo = (nome_ou_canal or "Hospital Central MediFlow").replace("_", " ").title()
-        hospital = self.db.query(HospitalModel).filter(
-            HospitalModel.nome.ilike(nome_limpo)
-        ).first()
+        nome = (nome_ou_canal or "Hospital Central MediFlow").replace("_", " ").title()
+        hospital = (
+            self.db.query(HospitalModel)
+            .join(HospitalModel.estabelecimento)
+            .filter(EstabelecimentoSaudeModel.nome.ilike(nome))
+            .first()
+        )
+        if hospital:
+            return hospital
 
-        if not hospital:
-            hospital = HospitalModel(
-                nome=nome_limpo,
-                cidade="São Paulo",
-                uf="SP",
-                ativo=True,
-            )
-            self.db.add(hospital)
+        cidade = self.db.query(CidadeModel).filter_by(nome="São Paulo", uf="SP").one_or_none()
+        if cidade is None:
+            cidade = CidadeModel(nome="São Paulo", uf="SP")
+            self.db.add(cidade)
             self.db.flush()
-
-        return hospital
+        categoria = self.db.query(CategoriaHospitalModel).filter_by(nome="Geral").one_or_none()
+        if categoria is None:
+            categoria = CategoriaHospitalModel(nome="Geral")
+            self.db.add(categoria)
+            self.db.flush()
+        estabelecimento = EstabelecimentoSaudeModel(
+            tipo="HOSPITAL", nome=nome, cidade_id=cidade.id
+        )
+        estabelecimento.hospital = HospitalModel(categoria_id=categoria.id)
+        self.db.add(estabelecimento)
+        self.db.flush()
+        return estabelecimento.hospital
 
     def listar_hospitais(self) -> List[HospitalModel]:
-        return self.db.query(HospitalModel).filter(HospitalModel.ativo == True).all()
+        return (
+            self.db.query(HospitalModel)
+            .join(HospitalModel.estabelecimento)
+            .filter(EstabelecimentoSaudeModel.ativo.is_(True))
+            .all()
+        )

@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 
@@ -7,6 +9,7 @@ class PacienteExtraido(BaseModel):
     nome: str | None = None
     cpf: str | None = Field(default=None, pattern=r"^\d{11}$")
     idade: StrictInt | None = None
+    data_nascimento: date | None = None
 
 
 class MedicoSolicitante(BaseModel):

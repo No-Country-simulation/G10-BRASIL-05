@@ -1,5 +1,6 @@
 import re
 from typing import List, Optional
+from datetime import date
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ class PacientesRepository:
         nome: str,
         idade: Optional[int] = None,
         cpf: Optional[str] = None,
+        data_nascimento: Optional[date] = None,
     ) -> Optional[PacienteModel]:
         """Busca paciente existente ou cria novo cadastro (provisório se sem CPF)."""
         digitos_cpf = re.sub(r"\D", "", cpf) if cpf else ""
@@ -35,12 +37,14 @@ class PacientesRepository:
         if not paciente:
             paciente = PacienteModel(
                 nome=nome.strip() if nome else "Paciente Não Identificado",
-                idade=idade,
                 cpf=cpf,
+                data_nascimento=data_nascimento,
                 cadastro_provisorio=True if not cpf else False,
             )
             self.db.add(paciente)
             self.db.flush()
+        elif data_nascimento is not None and paciente.data_nascimento is None:
+            paciente.data_nascimento = data_nascimento
 
         return paciente
 

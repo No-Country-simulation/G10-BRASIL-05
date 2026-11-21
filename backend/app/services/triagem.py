@@ -19,7 +19,7 @@ from app.schemas.triagem import (
 from app.models.triagem import DocumentoTriagemModel
 from app.repositories.database import DatabaseRepository
 from app.repositories.storage import StorageRepository
-from app.repositories.nosql_auditoria import MongoAuditoriaRepository
+from app.services.auditoria_outbox import enfileirar_evento
 from app.services.evolution_service import EvolutionService
 from app.services.redis_service import RedisAuditService
 from app.agent.graph import (
@@ -35,7 +35,6 @@ class TriagemService:
     def __init__(self, db: Session):
         self.db_repo = DatabaseRepository(db)
         self.storage_repo = StorageRepository()
-        self.nosql_repo = MongoAuditoriaRepository()
         self.redis_service = RedisAuditService()
 
     def processar_triagem(
@@ -114,6 +113,7 @@ class TriagemService:
                 nome=paciente_dict.get("nome"),
                 cpf=paciente_dict.get("cpf"),
                 idade=paciente_dict.get("idade"),
+                data_nascimento=paciente_dict.get("data_nascimento"),
             ),
             medico_solicitante=MedicoSolicitante(
                 nome=medico_dict.get("nome"),
@@ -219,19 +219,8 @@ class TriagemService:
                 logger.exception("Falha ao limpar checkpoint após persistência incompleta: %s", requisicao.documento_id)
             raise
 
-        # 6. Registro NoSQL no MongoDB & Publicação de Telemetria no Redis
+        # O evento auditável já está no outbox, dentro da mesma transação PostgreSQL.
         try:
-            self.nosql_repo.gravar_evento(
-                documento_id=requisicao.documento_id,
-                tipo_evento="TRIAGEM_INICIAL",
-                autor="Sistema_IA",
-                payload={
-                    "classificacao": classificacao.model_dump(),
-                    "dados_extraidos": dados_extraidos.model_dump(),
-                    "decisao_roteamento": decisao_roteamento.model_dump(),
-                },
-                justificativa=justificativa,
-            )
             self.redis_service.publicar_evento(
                 "mediflow:auditoria:eventos",
                 {
@@ -267,6 +256,7 @@ class TriagemService:
                 "cadastro": {
                     "nome": paciente.nome,
                     "idade": paciente.idade,
+                    "data_nascimento": paciente.data_nascimento.isoformat() if paciente.data_nascimento else None,
                     "cadastro_provisorio": paciente.cadastro_provisorio,
                 },
             }
@@ -337,6 +327,40 @@ class TriagemService:
                 detail="A execução pausada não está disponível para retomada. Mantenha o caso pendente e solicite reprocessamento.",
             )
 
+        interrompido_novamente = bool(resultado_grafo.get("__interrupt__"))
+        if interrompido_novamente:
+            novo_status = "EM_REVISAO_HUMANA"
+        elif resultado_grafo.get("status") == "aguardando_reenvio":
+            novo_status = "AGUARDANDO_REENVIO"
+        elif resultado_grafo.get("status") == "rejeitado":
+            novo_status = "REJEITADO"
+        else:
+            novo_status = "ROTEADO"
+
+        linhas = (
+            self.db_repo.db.query(DocumentoTriagemModel)
+            .filter(
+                DocumentoTriagemModel.id == doc_original.id,
+                DocumentoTriagemModel.status_processamento == "EM_REVISAO_HUMANA",
+                DocumentoTriagemModel.versao == payload.versao,
+            )
+            .update(
+                {
+                    DocumentoTriagemModel.status_processamento: novo_status,
+                    DocumentoTriagemModel.versao: DocumentoTriagemModel.versao + 1,
+                    DocumentoTriagemModel.ultima_sequencia: DocumentoTriagemModel.ultima_sequencia + 1,
+                },
+                synchronize_session=False,
+            )
+        )
+        if linhas != 1:
+            self.db_repo.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="O documento mudou desde que foi aberto. Recarregue a revisão antes de decidir.",
+            )
+        self.db_repo.db.refresh(doc_original)
+
         if resultado_grafo.get("status") == "recusado":
             caminho_fonte = doc_original.caminho_fonte
             caminho_objeto = doc_original.caminho_objeto_oci
@@ -351,7 +375,25 @@ class TriagemService:
                     # Compatibilidade com originais salvos antes da separação por tipo.
                     f"recebidos/{documento_id}{extensao_fonte}",
                 ]
+            self.db_repo.registrar_decisao(
+                documento_id=documento_id,
+                decisao=payload.status_aprovacao,
+                auditor_nome=payload.auditor_nome,
+                justificativa=payload.justificativa,
+                dados_corrigidos=None,
+            )
+            enfileirar_evento(
+                self.db_repo.db,
+                documento=doc_original,
+                tipo_evento=f"DECISAO_MEDICA_{payload.status_aprovacao.upper()}",
+                autor=payload.auditor_nome,
+                payload={"status_processamento": "REJEITADO", "motivo": "documento fora do escopo"},
+                justificativa=payload.justificativa,
+                incrementar_versao=False,
+                incrementar_sequencia=False,
+            )
             self.db_repo.excluir_documento_e_auditoria(documento_id)
+            self.db_repo.db.commit()
             self.storage_repo.excluir_artefatos_triagem(
                 documento_id,
                 caminho_fonte=caminho_fonte,
@@ -383,7 +425,6 @@ class TriagemService:
             )
 
             if doc_atualizado:
-                interrompido_novamente = bool(resultado_grafo.get("__interrupt__"))
                 if interrompido_novamente:
                     doc_atualizado.status_processamento = "em_auditoria"
                     doc_atualizado.requer_auditoria_humana = True
@@ -404,6 +445,7 @@ class TriagemService:
                     doc_atualizado.nivel_prioridade = resultado_grafo.get("nivel_prioridade") or doc_atualizado.nivel_prioridade
                     doc_atualizado.score_confianca = resultado_grafo.get("score_confianca_classificacao") or doc_atualizado.score_confianca
                     doc_atualizado.destino_principal = resultado_grafo.get("destino_principal") or doc_atualizado.destino_principal
+                    self.db_repo.vincular_destino(doc_atualizado)
                     doc_atualizado.justificativa_roteamento = resultado_grafo.get("justificativa_roteamento") or payload.justificativa
                     if resultado_grafo.get("dados_extraidos"):
                         doc_atualizado.dados_extraidos = resultado_grafo["dados_extraidos"]
@@ -432,6 +474,20 @@ class TriagemService:
                         doc_atualizado.bucket_oci = resultado_oci["bucket"]
                         doc_atualizado.caminho_objeto_oci = resultado_oci["caminho_objeto"]
 
+                enfileirar_evento(
+                    self.db_repo.db,
+                    documento=doc_atualizado,
+                    tipo_evento=f"DECISAO_MEDICA_{payload.status_aprovacao.upper()}",
+                    autor=payload.auditor_nome,
+                    payload={
+                        "status_processamento": doc_atualizado.status_processamento,
+                        "dados_extraidos": doc_atualizado.dados_extraidos or {},
+                        "versao": doc_atualizado.versao,
+                    },
+                    justificativa=payload.justificativa,
+                    incrementar_versao=False,
+                    incrementar_sequencia=False,
+                )
                 self.db_repo.db.flush()
                 self.db_repo.db.refresh(doc_atualizado)
                 self.db_repo.db.commit()
@@ -449,14 +505,6 @@ class TriagemService:
                 # Libera lock no Redis
                 self.redis_service.liberar_lock(documento_id, payload.auditor_nome)
 
-                # Grava na trilha imutável NoSQL
-                self.nosql_repo.gravar_evento(
-                    documento_id=documento_id,
-                    tipo_evento=f"DECISAO_MEDICA_{payload.status_aprovacao.upper()}",
-                    autor=payload.auditor_nome,
-                    payload=dados_corrigidos or {},
-                    justificativa=payload.justificativa,
-                )
             except Exception:
                 logger.exception("Falha ao registrar evento após decisão de auditoria: %s", documento_id)
 

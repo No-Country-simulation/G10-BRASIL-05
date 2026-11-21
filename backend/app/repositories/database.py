@@ -28,14 +28,16 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db() -> None:
-    """Aplica schema, cria tabelas legadas e executa seed idempotente."""
+    """Aplica migrations antes das seeds; SQLite permanece conveniente em dev/testes."""
     from app.seeders import executar_seeders
 
-    Base.metadata.create_all(bind=engine)
-    diretorio_backend = Path(__file__).resolve().parents[2]
-    configuracao = Config(str(diretorio_backend / "alembic.ini"))
-    configuracao.set_main_option("script_location", str(diretorio_backend / "migrations"))
-    command.upgrade(configuracao, "head")
+    if "sqlite" in settings.DATABASE_URL.lower():
+        Base.metadata.create_all(bind=engine)
+    else:
+        diretorio_backend = Path(__file__).resolve().parents[2]
+        configuracao = Config(str(diretorio_backend / "alembic.ini"))
+        configuracao.set_main_option("script_location", str(diretorio_backend / "migrations"))
+        command.upgrade(configuracao, "head")
 
     with SessionLocal() as db:
         executar_seeders(db)

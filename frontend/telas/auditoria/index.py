@@ -383,7 +383,10 @@ def render() -> None:
                 if problema:
                     st.warning(problema)
                 else:
-                    decisao = montar_decisao(acao, auditor, justificativa, item.get("dados_extraidos") or {}, correcoes)
+                    decisao = montar_decisao(
+                        acao, auditor, justificativa, item.get("dados_extraidos") or {},
+                        correcoes, versao=item.get("versao"),
+                    )
                     try:
                         resposta = registrar_decisao(escolhido, decisao)
                         st.session_state.pop(CHAVE_DO_LOCK_ATUAL, None)

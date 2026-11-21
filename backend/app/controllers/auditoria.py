@@ -4,7 +4,8 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.repositories.database import DatabaseRepository, get_db
-from app.repositories.nosql_auditoria import MongoAuditoriaRepository
+from app.models.triagem import RevisaoModel
+from app.services.auditoria_outbox import enfileirar_evento
 from app.schemas.triagem import BloqueioAuditoriaRequest, DecisaoAuditoriaRequest
 from app.services.redis_service import RedisAuditService
 from app.services.triagem import TriagemService
@@ -27,6 +28,7 @@ def listar_fila_auditoria(db: Session = Depends(get_db)):
             resultado.append(
                 {
                     "documento_id": doc.documento_id,
+                    "versao": doc.versao,
                     "tipo_documento": doc.tipo_documento,
                     "score_confianca": doc.score_confianca,
                     "dados_extraidos": doc.dados_extraidos,
@@ -77,6 +79,7 @@ def registrar_decisao_auditoria(
         "mensagem": "Decisão de auditoria registrada com sucesso.",
         "documento_id": documento_id,
         "novo_status": doc_atualizado.status_processamento,
+        "versao": doc_atualizado.versao,
     }
 
 def bloquear_documento_auditoria(
@@ -92,6 +95,11 @@ def bloquear_documento_auditoria(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Documento {documento_id} não encontrado.",
+        )
+    if doc.status_processamento != "EM_REVISAO_HUMANA":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="O documento não está mais aguardando revisão humana.",
         )
 
     redis_service = RedisAuditService()
@@ -109,14 +117,34 @@ def bloquear_documento_auditoria(
             detail=f"Documento já está sendo auditado exclusivamente por '{dono}'.",
         )
 
-    # Registra o evento de bloqueio na trilha NoSQL imutável
-    nosql_repo = MongoAuditoriaRepository()
-    nosql_repo.gravar_evento(
-        documento_id=documento_id,
-        tipo_evento="BLOQUEIO_EXCLUSIVO",
-        autor=usuario.nome,
-        payload={"ttl_segundos": payload.ttl_segundos},
-    )
+    try:
+        db.add(
+            RevisaoModel(
+                documento_id=doc.id,
+                revisor_id=usuario.id,
+                decisao="INICIADA",
+                observacao=f"ttl_segundos={payload.ttl_segundos}",
+            )
+        )
+        enfileirar_evento(
+            db,
+            documento=doc,
+            tipo_evento="REVISAO_INICIADA",
+            autor=usuario.nome,
+            payload={"ttl_segundos": payload.ttl_segundos},
+            incrementar_versao=False,
+        )
+        db.commit()
+    except Exception as erro:
+        db.rollback()
+        try:
+            redis_service.liberar_lock(documento_id=documento_id, auditor_nome=usuario.nome)
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Não foi possível registrar a revisão no banco; tente novamente.",
+        ) from erro
 
     return {
         "mensagem": "Documento bloqueado com sucesso para revisão médica exclusiva.",
@@ -143,14 +171,6 @@ def desbloquear_documento_auditoria(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Você não possui o lock deste documento para poder liberá-lo.",
         )
-
-    nosql_repo = MongoAuditoriaRepository()
-    nosql_repo.gravar_evento(
-        documento_id=documento_id,
-        tipo_evento="DESBLOQUEIO_AUDITORIA",
-        autor=usuario.nome,
-        payload={},
-    )
 
     return {
         "mensagem": "Documento desbloqueado com sucesso.",

@@ -144,6 +144,11 @@ def node_extracao(state: GraphState) -> GraphState:
                 if paciente_identificado.get("idade") is not None
                 else dados["paciente_idade"]
             ),
+            "data_nascimento": (
+                paciente_identificado.get("data_nascimento")
+                if paciente_identificado.get("data_nascimento")
+                else dados.get("paciente_data_nascimento")
+            ),
         },
         "medico_solicitante": {
             "nome": dados["medico_nome"] or medico_identificado.get("nome"),
@@ -161,6 +166,7 @@ def node_extracao(state: GraphState) -> GraphState:
         "paciente.nome": dados_extraidos["paciente"]["nome"],
         "paciente.cpf": dados_extraidos["paciente"]["cpf"],
         "paciente.idade": dados_extraidos["paciente"]["idade"],
+        "paciente.data_nascimento": dados_extraidos["paciente"]["data_nascimento"],
         "medico_solicitante.nome": dados_extraidos["medico_solicitante"]["nome"],
         "medico_solicitante.crm": dados_extraidos["medico_solicitante"]["crm"],
         "exame_realizado": dados_extraidos["exame_realizado"],

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional, Any, List, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.dados_extraidos import DadosExtraidos as DadosExtraidosClinicos
@@ -42,6 +43,7 @@ class Paciente(BaseModel):
     nome: Optional[str] = Field(None, json_schema_extra={"example": "Carlos Eduardo Mendes"})
     cpf: Optional[str] = Field(None, json_schema_extra={"example": "66827369615"})
     idade: Optional[int] = Field(None, json_schema_extra={"example": 52})
+    data_nascimento: Optional[date] = Field(None, description="Data explícita no documento, quando disponível.")
 
 
 class MedicoSolicitante(BaseModel):
@@ -119,6 +121,7 @@ class DecisaoAuditoriaRequest(BaseModel):
     status_aprovacao: Literal["aprovado", "corrigido", "rejeitado", "solicitar_reenvio"] = Field(
         ..., json_schema_extra={"example": "aprovado"}, description="aprovado, corrigido, rejeitado ou solicitar_reenvio"
     )
+    versao: int = Field(..., ge=0, description="Versão exibida ao revisor; decisões com versão antiga são recusadas.")
     auditor_nome: str = Field(..., json_schema_extra={"example": "Dr. Roberto Silva"})
     justificativa: str = Field(..., json_schema_extra={"example": "Dados conferidos e aprovados clinicamente."})
     dados_corrigidos: Optional[DadosExtraidosClinicos] = None

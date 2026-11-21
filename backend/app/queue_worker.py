@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 import os
 import signal
+import threading
 import time
 
 
@@ -37,6 +38,16 @@ def main() -> None:
 
     contexto = multiprocessing.get_context("spawn")
     encerrando = contexto.Event()
+    parar_outbox = threading.Event()
+    from app.services.auditoria_outbox import executar_worker_outbox
+
+    publicador = threading.Thread(
+        target=executar_worker_outbox,
+        args=(parar_outbox,),
+        name="mongo-outbox-worker",
+        daemon=True,
+    )
+    publicador.start()
 
     def solicitar_encerramento(_sinal, _frame):
         encerrando.set()
@@ -73,6 +84,8 @@ def main() -> None:
                     if not encerrando.is_set():
                         iniciar(indice)
     finally:
+        parar_outbox.set()
+        publicador.join(timeout=10)
         for processo in processos.values():
             if processo.is_alive():
                 processo.terminate()

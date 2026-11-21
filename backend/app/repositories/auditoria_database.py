@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.triagem import DocumentoTriagemModel, TrilhaAuditoriaModel
+from app.models.triagem import DocumentoTriagemModel, RevisaoModel, UsuarioSistemaModel
 from app.repositories.documentos import DocumentosRepository
 
 class AuditoriaDatabaseRepository:
@@ -14,15 +14,15 @@ class AuditoriaDatabaseRepository:
 
     def listar_auditoria(self) -> List[DocumentoTriagemModel]:
         """Retorna documentos que aguardam revisão humana."""
-        return (
+        documentos = (
             self.db.query(DocumentoTriagemModel)
-            .filter(
-                DocumentoTriagemModel.requer_auditoria_humana.is_(True),
-                DocumentoTriagemModel.status_processamento == "em_auditoria",
-            )
+            .filter(DocumentoTriagemModel.status_processamento == "EM_REVISAO_HUMANA")
             .order_by(DocumentoTriagemModel.created_at.desc())
             .all()
         )
+        for documento in documentos:
+            self.documentos.hidratar_payload_clinico(documento)
+        return documentos
 
     def registrar_decisao(
         self,
@@ -36,18 +36,24 @@ class AuditoriaDatabaseRepository:
         if not documento:
             return None
 
+        revisor = self.db.query(UsuarioSistemaModel).filter_by(nome=auditor_nome, ativo=True).first()
+        if revisor is None:
+            raise ValueError("O revisor autenticado não foi encontrado no cadastro de usuários.")
         self.db.add(
-            TrilhaAuditoriaModel(
-                documento_id=documento_id,
-                auditor_nome=auditor_nome,
+            RevisaoModel(
+                documento_id=documento.id,
+                revisor_id=revisor.id,
                 decisao=decisao,
-                justificativa=justificativa,
-                dados_anteriores=documento.dados_extraidos,
-                dados_finais=dados_corrigidos or documento.dados_extraidos,
+                observacao=justificativa,
             )
         )
-        documento.status_processamento = f"auditoria_{decisao}"
-        documento.requer_auditoria_humana = False
+        status_por_decisao = {
+            "aprovado": "ROTEADO",
+            "corrigido": "ROTEADO",
+            "rejeitado": "REJEITADO",
+            "solicitar_reenvio": "AGUARDANDO_REENVIO",
+        }
+        documento.status_processamento = status_por_decisao.get(decisao.lower(), "EM_REVISAO_HUMANA")
         if dados_corrigidos:
             documento.dados_extraidos = dados_corrigidos
 

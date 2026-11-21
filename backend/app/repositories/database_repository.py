@@ -1,6 +1,7 @@
 """Fachada compatível para as consultas e gravações do banco."""
 
 from typing import Any, Dict, List, Optional
+from datetime import date
 
 from sqlalchemy.orm import Session
 
@@ -43,8 +44,9 @@ class DatabaseRepository:
         nome: str,
         idade: Optional[int] = None,
         cpf: Optional[str] = None,
+        data_nascimento: Optional[date] = None,
     ) -> Optional[PacienteModel]:
-        return self._pacientes.obter_ou_criar_paciente(nome, idade, cpf)
+        return self._pacientes.obter_ou_criar_paciente(nome, idade, cpf, data_nascimento)
 
     def listar_pacientes(self, skip: int = 0, limit: int = 50) -> List[PacienteModel]:
         return self._pacientes.listar_pacientes(skip, limit)
@@ -80,6 +82,9 @@ class DatabaseRepository:
 
     def salvar(self, model: DocumentoTriagemModel) -> DocumentoTriagemModel:
         return self._documentos.salvar(model)
+
+    def vincular_destino(self, documento: DocumentoTriagemModel) -> None:
+        self._documentos._vincular_destino(documento)
 
     def buscar_por_documento_id(self, documento_id: str) -> Optional[DocumentoTriagemModel]:
         return self._documentos.buscar_por_documento_id(documento_id)
