@@ -8,13 +8,20 @@ from app.agent.state import GraphState
 from app.schemas.classificacao import TipoDocumento
 from app.schemas.dados_extraidos import DadosExtraidos
 from app.agent.nodes.validadores_clinicos import validar_dados_extraidos
-from app.agent.normalizacao_texto import localizar_trecho
+from app.agent.normalizacao_texto import (
+    localizar_trecho,
+    localizar_trecho_cpf,
+    normalizar_cpf,
+    validar_cpf,
+)
 
 
-def _evidenciar(valor: Any, texto: str) -> dict[str, Any]:
+def _evidenciar(valor: Any, texto: str, *, campo_cpf: bool = False) -> dict[str, Any]:
     if valor is None or not isinstance(valor, (str, int, float)):
         return {"status": "ausente", "trecho": None, "inicio": None, "fim": None}
     intervalo = localizar_trecho(texto, str(valor).strip())
+    if intervalo is None and campo_cpf:
+        intervalo = localizar_trecho_cpf(texto, str(valor))
     if intervalo is None:
         return {"status": "sem_suporte_textual", "trecho": None, "inicio": None, "fim": None}
     inicio, fim = intervalo
@@ -23,24 +30,48 @@ def _evidenciar(valor: Any, texto: str) -> dict[str, Any]:
 
 def node_validador(state: GraphState) -> GraphState:
     """Bloqueia valores sem suporte; evidência OCR não confirma a imagem fonte."""
+    if state.get("cpf_validacao_falhou"):
+        motivo = (
+            "CPF ausente, ilegível ou inválido. Confirme os 11 dígitos no documento."
+        )
+        return {
+            **state,
+            "status": "revisao_necessaria",
+            "requer_auditoria_humana": True,
+            "etapa_revisao": "validacao",
+            "motivo_revisao": motivo,
+            "inconsistencias": [*state.get("inconsistencias", []), motivo],
+        }
+
     bruto = dict(state.get("dados_extraidos") or {})
     bruto.pop("metodo", None)
+    paciente_bruto = bruto.get("paciente")
+    if isinstance(paciente_bruto, dict):
+        paciente = dict(paciente_bruto)
+        paciente["cpf"] = normalizar_cpf(paciente.get("cpf"))
+        bruto["paciente"] = paciente
     medico = dict(bruto.get("medico_solicitante") or {})
-    if "crm_uf" not in medico and medico.get("crm"):
-        medico["crm_uf"] = medico.pop("crm")
+    crm = medico.pop("crm", None)
+    if "crm_uf" not in medico and crm:
+        medico["crm_uf"] = crm
     bruto["medico_solicitante"] = medico
 
     erros_schema: list[str] = []
     try:
         dados = DadosExtraidos.model_validate(bruto)
-    except ValidationError as erro:
-        erros_schema = [item["msg"] for item in erro.errors()]
+    except ValidationError:
+        erros_schema = [
+            "Não foi possível validar os dados clínicos extraídos. Confira as informações no documento."
+        ]
         dados = DadosExtraidos()
 
     texto = state.get("documento_texto") or ""
     dados_dict = dados.model_dump()
     evidencias = {
         "paciente.nome": _evidenciar((dados_dict.get("paciente") or {}).get("nome"), texto),
+        "paciente.cpf": _evidenciar(
+            (dados_dict.get("paciente") or {}).get("cpf"), texto, campo_cpf=True
+        ),
         "paciente.idade": _evidenciar((dados_dict.get("paciente") or {}).get("idade"), texto),
         "medico_solicitante.nome": _evidenciar((dados_dict.get("medico_solicitante") or {}).get("nome"), texto),
         "medico_solicitante.crm_uf": _evidenciar((dados_dict.get("medico_solicitante") or {}).get("crm_uf"), texto),
@@ -48,6 +79,16 @@ def node_validador(state: GraphState) -> GraphState:
         "diagnostico_principal": _evidenciar(dados_dict.get("diagnostico_principal"), texto),
         "cid_sugerido": _evidenciar(dados_dict.get("cid_sugerido"), texto),
     }
+    cpf_validado_visualmente = (state.get("cpf_releitura_visual") and validar_cpf(
+        (dados_dict.get("paciente") or {}).get("cpf")
+    ))
+    if cpf_validado_visualmente:
+        evidencias["paciente.cpf"] = {
+            "status": "releitura_visual",
+            "trecho": None,
+            "inicio": None,
+            "fim": None,
+        }
     for indice, medicamento in enumerate(dados_dict.get("medicamentos", [])):
         evidencias[f"medicamentos.{indice}.medicamento"] = _evidenciar(medicamento.get("medicamento"), texto)
         evidencias[f"medicamentos.{indice}.dosagem"] = _evidenciar(medicamento.get("dosagem"), texto)
@@ -60,24 +101,42 @@ def node_validador(state: GraphState) -> GraphState:
             tipo_enum = TipoDocumento(tipo)
             erros_clinicos = validar_dados_extraidos(dados, tipo_enum)
         except ValueError:
-            erros_clinicos.append(f"Tipo documental não reconhecido para validação: {tipo}.")
+            erros_clinicos.append("Não foi possível validar a categoria do documento.")
 
     tipo_arquivo = (state.get("tipo_arquivo") or "").lower()
     fonte_textual = tipo_arquivo in {"texto", "json"}
-    fonte_verificavel = fonte_textual and bool(state.get("referencia_fonte"))
+    tipos_com_fonte_original = {"texto", "json", "imagem", "image", "pdf"}
+    referencia_fonte = state.get("referencia_fonte")
+    fonte_original_disponivel = (
+        tipo_arquivo in tipos_com_fonte_original and bool(referencia_fonte)
+    )
+    fonte_verificada_visualmente = bool(state.get("fonte_verificada_visualmente"))
+    fonte_verificada = (
+        fonte_textual and fonte_original_disponivel
+    ) or fonte_verificada_visualmente
     validacao_fonte = {
         "campos_com_trecho": [k for k, v in evidencias.items() if v["status"] == "trecho_encontrado"],
         "campos_sem_suporte": bloqueados,
-        "fonte_original_disponivel": bool(state.get("referencia_fonte")),
-        "fonte_verificada": fonte_verificavel,
+        "fonte_original_disponivel": fonte_original_disponivel,
+        "fonte_verificada": fonte_verificada,
+        "fonte_verificada_visualmente": fonte_verificada_visualmente,
+        "texto_ocr_extraido": bool(texto.strip()),
         "texto_ocr_eh_prova_da_imagem": False,
     }
-    precisa_revisao = bool(erros_schema or erros_clinicos or bloqueados or not fonte_verificavel)
+    precisa_revisao = bool(
+        erros_schema or erros_clinicos or bloqueados or not fonte_verificada
+    )
     motivos = erros_schema + erros_clinicos
     if bloqueados:
         motivos.append("Há valores extraídos sem correspondência literal no texto de origem.")
-    if not fonte_verificavel:
-        motivos.append("A evidência textual ainda não foi verificada contra uma fonte legível e localizável.")
+    if not fonte_original_disponivel:
+        motivos.append("Documento original não disponível para conferência.")
+    elif tipo_arquivo in {"imagem", "image", "pdf"} and not fonte_verificada_visualmente:
+        motivos.append(
+            "Texto extraído do documento visual ainda precisa ser conferido no original."
+        )
+    elif not fonte_verificada:
+        motivos.append("Fonte do documento ainda não foi verificada.")
 
     # Valores sem correspondência literal não podem seguir como se estivessem confirmados.
     for campo in bloqueados:

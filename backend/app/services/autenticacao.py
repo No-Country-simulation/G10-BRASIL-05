@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -151,6 +151,48 @@ def exigir_usuario_atual(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return usuario
+
+
+def exigir_usuario_atual_cookie(request: Request, db: Session = Depends(get_db)) -> UsuarioSistemaModel:
+    """Autentica endpoints de browser pelo JWT persistido no cookie da sessão."""
+    token = request.cookies.get("mediflow_access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Autenticação necessária.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    claims = validar_token(token)
+    try:
+        usuario_id = int(claims["sub"])
+    except (ValueError, TypeError, KeyError) as erro:
+        raise HTTPException(status_code=401, detail="Credenciais ausentes ou inválidas.") from erro
+    usuario = db.query(UsuarioSistemaModel).filter_by(id=usuario_id).first()
+    if not usuario or not usuario.ativo or usuario.papel != claims.get("role"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciais ausentes ou inválidas.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return usuario
+
+
+def exigir_papeis_cookie(*papeis: str):
+    """Protege rotas de browser autenticadas pelo cookie sem alterar o fluxo Bearer."""
+    def dependencia(usuario: UsuarioSistemaModel = Depends(exigir_usuario_atual_cookie)):
+        if usuario.trocar_senha_obrigatorio:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Troque a senha inicial antes de acessar o sistema.",
+            )
+        if usuario.papel not in papeis:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Seu perfil não tem permissão para esta operação.",
+            )
+        return usuario
+
+    return dependencia
 
 
 def exigir_papeis(*papeis: str):

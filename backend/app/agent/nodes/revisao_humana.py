@@ -50,8 +50,10 @@ def node_revisao_humana(state: GraphState) -> GraphState:
         atualizacao["validacao_fonte"] = {
             **(state.get("validacao_fonte") or {}),
             "fonte_verificada": True,
+            "fonte_verificada_visualmente": True,
             "aprovada_por_revisor": True,
         }
+        atualizacao["fonte_verificada_visualmente"] = True
         atualizacao["validacao_schema"] = {"valido": True, "erros": [], "aprovado_por_revisor": True}
         atualizacao["revisao_concluida"] = True
     elif state.get("etapa_revisao") == "risco" and acao in {"aprovado", "corrigido"}:

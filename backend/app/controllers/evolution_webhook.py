@@ -25,6 +25,7 @@ def verificar_status_webhook():
 async def receber_webhook_evolution(
     request: Request,
     background_tasks: BackgroundTasks,
+    evento_path: Optional[str] = None,
     x_webhook_token: Optional[str] = Header(None, alias="x-webhook-token"),
     apikey: Optional[str] = Header(None, alias="apikey"),
     db: Session = Depends(get_db),
@@ -36,19 +37,26 @@ async def receber_webhook_evolution(
     - Responde HTTP 200 imediatamente.
     - Processa o documento e responde no WhatsApp de forma assíncrona.
     """
+    print(f"[WEBHOOK HIT] path={request.url.path} subpath={evento_path} headers={dict(request.headers)}", flush=True)
+
     # 2. Leitura do Payload JSON
     try:
         payload = await request.json()
+        if not isinstance(payload, dict):
+            payload = {}
     except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Payload JSON inválido.",
-        )
+        payload = {}
 
     # 1. Validação de Segurança do Webhook (aceita token dedicado ou apikey da Evolution)
     secret_esperado = settings.EVOLUTION_WEBHOOK_SECRET
     api_key_esperada = settings.EVOLUTION_API_KEY
-    token_recebido = x_webhook_token or apikey or (payload.get("apikey") if isinstance(payload, dict) else None)
+    token_recebido = (
+        x_webhook_token
+        or apikey
+        or request.headers.get("x-webhook-token")
+        or request.headers.get("apikey")
+        or (payload.get("apikey") if isinstance(payload, dict) else None)
+    )
 
     token_valido = False
     if token_recebido:
@@ -57,23 +65,28 @@ async def receber_webhook_evolution(
         elif api_key_esperada and hmac.compare_digest(token_recebido, api_key_esperada):
             token_valido = True
 
+    print(f"[WEBHOOK AUTH] token_valido={token_valido} token_recebido={'SIM' if token_recebido else 'NAO'}", flush=True)
+
     if not token_valido:
         logger.warning("Tentativa de webhook não autorizada; credencial não reconhecida.")
+        print("[WEBHOOK AUTH FAILED] Retornando 401 Unauthorized", flush=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token de webhook inválido ou não informado.",
         )
 
     # 3. Filtragem de Eventos
-    evento = (payload.get("event") or "").lower().replace("_", ".")
-    logger.info(f"Recebido evento webhook da Evolution API: '{evento}'")
+    evento = (payload.get("event") or evento_path or "").lower().replace("_", ".").replace("-", ".")
+    print(f"[WEBHOOK EVENTO] evento={evento}", flush=True)
     if evento and not any(ev in evento for ev in ("messages.upsert", "message.upsert", "message", "send.message")):
-        logger.debug(f"Evento ignorado no webhook: {evento}")
+        print(f"[WEBHOOK EVENTO IGNORADO] evento={evento}", flush=True)
         return {"status": "ignored", "event": evento}
 
     # 4. Extração e Normalização
     dados = EvolutionService.extrair_dados_mensagem(payload)
+    print(f"[WEBHOOK DADOS EXTRAIDOS] dados={dados}", flush=True)
     if not dados:
+        print("[WEBHOOK DADOS VAZIOS OU FROM_ME] Ignorando", flush=True)
         return {"status": "ignored", "motivo": "mensagem_propria_ou_invalida"}
 
     message_id = dados.get("message_id")
@@ -118,6 +131,7 @@ async def receber_webhook_evolution(
         db_repo=DatabaseRepository(db),
     )
     destinatario = dados.get("numero") or dados.get("remote_jid")
+    print(f"[WEBHOOK ENVIANDO RESPOSTA] destinatario={destinatario} resposta={mensagem_resposta[:60]}...", flush=True)
     background_tasks.add_task(EvolutionService().enviar_resposta, destinatario, mensagem_resposta)
     return {
         "status": "replied_info",

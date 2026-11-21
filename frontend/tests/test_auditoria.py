@@ -9,6 +9,7 @@ from utils.auditoria import (
     aplicar_correcoes,
     calcular_correcoes,
     extrair_valores_editaveis,
+    humanizar_motivos_revisao,
     montar_decisao,
     montar_rotulo_da_fila,
     ordenar_fila,
@@ -41,11 +42,30 @@ def test_extrai_valores_do_formato_do_backend():
 
     assert extrair_valores_editaveis(item) == {
         "paciente_nome": "Maria",
+        "paciente_cpf": "",
         "medico_nome": "Dr. Paulo",
         "crm": "123456-SP",
         "diagnostico_principal": "Faringite aguda",
         "cid_sugerido": "J02.9",
     }
+
+
+def test_extrai_valores_com_cpf_do_paciente():
+    item = {
+        "dados_extraidos": {
+            "paciente": {"nome": "Maria", "cpf": "123.456.789-00"},
+        }
+    }
+    valores = extrair_valores_editaveis(item)
+    assert valores["paciente_cpf"] == "123.456.789-00"
+
+
+def test_aplicar_correcoes_atualiza_cpf_do_paciente():
+    dados = {"paciente": {"nome": "Maria", "idade": 30}}
+    corrigidos = aplicar_correcoes(dados, {"paciente_cpf": "111.222.333-44"})
+    assert corrigidos["paciente"]["cpf"] == "111.222.333-44"
+    assert corrigidos["paciente"]["nome"] == "Maria"
+    assert corrigidos["paciente"]["idade"] == 30
 
 
 def test_extrai_valores_do_formato_do_schema_do_p1():
@@ -304,4 +324,32 @@ def test_rotulo_mostra_a_prioridade():
 
 def test_rotulo_sem_prioridade_mostra_so_o_codigo():
     assert montar_rotulo_da_fila(_item("DOC-1", None, 0.5)) == "DOC-1"
+
+
+def test_humanizar_motivos_revisao_descarta_pydantic_e_formata_termos_clinicos():
+    texto_bruto = (
+        "Extra inputs are not permitted; "
+        "O campo 'paciente.nome' é obrigatório para LAUDO.; "
+        "O campo 'exame_realizado' é obrigatório para LAUDO.; "
+        "A evidência textual ainda não foi verificada contra uma fonte legível e localizável."
+    )
+    resultado = humanizar_motivos_revisao(texto_bruto)
+    assert resultado == [
+        "Nome do paciente não identificado no documento.",
+        "Exame realizado não identificado no documento.",
+        "Necessária conferência visual contra o documento original.",
+    ]
+
+
+def test_humanizar_motivos_revisao_trata_crm_e_receita():
+    texto = (
+        "Encaminhado para fila médica Human-in-the-Loop: "
+        "O campo 'medico_solicitante.crm_uf' tem formato inválido.; "
+        "RECEITA requer ao menos um medicamento com nome e dosagem."
+    )
+    resultado = humanizar_motivos_revisao(texto)
+    assert resultado == [
+        "CRM do médico com formato não reconhecido.",
+        "Receita sem medicamentos válidos com dose identificada.",
+    ]
 

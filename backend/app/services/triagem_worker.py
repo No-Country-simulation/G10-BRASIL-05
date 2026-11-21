@@ -19,6 +19,7 @@ from app.services.document_parser import DocumentParserService
 from app.services.metadados_inspecao import extrair_campos_rotulados
 from app.services.triagem import TriagemService
 from app.services.triagem_queue import chave_trabalhos_usuario, obter_redis_fila
+from app.services.triagem_eventos import publicar_evento_triagem
 
 
 def _remover_fonte_com_falha(documento_id: str, caminho: str | None, objeto: str | None) -> None:
@@ -33,7 +34,7 @@ def _remover_fonte_com_falha(documento_id: str, caminho: str | None, objeto: str
         logger.exception("Falha ao remover fonte de trabalho não processado: %s", documento_id)
 
 
-def _registrar_etapa(etapa: str) -> None:
+def _registrar_etapa(etapa: str, documento_id: str, usuario_id: int) -> None:
     try:
         job = get_current_job()
         if job is not None:
@@ -41,6 +42,31 @@ def _registrar_etapa(etapa: str) -> None:
             job.save_meta()
     except Exception:
         logger.exception("Não foi possível atualizar a etapa do trabalho da triagem.")
+    if etapa == "analise_clinica":
+        try:
+            from app.agent.graph import obter_estado_triagem
+
+            estado = obter_estado_triagem(documento_id) or {}
+            identificacao = estado.get("identificacao_documento") or {}
+            paciente = identificacao.get("paciente") or {}
+            if paciente.get("nome") or paciente.get("cpf"):
+                publicar_evento_triagem(
+                    usuario_id,
+                    "paciente_identificado",
+                    {
+                        "documento_id": documento_id,
+                        "status": "processando",
+                        "paciente_nome": paciente.get("nome"),
+                        "paciente_cpf": paciente.get("cpf"),
+                    },
+                )
+        except Exception:
+            logger.exception("Não foi possível publicar a identificação parcial do documento %s", documento_id)
+    publicar_evento_triagem(
+        usuario_id,
+        "status_update",
+        {"documento_id": documento_id, "status": "processando", "etapa_atual": etapa},
+    )
 
 
 def _registrar_erro_publico(documento_id: str, codigo: str, mensagem: str) -> None:
@@ -85,7 +111,7 @@ def processar_documento_enfileirado(
     """Lê arquivo ou texto enfileirado e processa somente o documento deste job."""
     redis = obter_redis_fila()
     try:
-        _registrar_etapa("leitura_documento")
+        _registrar_etapa("leitura_documento", documento_id, usuario_id)
         # O RQ executa jobs em processos filhos; descarta qualquer pool herdado do worker.
         engine.dispose(close=False)
         if caminho_arquivo:
@@ -131,7 +157,7 @@ def processar_documento_enfileirado(
                         avaliacao_escopo=avaliacao.model_dump(mode="json"),
                         metadados_documento=metadados_documento,
                         campos_rotulados=campos_rotulados,
-                        on_etapa=_registrar_etapa,
+                        on_etapa=lambda etapa: _registrar_etapa(etapa, documento_id, usuario_id),
                     )
             finally:
                 configurar_checkpointer(None)
@@ -142,6 +168,11 @@ def processar_documento_enfileirado(
             documento_id,
             resposta.status,
         )
+        publicar_evento_triagem(
+            usuario_id,
+            "concluido",
+            {"documento_id": documento_id, "status": "concluido"},
+        )
     except HTTPException as erro:
         mensagem = erro.detail if isinstance(erro.detail, str) else "O documento não pôde ser processado."
         if erro.status_code == 422:
@@ -151,6 +182,16 @@ def processar_documento_enfileirado(
         else:
             codigo = "ERRO_ARQUIVO"
         _registrar_erro_publico(documento_id, codigo, mensagem)
+        publicar_evento_triagem(
+            usuario_id,
+            "falha",
+            {
+                "documento_id": documento_id,
+                "status": "falhou",
+                "erro_codigo": codigo,
+                "erro_mensagem": mensagem,
+            },
+        )
         logger.exception("Triagem em fila recusada ou interrompida: %s", documento_id)
         _remover_fonte_com_falha(documento_id, caminho_arquivo, caminho_objeto_fonte)
         raise
@@ -162,6 +203,16 @@ def processar_documento_enfileirado(
             codigo_erro = "FALHA_TECNICA_PROCESSAMENTO"
             mensagem_erro = _mensagem_tecnica_segura(erro, documento_id)
         _registrar_erro_publico(documento_id, codigo_erro, mensagem_erro)
+        publicar_evento_triagem(
+            usuario_id,
+            "falha",
+            {
+                "documento_id": documento_id,
+                "status": "falhou",
+                "erro_codigo": codigo_erro,
+                "erro_mensagem": "Falha técnica durante o processamento.",
+            },
+        )
         logger.exception("Falha no trabalho de triagem do documento %s", documento_id)
         _remover_fonte_com_falha(documento_id, caminho_arquivo, caminho_objeto_fonte)
         raise

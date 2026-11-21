@@ -11,12 +11,21 @@ _UFS_BRASILEIRAS = frozenset(
         "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
     }
 )
+_PREFIXO_CRM = re.compile(r"^CRM\b\s*[-/]?\s*", re.IGNORECASE)
 _PADRAO_CRM = re.compile(
-    r"^(?:CRM-(?P<uf_documento>[A-Z]{2})\s+(?P<numero_documento>\d+)"
-    r"|(?P<numero_normalizado>\d+)-(?P<uf_normalizada>[A-Z]{2}))$",
+    r"^(?:(?P<uf_prefixo>[A-Z]{2})[\s/-]+)?"
+    r"(?P<numero>\d+)(?:[\s/-]+(?P<uf_sufixo>[A-Z]{2}))?$",
     re.IGNORECASE,
 )
 _PADRAO_CID10 = re.compile(r"^[A-Z]\d{2}(?:\.\d{1,2})?$", re.IGNORECASE)
+
+ROTULOS_CAMPOS_OBRIGATORIOS = {
+    "paciente.nome": "Nome do paciente não identificado no documento.",
+    "exame_realizado": "Exame realizado não identificado no documento.",
+    "medico_solicitante.nome": "Nome do médico solicitante não identificado no documento.",
+    "medico_solicitante.crm_uf": "CRM do médico solicitante não identificado no documento.",
+    "diagnostico_principal": "Diagnóstico principal não identificado no documento.",
+}
 
 _CAMPOS_OBRIGATORIOS_POR_TIPO = {
     TipoDocumento.RECEITA: (
@@ -47,14 +56,18 @@ def validar_crm(valor: object) -> bool:
     if not isinstance(valor, str):
         return False
 
-    correspondencia = _PADRAO_CRM.fullmatch(valor.strip())
+    valor_limpo = valor.strip()
+    tem_prefixo_crm = bool(_PREFIXO_CRM.match(valor_limpo))
+    valor_normalizado = _PREFIXO_CRM.sub("", valor_limpo, count=1)
+    correspondencia = _PADRAO_CRM.fullmatch(valor_normalizado)
     if correspondencia is None:
         return False
 
-    uf = correspondencia.group("uf_documento") or correspondencia.group(
-        "uf_normalizada"
-    )
-    return uf.upper() in _UFS_BRASILEIRAS
+    if correspondencia.group("uf_prefixo") and not tem_prefixo_crm:
+        return False
+
+    uf = correspondencia.group("uf_prefixo") or correspondencia.group("uf_sufixo")
+    return uf is None or uf.upper() in _UFS_BRASILEIRAS
 
 
 def validar_cid10(valor: object) -> bool:
@@ -83,16 +96,17 @@ def validar_dados_extraidos(
     for caminho in _CAMPOS_OBRIGATORIOS_POR_TIPO[tipo_documento]:
         valor = _obter_campo(dados, caminho)
         if not _texto_presente(valor):
-            erros.append(
-                f"O campo '{caminho}' é obrigatório para {tipo_documento.value}."
-            )
+            erros.append(ROTULOS_CAMPOS_OBRIGATORIOS.get(
+                caminho,
+                "Informação clínica obrigatória não identificada no documento.",
+            ))
 
     if tipo_documento == TipoDocumento.RECEITA and not any(
         _texto_presente(item.medicamento) and _texto_presente(item.dosagem)
         for item in dados.medicamentos
     ):
         erros.append(
-            "RECEITA requer ao menos um medicamento com nome e dosagem."
+            "Medicamento e dosagem não identificados na receita."
         )
 
     crm_uf = (
@@ -101,16 +115,16 @@ def validar_dados_extraidos(
         else None
     )
     if _texto_presente(crm_uf) and not validar_crm(crm_uf):
-        erros.append("O campo 'medico_solicitante.crm_uf' tem formato inválido.")
+        erros.append("O CRM do médico solicitante está em formato inválido.")
 
     if _texto_presente(dados.cid_sugerido) and not validar_cid10(
         dados.cid_sugerido
     ):
-        erros.append("O campo 'cid_sugerido' não está no formato CID-10 esperado.")
+        erros.append("O CID informado está em formato inválido.")
 
     idade = dados.paciente.idade if dados.paciente is not None else None
     if not validar_idade_plausivel(idade):
-        erros.append("O campo 'paciente.idade' deve ser um inteiro entre 0 e 120.")
+        erros.append("A idade do paciente deve estar entre 0 e 120 anos.")
 
     return erros
 

@@ -141,7 +141,7 @@ class UsuarioSistemaModel(Base):
     nome = Column(String(150), nullable=False)
     senha_hash = Column(String(255), nullable=False)
     papel = Column(String(50), default="INSTITUCIONAL_WHATSAPP", nullable=False)
-    trocar_senha_obrigatorio = Column(Boolean, nullable=False)
+    trocar_senha_obrigatorio = Column(Boolean, default=False, nullable=False)
     registro = Column(String(100), nullable=True)
     especialidade = Column(String(150), nullable=True)
     pode_gerenciar_whatsapp = Column(Boolean, default=False, nullable=False)

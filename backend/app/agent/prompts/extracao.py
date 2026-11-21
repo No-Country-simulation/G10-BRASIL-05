@@ -19,6 +19,8 @@ Regras Críticas Anti-Alucinação:
 8. Use o nome associado explicitamente a rótulos como 'Paciente', 'Nome do paciente' ou equivalente. Não use o nome de quem assina nem o remetente como paciente.
 9. Se houver mais de um nome possível e o vínculo com o paciente não estiver claro, retorne paciente_nome como null.
 10. A idade deve pertencer ao paciente identificado; não atribua idade de outro profissional ou acompanhante.
+11. Em laudos laboratoriais, compare resultados numéricos com os valores de referência escritos no próprio documento. Se algum estiver fora da faixa, descreva apenas o achado objetivo com valor e referência em diagnostico_principal (por exemplo, "INR 0,92, abaixo da referência de 1,00 a 1,25"). Se todos estiverem dentro da faixa ou não houver referência explícita, use null.
+12. Não transforme um resultado isolado em diagnóstico de doença. CID só deve ser extraído se um código estiver explicitamente escrito no documento; nunca deduza CID de um resultado ou achado.
 """
 
 PROMPT_EXTRACAO_USER = """Analise clinicamente o documento abaixo e responda estritamente em formato JSON estruturado.
@@ -31,6 +33,7 @@ Contexto de identificação já encontrado:
 
 Campos obrigatórios no JSON:
 - paciente_nome: str ou null (nome completo do paciente)
+- paciente_cpf: str ou null (CPF explícito do paciente, preservando os dígitos)
 - paciente_idade: int ou null (idade em anos somente se estiver escrita no documento; não calcule)
 - medico_nome: str ou null (médico solicitante, atendente ou profissional de saúde responsável)
 - medico_crm: str ou null (CRM com UF se presente, ou null se não houver CRM explícito)

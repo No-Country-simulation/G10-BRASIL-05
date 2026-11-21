@@ -2,7 +2,7 @@ import streamlit as st
 
 from components.cards import exibir_resultado_da_triagem
 from components.erros import chamar_api_ou_parar
-from services.api_client import buscar_documento, listar_documentos
+from api import buscar_documento, listar_documentos
 from utils.historico import (
     FILTROS_DE_STATUS,
     filtrar_por_status,

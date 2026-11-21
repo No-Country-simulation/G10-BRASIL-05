@@ -16,23 +16,33 @@ def listar_fila_auditoria(db: Session = Depends(get_db)):
     """Lista os documentos encaminhados para a fila médica de Human-in-the-Loop."""
     repo = DatabaseRepository(db)
     docs = repo.listar_auditoria()
-    return [
-        {
-            "documento_id": doc.documento_id,
-            "tipo_documento": doc.tipo_documento,
-            "score_confianca": doc.score_confianca,
-            "dados_extraidos": doc.dados_extraidos,
-            "evidencias_campos": doc.evidencias_campos,
-            "motivo_revisao": doc.motivo_revisao,
-            "etapa_revisao": doc.etapa_revisao,
-            "documento_texto": doc.documento_texto,
-            "fonte_original_disponivel": bool(doc.caminho_fonte),
-            "justificativa_roteamento": doc.justificativa_roteamento,
-            "caminho_objeto_oci": doc.caminho_objeto_oci,
-            "created_at": doc.created_at,
-        }
-        for doc in docs
-    ]
+    resultado = []
+    for doc in docs:
+        try:
+            created_at = (
+                doc.created_at.isoformat()
+                if hasattr(doc.created_at, "isoformat")
+                else (str(doc.created_at) if doc.created_at else None)
+            )
+            resultado.append(
+                {
+                    "documento_id": doc.documento_id,
+                    "tipo_documento": doc.tipo_documento,
+                    "score_confianca": doc.score_confianca,
+                    "dados_extraidos": doc.dados_extraidos,
+                    "evidencias_campos": doc.evidencias_campos,
+                    "motivo_revisao": doc.motivo_revisao,
+                    "etapa_revisao": doc.etapa_revisao,
+                    "documento_texto": doc.documento_texto,
+                    "fonte_original_disponivel": bool(doc.caminho_fonte),
+                    "justificativa_roteamento": doc.justificativa_roteamento,
+                    "caminho_objeto_oci": doc.caminho_objeto_oci,
+                    "created_at": created_at,
+                }
+            )
+        except Exception:
+            continue
+    return resultado
 
 
 def baixar_fonte_original(documento_id: str, db: Session = Depends(get_db)):
@@ -55,7 +65,8 @@ def registrar_decisao_auditoria(
 ):
     """Permite ao médico/auditor aprovar, corrigir ou rejeitar uma triagem de baixa confiança."""
     service = TriagemService(db)
-    payload_validado = payload.model_copy(update={"auditor_nome": usuario.nome})
+    auditor_nome = getattr(usuario, "nome", None) or getattr(payload, "auditor_nome", None) or "Auditor"
+    payload_validado = payload.model_copy(update={"auditor_nome": auditor_nome})
     doc_atualizado = service.registrar_decisao_medica(documento_id, payload_validado)
     if not doc_atualizado:
         raise HTTPException(

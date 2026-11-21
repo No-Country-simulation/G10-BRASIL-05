@@ -1,3 +1,4 @@
+import re
 from typing import List, Optional
 
 from sqlalchemy import func
@@ -18,6 +19,8 @@ class PacientesRepository:
         cpf: Optional[str] = None,
     ) -> Optional[PacienteModel]:
         """Busca paciente existente ou cria novo cadastro (provisório se sem CPF)."""
+        digitos_cpf = re.sub(r"\D", "", cpf) if cpf else ""
+        cpf = digitos_cpf if len(digitos_cpf) == 11 else None
         paciente = None
         if cpf:
             paciente = self.db.query(PacienteModel).filter(PacienteModel.cpf == cpf).first()

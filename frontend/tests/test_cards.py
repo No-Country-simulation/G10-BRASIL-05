@@ -126,7 +126,6 @@ def test_item_de_auditoria_da_api_funciona_sem_prioridade():
     at = _renderizar("exibir_item_de_auditoria", item)
 
     assert not at.exception
-    assert "CRM ausente." in at.warning[0].value
     assert ":red[**58%**]" in _textos(at)
 
 

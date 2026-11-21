@@ -31,11 +31,11 @@ def init_db() -> None:
     """Aplica schema, cria tabelas legadas e executa seed idempotente."""
     from app.seeders import executar_seeders
 
+    Base.metadata.create_all(bind=engine)
     diretorio_backend = Path(__file__).resolve().parents[2]
     configuracao = Config(str(diretorio_backend / "alembic.ini"))
     configuracao.set_main_option("script_location", str(diretorio_backend / "migrations"))
     command.upgrade(configuracao, "head")
-    Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
         executar_seeders(db)

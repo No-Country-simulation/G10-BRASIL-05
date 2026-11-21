@@ -2,14 +2,15 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 
 class PacienteExtraido(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     nome: str | None = None
+    cpf: str | None = Field(default=None, pattern=r"^\d{11}$")
     idade: StrictInt | None = None
 
 
 class MedicoSolicitante(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     nome: str | None = None
     crm_uf: str | None = Field(
@@ -19,7 +20,7 @@ class MedicoSolicitante(BaseModel):
 
 
 class MedicamentoDosagem(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     medicamento: str | None = None
     dosagem: str | None = None
@@ -27,7 +28,7 @@ class MedicamentoDosagem(BaseModel):
 
 
 class DadosExtraidos(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     paciente: PacienteExtraido | None = None
     medico_solicitante: MedicoSolicitante | None = None

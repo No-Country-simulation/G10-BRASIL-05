@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import settings
 from app.config.logger import setup_logging, logger
@@ -63,5 +63,14 @@ app.add_middleware(
 
 # Registro de Handlers Globais de Erro (RFC / JSON Envelope)
 register_error_handlers(app)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"--> HTTP {request.method} {request.url.path}", flush=True)
+    response = await call_next(request)
+    print(f"<-- HTTP {request.method} {request.url.path} status={response.status_code}", flush=True)
+    return response
+
 
 app.include_router(api_router)

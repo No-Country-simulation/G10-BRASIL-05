@@ -1,20 +1,23 @@
 import base64
 from datetime import datetime
 import json
+import logging
 from typing import Any
 
 import httpx
 
-from services.configuracao import obter_url_do_backend
+from api import autenticacao as api_autenticacao
+
+logger = logging.getLogger(__name__)
 
 
 CHAVE_JWT_TOKEN = "mediflow_jwt_token"
 CHAVE_USUARIO_LOGADO = "mediflow_usuario_logado"
 CHAVE_IS_AUTENTICADO = "mediflow_autenticado"
 CHAVE_DATA_LOGIN = "mediflow_data_login"
-ROTA_LOGIN_API = "/api/v1/auth/login"
-ROTA_SESSAO_API = "/api/v1/auth/me"
-ROTA_TROCAR_SENHA_API = "/api/v1/auth/password"
+ROTA_LOGIN_API = api_autenticacao.ROTA_LOGIN_API
+ROTA_SESSAO_API = api_autenticacao.ROTA_SESSAO_API
+ROTA_TROCAR_SENHA_API = api_autenticacao.ROTA_TROCAR_SENHA_API
 
 
 def decodificar_payload_jwt(token: str | None) -> dict:
@@ -67,8 +70,7 @@ def autenticar_com_api(
         return False, "Informe a senha de acesso.", None, None
 
     try:
-        with httpx.Client(base_url=obter_url_do_backend(), timeout=8.0) as client:
-            resposta = client.post(ROTA_LOGIN_API, json={"email": email, "senha": senha})
+        resposta = api_autenticacao.autenticar(email, senha)
     except httpx.HTTPError:
         return False, "Não foi possível conectar ao serviço de autenticação.", None, None
 
@@ -90,27 +92,44 @@ def autenticar_com_api(
 
 
 def validar_sessao_api(session_state: Any = None) -> bool:
-    """Revalida a sessão no servidor e falha fechado quando ela não pode ser validada."""
+    """Revalida a sessão no servidor mantendo tolerância a oscilações temporárias de rede."""
     token = obter_token_jwt(session_state)
     if not token or session_state is None:
         return False
     try:
-        with httpx.Client(base_url=obter_url_do_backend(), timeout=5.0) as client:
-            resposta = client.get(ROTA_SESSAO_API, headers={"Authorization": f"Bearer {token}"})
-    except httpx.HTTPError:
+        resposta = api_autenticacao.consultar_sessao(token)
+    except httpx.HTTPError as erro:
+        logger.warning("Falha de rede ou timeout ao validar sessão na API: %s. Mantendo sessão ativa.", erro)
+        return True
+
+    status_code = getattr(resposta, "status_code", None)
+
+    # Somente deslogar se a resposta da API for explicitamente HTTP 401 (token expirado/inválido)
+    if status_code == 401 or (status_code == 200 and getattr(resposta, "is_error", False)):
+        logger.info("Sessão encerrada pela API: token expirado ou inválido (HTTP 401).")
         deslogar(session_state)
         return False
-    if resposta.is_error:
-        deslogar(session_state)
-        return False
+
+    # Erro de servidor temporário (5xx): não deslogar
+    if status_code is not None and 500 <= status_code < 600:
+        logger.warning("Erro temporário do servidor ao validar sessão (HTTP %s). Mantendo sessão ativa.", status_code)
+        return True
+
+    # Se a resposta foi outro tipo de erro que não 401
+    if getattr(resposta, "is_error", False):
+        logger.warning("Resposta com erro ao validar sessão (HTTP %s). Mantendo sessão ativa.", status_code)
+        return True
+
     try:
         usuario = resposta.json()
-    except ValueError:
-        deslogar(session_state)
-        return False
+    except (ValueError, AttributeError):
+        logger.warning("Não foi possível decodificar JSON do usuário retornado pela API. Mantendo sessão ativa.")
+        return True
+
     if not isinstance(usuario, dict):
-        deslogar(session_state)
-        return False
+        logger.warning("Formato inesperado para dados do usuário retornado pela API. Mantendo sessão ativa.")
+        return True
+
     session_state[CHAVE_USUARIO_LOGADO] = usuario
     session_state["usuario_ativo_id"] = usuario.get("id", "")
     session_state["usuario_autenticado_email"] = usuario.get("email", "")
@@ -140,12 +159,7 @@ def trocar_senha_inicial(
         payload["senha_atual"] = senha_atual
 
     try:
-        with httpx.Client(base_url=obter_url_do_backend(), timeout=8.0) as client:
-            resposta = client.put(
-                ROTA_TROCAR_SENHA_API,
-                json=payload,
-                headers={"Authorization": f"Bearer {token}"},
-            )
+        resposta = api_autenticacao.alterar_senha(token, payload)
     except httpx.HTTPError:
         return False, "Não foi possível conectar ao serviço de autenticação."
     if resposta.is_error:
@@ -173,6 +187,7 @@ def trocar_senha_inicial(
 def _salvar_sessao_autenticada(session_state: Any, usuario: dict, token: str) -> None:
     if session_state is None:
         return
+    session_state.pop("logout_efetuado", None)
     session_state[CHAVE_JWT_TOKEN] = token
     claims = decodificar_payload_jwt(token)
     if "trocar_senha_obrigatorio" in claims:
@@ -187,6 +202,7 @@ def _salvar_sessao_autenticada(session_state: Any, usuario: dict, token: str) ->
 def deslogar(session_state: Any = None) -> None:
     if session_state is None:
         return
+    session_state["logout_efetuado"] = True
     for chave in (
         CHAVE_JWT_TOKEN,
         CHAVE_USUARIO_LOGADO,
@@ -198,6 +214,25 @@ def deslogar(session_state: Any = None) -> None:
         "mediflow_senha_trocada",
     ):
         session_state.pop(chave, None)
+
+
+def restaurar_sessao_por_token(token: str, session_state: Any) -> bool:
+    if not token or not isinstance(token, str) or session_state is None:
+        return False
+    try:
+        resposta = api_autenticacao.consultar_sessao(token)
+    except httpx.HTTPError:
+        return False
+    if resposta.is_error:
+        return False
+    try:
+        usuario = resposta.json()
+    except ValueError:
+        return False
+    if not isinstance(usuario, dict):
+        return False
+    _salvar_sessao_autenticada(session_state, usuario, token)
+    return True
 
 
 def esta_autenticado(session_state: Any = None) -> bool:
@@ -238,6 +273,7 @@ __all__ = [
     "obter_token_jwt",
     "obter_usuario_autenticado",
     "precisa_trocar_senha",
+    "restaurar_sessao_por_token",
     "validar_sessao_api",
     "trocar_senha_inicial",
 ]

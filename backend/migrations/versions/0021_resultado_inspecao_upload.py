@@ -11,12 +11,26 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("documentos_triagem", sa.Column("metadados_documento", sa.JSON(), nullable=True))
-    op.add_column("documentos_triagem", sa.Column("campos_rotulados", sa.JSON(), nullable=True))
-    op.add_column("documentos_triagem", sa.Column("escopo_documento", sa.String(length=30), nullable=True))
-    op.add_column("documentos_triagem", sa.Column("legibilidade_documento", sa.String(length=30), nullable=True))
-    op.add_column("documentos_triagem", sa.Column("evidencias_escopo", sa.JSON(), nullable=True))
-    op.add_column("documentos_triagem", sa.Column("justificativa_escopo", sa.Text(), nullable=True))
+    bind = op.get_bind()
+    tabelas = set(sa.inspect(bind).get_table_names())
+    if "documentos_triagem" not in tabelas:
+        return
+
+    colunas_existentes = {
+        coluna["name"] for coluna in sa.inspect(bind).get_columns("documentos_triagem")
+    }
+    colunas = (
+        ("metadados_documento", sa.JSON()),
+        ("campos_rotulados", sa.JSON()),
+        ("escopo_documento", sa.String(length=30)),
+        ("legibilidade_documento", sa.String(length=30)),
+        ("evidencias_escopo", sa.JSON()),
+        ("justificativa_escopo", sa.Text()),
+    )
+    with op.batch_alter_table("documentos_triagem") as tabela:
+        for nome, tipo in colunas:
+            if nome not in colunas_existentes:
+                tabela.add_column(sa.Column(nome, tipo, nullable=True))
 
 
 def downgrade() -> None:

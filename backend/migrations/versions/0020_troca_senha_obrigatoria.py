@@ -11,16 +11,20 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "usuarios_sistema",
-        sa.Column(
-            "trocar_senha_obrigatorio",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.false(),
-        ),
-    )
-    op.alter_column("usuarios_sistema", "trocar_senha_obrigatorio", server_default=None)
+    inspector = sa.inspect(op.get_bind())
+    if "usuarios_sistema" in inspector.get_table_names():
+        columns = {c["name"] for c in inspector.get_columns("usuarios_sistema")}
+        if "trocar_senha_obrigatorio" not in columns:
+            op.add_column(
+                "usuarios_sistema",
+                sa.Column(
+                    "trocar_senha_obrigatorio",
+                    sa.Boolean(),
+                    nullable=False,
+                    server_default=sa.false(),
+                ),
+            )
+            op.alter_column("usuarios_sistema", "trocar_senha_obrigatorio", server_default=None)
 
 
 def downgrade() -> None:

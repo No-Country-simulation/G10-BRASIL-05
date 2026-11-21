@@ -1,7 +1,8 @@
 [server]
 # Acima do limite do backend (10 MB) para que a tela de triagem mostre o erro
 # "o arquivo passa de 10 MB" no card; arquivos maiores que 10 MB nunca são enviados à API.
-maxUploadSize = 50
+maxUploadSize = 100
+maxMessageSize = 100
 runOnSave = true
 
 [client]

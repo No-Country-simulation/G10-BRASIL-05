@@ -33,6 +33,9 @@ class OCIObjectStorageRepository:
                     "Não foi possível autenticar o backend OCI como Instance Principal."
                 ) from erro
 
+        if modo == "local_only":
+            return None
+
         if modo != "api_key":
             raise ValueError("OCI_AUTH_MODE deve ser 'api_key' ou 'instance_principal'.")
 
@@ -79,6 +82,8 @@ class OCIObjectStorageRepository:
         return self.client is not None
 
     def salvar(self, caminho: str, conteudo: bytes, content_type: str) -> None:
+        if not self.ativo:
+            return
         try:
             self.client.put_object(
                 namespace_name=settings.OCI_NAMESPACE,
@@ -92,7 +97,7 @@ class OCIObjectStorageRepository:
             raise StoragePersistenceError(f"Falha ao salvar objeto OCI '{caminho}'.") from erro
 
     def remover(self, caminho: Optional[str]) -> None:
-        if not caminho:
+        if not self.ativo or not caminho:
             return
         try:
             self.client.delete_object(

@@ -17,6 +17,8 @@ from app.repositories.storage import StoragePersistenceError, StorageRepository
 from app.schemas.triagem import EnfileirarTextoTriagemRequest
 from app.services.autenticacao import exigir_usuario_atual
 from app.services.document_parser import DocumentParserService
+from app.services.redis_service import adquirir_lock_upload_lote, liberar_lock_upload_lote
+from app.services.triagem_eventos import publicar_evento_triagem
 from app.services.triagem_queue import (
     chave_proprietario_documento,
     enfileirar_documento,
@@ -40,7 +42,15 @@ def enfileirar_texto_triagem(
         raise HTTPException(status_code=409, detail="Já existe uma triagem com esse identificador.")
     db.rollback()
 
-    reserva = reservar_trabalho(usuario.id, documento_id)
+    try:
+        reserva = reservar_trabalho(usuario.id, documento_id)
+    except Exception as erro:
+        logger.exception("Falha de conexão com Redis ao reservar vaga para %s", documento_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Serviço de fila temporariamente indisponível.",
+        ) from erro
+
     if reserva <= 0:
         mensagem = (
             "Já existe um trabalho com esse identificador."
@@ -50,20 +60,40 @@ def enfileirar_texto_triagem(
         raise HTTPException(status_code=409 if reserva < 0 else 429, detail=mensagem)
 
     try:
-        enfileirar_texto(
+        job = enfileirar_texto(
             documento_id=documento_id,
             documento_texto=requisicao.documento_texto,
             tipo_arquivo=requisicao.tipo_arquivo,
             canal_origem=requisicao.canal_origem,
             usuario_id=usuario.id,
         )
+        if not job or not getattr(job, "id", None):
+            raise RuntimeError("Trabalho não aceito pelo RQ.")
+
         lote_id = f"LOTE-TX-{uuid.uuid4().hex[:10].upper()}"
         trabalho = {"arquivo": "Texto colado", "documento_id": documento_id, "status": "na_fila"}
-        registrar_lote_triagem(lote_id, usuario.id, [trabalho])
+        try:
+            registrar_lote_triagem(lote_id, usuario.id, [trabalho])
+        except Exception:
+            logger.warning("Falha ao registrar metadados do lote %s no Redis", lote_id)
+
+        publicar_evento_triagem(
+            usuario.id,
+            "status_update",
+            {
+                "documento_id": documento_id,
+                "lote_id": lote_id,
+                "status": "na_fila",
+                "arquivo": "Texto colado",
+            },
+        )
     except Exception:
         liberar_reserva(usuario.id, documento_id)
         logger.exception("Falha ao enfileirar texto de triagem %s", documento_id)
-        raise HTTPException(status_code=503, detail="Não foi possível colocar o texto na fila.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Não foi possível colocar o texto na fila.",
+        )
 
     return {
         "lote_id": lote_id,
@@ -78,116 +108,182 @@ async def enfileirar_upload_triagem(
     usuario: UsuarioSistemaModel = Depends(exigir_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    form = await request.form()
-    # FormData.getlist preserva arquivos repetidos sob a mesma chave (padrão do Postman).
-    uploads = [
-        item
-        for campo in ("file", "files")
-        for item in form.getlist(campo)
-        if isinstance(item, UploadFile)
-    ]
-    canal_origem = form.get("canal_origem") or "Pronto_Socorro"
-    documento_id = form.get("documento_id")
-    if not uploads:
-        raise HTTPException(status_code=400, detail="Envie um ou mais arquivos para iniciar a triagem.")
-    if documento_id and len(uploads) > 1:
-        raise HTTPException(status_code=400, detail="documento_id só pode ser informado ao enviar um arquivo.")
+    # Trava de cooldown / idempotencia de 30 segundos por usuario
+    if not adquirir_lock_upload_lote(usuario.id, ttl_segundos=30):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Um lote de documentos já foi enviado recentemente. Por favor, aguarde 30 segundos antes de enviar um novo lote.",
+        )
 
-    # Valida cada arquivo separadamente para que um inválido não descarte o lote inteiro.
-    validados = []
-    resultados = []
-    for upload in uploads:
-        conteudo = await upload.read()
-        try:
-            extensao = DocumentParserService.validar_arquivo(upload, conteudo)
-            validados.append((upload, conteudo, extensao))
-            resultados.append(None)
-        except HTTPException as erro:
-            validados.append(None)
-            detalhe = erro.detail if isinstance(erro.detail, str) else "O arquivo não passou pela validação."
-            resultados.append({
-                "arquivo": upload.filename,
-                "documento_id": None,
-                "status": "falhou",
-                "erro_codigo": "ARQUIVO_INVALIDO",
-                "erro": detalhe,
-            })
+    try:
+        form = await request.form()
+        # FormData.getlist preserva arquivos repetidos sob a mesma chave (padrão do Postman).
+        uploads = [
+            item
+            for campo in ("file", "files")
+            for item in form.getlist(campo)
+            if isinstance(item, UploadFile)
+        ]
+        canal_origem = form.get("canal_origem") or "Pronto_Socorro"
+        documento_id = form.get("documento_id")
+        if not uploads:
+            liberar_lock_upload_lote(usuario.id)
+            raise HTTPException(status_code=400, detail="Envie um ou mais arquivos para iniciar a triagem.")
+        if documento_id and len(uploads) > 1:
+            liberar_lock_upload_lote(usuario.id)
+            raise HTTPException(status_code=400, detail="documento_id só pode ser informado ao enviar um arquivo.")
 
-    for indice, dados_arquivo in enumerate(validados):
-        if dados_arquivo is None:
-            continue
-        upload, conteudo, extensao = dados_arquivo
-        doc_id = documento_id or f"DOC-UP-{uuid.uuid4().hex[:8].upper()}"
-        if DatabaseRepository(db).buscar_por_documento_id(doc_id):
-            resultados[indice] = {"arquivo": upload.filename, "documento_id": doc_id, "status": "falhou", "erro_codigo": "ID_DUPLICADO", "erro": "Já existe uma triagem com esse identificador."}
+        # Valida cada arquivo separadamente para que um inválido não descarte o lote inteiro.
+        validados = []
+        resultados = []
+        for upload in uploads:
+            conteudo = await upload.read()
+            try:
+                extensao = DocumentParserService.validar_arquivo(upload, conteudo)
+                validados.append((upload, conteudo, extensao))
+                resultados.append(None)
+            except HTTPException as erro:
+                validados.append(None)
+                detalhe = erro.detail if isinstance(erro.detail, str) else "O arquivo não passou pela validação."
+                resultados.append({
+                    "arquivo": upload.filename,
+                    "documento_id": None,
+                    "status": "falhou",
+                    "erro_codigo": "ARQUIVO_INVALIDO",
+                    "erro": detalhe,
+                })
+
+        for indice, dados_arquivo in enumerate(validados):
+            if dados_arquivo is None:
+                continue
+            upload, conteudo, extensao = dados_arquivo
+            doc_id = documento_id or f"DOC-UP-{uuid.uuid4().hex[:8].upper()}"
+            if DatabaseRepository(db).buscar_por_documento_id(doc_id):
+                resultados[indice] = {"arquivo": upload.filename, "documento_id": doc_id, "status": "falhou", "erro_codigo": "ID_DUPLICADO", "erro": "Já existe uma triagem com esse identificador."}
+                db.rollback()
+                continue
             db.rollback()
-            continue
-        db.rollback()
 
-        reserva = reservar_trabalho(usuario.id, doc_id)
-        if reserva <= 0:
-            erro = (
-                "Já existe um trabalho com esse identificador."
-                if reserva < 0
-                else "Limite de 10 documentos aguardando ou em processamento por usuário."
-            )
-            resultados[indice] = {"arquivo": upload.filename, "documento_id": doc_id, "status": "falhou", "erro_codigo": "LIMITE_FILA" if reserva == 0 else "ID_DUPLICADO", "erro": erro}
-            continue
+            try:
+                reserva = reservar_trabalho(usuario.id, doc_id)
+            except Exception as erro:
+                logger.exception("Falha ao reservar vaga na fila para %s", doc_id)
+                resultados[indice] = {
+                    "arquivo": upload.filename,
+                    "documento_id": doc_id,
+                    "status": "falhou",
+                    "erro_codigo": "FILA_INDISPONIVEL",
+                    "erro": "Serviço de fila temporariamente indisponível.",
+                }
+                continue
 
-        storage_repo = StorageRepository()
-        info_storage = None
-        try:
-            info_storage = storage_repo.salvar_arquivo_original(
-                documento_id=doc_id,
-                conteudo=conteudo,
-                nome_original=upload.filename,
-                extensao=extensao,
-                mimetype=upload.content_type,
-            )
-            enfileirar_documento(
-                documento_id=doc_id,
-                caminho_arquivo=info_storage["caminho_local"],
-                caminho_objeto_fonte=info_storage["caminho_objeto_fonte"],
-                nome_arquivo=f"{doc_id}{extensao}",
-                extensao=extensao,
-                canal_origem=canal_origem or "Pronto_Socorro",
-                usuario_id=usuario.id,
-            )
-            resultados[indice] = {"arquivo": upload.filename, "documento_id": doc_id, "status": "na_fila"}
-            logger.info("Upload enfileirado: documento_id=%s, usuario_id=%s", doc_id, usuario.id)
-        except Exception as erro:
-            liberar_reserva(usuario.id, doc_id)
-            if info_storage:
-                storage_repo.rollback_tentativa(
-                    caminho_fonte=info_storage.get("caminho_local"),
-                    objetos_oci=[info_storage.get("caminho_objeto_fonte")],
+            if reserva <= 0:
+                erro = (
+                    "Já existe um trabalho com esse identificador."
+                    if reserva < 0
+                    else "Limite de 10 documentos aguardando ou em processamento por usuário."
                 )
-            logger.exception("Falha ao enfileirar documento %s", doc_id)
-            mensagem = (
-                "Não foi possível salvar o documento; a triagem não foi iniciada."
-                if isinstance(erro, StoragePersistenceError)
-                else "Não foi possível colocar o documento na fila."
+                resultados[indice] = {"arquivo": upload.filename, "documento_id": doc_id, "status": "falhou", "erro_codigo": "LIMITE_FILA" if reserva == 0 else "ID_DUPLICADO", "erro": erro}
+                continue
+
+            storage_repo = StorageRepository()
+            info_storage = None
+            try:
+                info_storage = storage_repo.salvar_arquivo_original(
+                    documento_id=doc_id,
+                    conteudo=conteudo,
+                    nome_original=upload.filename,
+                    extensao=extensao,
+                    mimetype=upload.content_type,
+                )
+                job = enfileirar_documento(
+                    documento_id=doc_id,
+                    caminho_arquivo=info_storage["caminho_local"],
+                    caminho_objeto_fonte=info_storage["caminho_objeto_fonte"],
+                    nome_arquivo=f"{doc_id}{extensao}",
+                    extensao=extensao,
+                    canal_origem=canal_origem or "Pronto_Socorro",
+                    usuario_id=usuario.id,
+                )
+                if not job or not getattr(job, "id", None):
+                    raise RuntimeError("Trabalho não aceito pelo RQ.")
+
+                resultados[indice] = {"arquivo": upload.filename, "documento_id": doc_id, "status": "na_fila"}
+                logger.info("Upload enfileirado: documento_id=%s, usuario_id=%s", doc_id, usuario.id)
+            except Exception as erro:
+                try:
+                    liberar_reserva(usuario.id, doc_id)
+                except Exception:
+                    pass
+                if info_storage:
+                    storage_repo.rollback_tentativa(
+                        caminho_fonte=info_storage.get("caminho_local"),
+                        objetos_oci=[info_storage.get("caminho_objeto_fonte")],
+                    )
+                logger.exception("Falha ao enfileirar documento %s", doc_id)
+                mensagem = (
+                    "Não foi possível salvar o documento; a triagem não foi iniciada."
+                    if isinstance(erro, StoragePersistenceError)
+                    else "Não foi possível colocar o documento na fila."
+                )
+                resultados[indice] = {
+                    "arquivo": upload.filename,
+                    "documento_id": doc_id,
+                    "status": "falhou",
+                    "erro_codigo": "FALHA_PERSISTENCIA" if isinstance(erro, StoragePersistenceError) else "FALHA_ENFILEIRAMENTO",
+                    "erro": mensagem,
+                }
+
+        # Se nenhum documento do lote foi aceito/enfileirado com sucesso, libera a trava para reenvio
+        enfileirou_com_sucesso = any(
+            isinstance(trabalho, dict) and trabalho.get("status") == "na_fila"
+            for trabalho in resultados
+        )
+        if not enfileirou_com_sucesso:
+            liberar_lock_upload_lote(usuario.id)
+
+        lote_id = f"LOTE-UP-{uuid.uuid4().hex[:10].upper()}"
+        try:
+            registrar_lote_triagem(lote_id, usuario.id, resultados)
+        except Exception:
+            logger.warning("Falha ao registrar lote %s no Redis", lote_id)
+        for trabalho in resultados:
+            if not trabalho.get("documento_id"):
+                continue
+            status_trabalho = trabalho.get("status")
+            publicar_evento_triagem(
+                usuario.id,
+                "falha" if status_trabalho == "falhou" else "status_update",
+                {
+                    "documento_id": trabalho["documento_id"],
+                    "lote_id": lote_id,
+                    "status": status_trabalho,
+                    "arquivo": trabalho.get("arquivo"),
+                    **(
+                        {
+                            "erro_codigo": trabalho.get("erro_codigo"),
+                            "erro_mensagem": trabalho.get("erro"),
+                        }
+                        if status_trabalho == "falhou"
+                        else {}
+                    ),
+                },
             )
-            resultados[indice] = {
-                "arquivo": upload.filename,
-                "documento_id": doc_id,
-                "status": "falhou",
-                "erro_codigo": "FALHA_PERSISTENCIA" if isinstance(erro, StoragePersistenceError) else "FALHA_ENFILEIRAMENTO",
-                "erro": mensagem,
+
+        # Mantém os campos antigos para um arquivo; todos os envios também recebem o ID do lote.
+        if len(resultados) == 1 and resultados[0]["status"] == "na_fila":
+            return {
+                "lote_id": lote_id,
+                "documento_id": resultados[0]["documento_id"],
+                "status": "na_fila",
+                "trabalhos": resultados,
             }
-
-    lote_id = f"LOTE-UP-{uuid.uuid4().hex[:10].upper()}"
-    registrar_lote_triagem(lote_id, usuario.id, resultados)
-
-    # Mantém os campos antigos para um arquivo; todos os envios também recebem o ID do lote.
-    if len(resultados) == 1 and resultados[0]["status"] == "na_fila":
-        return {
-            "lote_id": lote_id,
-            "documento_id": resultados[0]["documento_id"],
-            "status": "na_fila",
-            "trabalhos": resultados,
-        }
-    return {"lote_id": lote_id, "trabalhos": resultados}
+        return {"lote_id": lote_id, "trabalhos": resultados}
+    except HTTPException:
+        raise
+    except Exception:
+        liberar_lock_upload_lote(usuario.id)
+        raise
 
 
 def _resultado_persistido(documento: DocumentoTriagemModel) -> dict:

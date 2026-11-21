@@ -40,6 +40,7 @@ class ClassificacaoDocumento(BaseModel):
 
 class Paciente(BaseModel):
     nome: Optional[str] = Field(None, json_schema_extra={"example": "Carlos Eduardo Mendes"})
+    cpf: Optional[str] = Field(None, json_schema_extra={"example": "66827369615"})
     idade: Optional[int] = Field(None, json_schema_extra={"example": 52})
 
 

@@ -12,7 +12,16 @@ from app.agent.nodes.validadores_clinicos import (
 
 @pytest.mark.parametrize(
     "crm",
-    ["CRM-SP 145892", "145892-SP", "crm-sp 145892", " 145892-sp "],
+    [
+        "CRM 00108769",
+        "CRM-00108769",
+        "CRM/SP 145892",
+        "CRM-SP 145892",
+        "145892-SP",
+        "145892",
+        "crm-sp 145892",
+        " 145892-sp ",
+    ],
 )
 def test_aceita_formatos_de_crm_previstos(crm):
     assert validar_crm(crm)
@@ -20,7 +29,7 @@ def test_aceita_formatos_de_crm_previstos(crm):
 
 @pytest.mark.parametrize(
     "crm",
-    ["", "145892", "SP-145892", "CRM-XX 145892", "CRM-SP abc", 145892],
+    ["", "SP-145892", "CRM-XX 145892", "CRM-SP abc", 145892],
 )
 def test_rejeita_formatos_de_crm_invalidos(crm):
     assert not validar_crm(crm)
@@ -106,20 +115,12 @@ def test_aceita_campos_obrigatorios_por_tipo(tipo_documento, payload):
     assert validar_dados_extraidos(dados, tipo_documento) == []
 
 
-@pytest.mark.parametrize(
-    ("tipo_documento", "campo_esperado"),
-    [
-        (TipoDocumento.RECEITA, "paciente.nome"),
-        (TipoDocumento.LAUDO, "paciente.nome"),
-        (TipoDocumento.GUIA_TISS, "paciente.nome"),
-        (TipoDocumento.RELATORIO_ALTA, "paciente.nome"),
-        (TipoDocumento.ATESTADO, "paciente.nome"),
-    ],
-)
-def test_rejeita_documentos_sem_paciente(tipo_documento, campo_esperado):
+@pytest.mark.parametrize("tipo_documento", list(TipoDocumento))
+def test_mensagem_de_paciente_ausente_e_legivel(tipo_documento):
     erros = validar_dados_extraidos(DadosExtraidos(), tipo_documento)
 
-    assert any(campo_esperado in erro for erro in erros)
+    assert "Nome do paciente não identificado no documento." in erros
+    assert all("paciente.nome" not in erro for erro in erros)
 
 
 def test_receita_exige_medicamento_com_nome_e_dosagem():
@@ -131,7 +132,7 @@ def test_receita_exige_medicamento_com_nome_e_dosagem():
         }
     )
 
-    assert "RECEITA requer ao menos um medicamento com nome e dosagem." in (
+    assert "Medicamento e dosagem não identificados na receita." in (
         validar_dados_extraidos(dados, TipoDocumento.RECEITA)
     )
 
@@ -148,25 +149,26 @@ def test_acumula_erros_de_crm_cid_idade_e_campos_obrigatorios():
 
     erros = validar_dados_extraidos(dados, TipoDocumento.GUIA_TISS)
 
-    assert any("crm_uf" in erro for erro in erros)
-    assert any("cid_sugerido" in erro for erro in erros)
-    assert any("paciente.idade" in erro for erro in erros)
+    assert "O CRM do médico solicitante está em formato inválido." in erros
+    assert "O CID informado está em formato inválido." in erros
+    assert "A idade do paciente deve estar entre 0 e 120 anos." in erros
+    assert all("." not in erro.split(" ", 3)[0] for erro in erros)
     assert len(erros) == 3
 
 
 @pytest.mark.parametrize(
     ("tipo_documento", "campo_esperado"),
     [
-        (TipoDocumento.RECEITA, "medico_solicitante.nome"),
-        (TipoDocumento.RECEITA, "medico_solicitante.crm_uf"),
-        (TipoDocumento.RECEITA, "medicamento com nome e dosagem"),
-        (TipoDocumento.LAUDO, "exame_realizado"),
-        (TipoDocumento.GUIA_TISS, "medico_solicitante.nome"),
-        (TipoDocumento.GUIA_TISS, "medico_solicitante.crm_uf"),
-        (TipoDocumento.GUIA_TISS, "exame_realizado"),
-        (TipoDocumento.RELATORIO_ALTA, "diagnostico_principal"),
-        (TipoDocumento.ATESTADO, "medico_solicitante.nome"),
-        (TipoDocumento.ATESTADO, "medico_solicitante.crm_uf"),
+        (TipoDocumento.RECEITA, "Nome do médico solicitante não identificado no documento."),
+        (TipoDocumento.RECEITA, "CRM do médico solicitante não identificado no documento."),
+        (TipoDocumento.RECEITA, "Medicamento e dosagem não identificados na receita."),
+        (TipoDocumento.LAUDO, "Exame realizado não identificado no documento."),
+        (TipoDocumento.GUIA_TISS, "Nome do médico solicitante não identificado no documento."),
+        (TipoDocumento.GUIA_TISS, "CRM do médico solicitante não identificado no documento."),
+        (TipoDocumento.GUIA_TISS, "Exame realizado não identificado no documento."),
+        (TipoDocumento.RELATORIO_ALTA, "Diagnóstico principal não identificado no documento."),
+        (TipoDocumento.ATESTADO, "Nome do médico solicitante não identificado no documento."),
+        (TipoDocumento.ATESTADO, "CRM do médico solicitante não identificado no documento."),
     ],
 )
 def test_rejeita_campo_essencial_ausente_por_tipo(tipo_documento, campo_esperado):
@@ -174,7 +176,8 @@ def test_rejeita_campo_essencial_ausente_por_tipo(tipo_documento, campo_esperado
 
     erros = validar_dados_extraidos(dados, tipo_documento)
 
-    assert any(campo_esperado in erro for erro in erros)
+    assert campo_esperado in erros
+    assert all("." not in erro.split(" ", 3)[0] for erro in erros)
 
 
 def test_campos_opcionais_ausentes_nao_invalidam_documento():

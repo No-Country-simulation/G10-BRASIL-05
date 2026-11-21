@@ -1,10 +1,17 @@
+import base64
 import json
+from pathlib import Path
 from typing import Any
 
 from app.agent.harness import texto_clinico_sem_metadados
+from app.agent.imagem_cpf import preparar_imagem_para_releitura
 from app.agent.llm import obter_cliente_llm
+from app.agent.normalizacao_texto import localizar_trecho_cpf, normalizar_cpf, validar_cpf
 from app.agent.prompts.extracao import PROMPT_EXTRACAO_SYSTEM, PROMPT_EXTRACAO_USER
 from app.agent.state import GraphState
+from app.config.logger import logger
+
+MAX_TENTATIVAS_RELEITURA_CPF = 10
 
 
 def _ler_resposta_json(conteudo: str) -> dict[str, Any]:
@@ -43,6 +50,57 @@ def _contexto_identificacao_publico(state: GraphState) -> dict[str, Any]:
     return contexto
 
 
+def _reler_cpf_na_imagem(cliente: Any, estado: GraphState) -> str | None:
+    """Repete a leitura visual até validar ou atingir o limite de tentativas."""
+    caminho = estado.get("referencia_fonte")
+    if (estado.get("tipo_arquivo") or "").lower() not in {"imagem", "image"} or not caminho:
+        return None
+
+    try:
+        imagem = preparar_imagem_para_releitura(Path(caminho).read_bytes())
+        from langchain_core.messages import HumanMessage
+    except Exception as erro:
+        # Não registrar imagem, caminho ou qualquer valor de CPF.
+        logger.warning("Falha ao preparar imagem para releitura de CPF (%s).", type(erro).__name__)
+        return None
+
+    mensagem = HumanMessage(content=[
+        {
+            "type": "text",
+            "text": (
+                "Leia somente o CPF do paciente que esteja visível nesta imagem. "
+                "Transcreva os dígitos exatamente como aparecem; não complete, corrija, "
+                "deduza nem altere dígitos para satisfazer validação. Se não estiver "
+                'legível ou não existir, retorne {"paciente_cpf": null}. '
+                'Retorne somente JSON: {"paciente_cpf": "texto visível" ou null}.'
+            ),
+        },
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": "data:image/jpeg;base64,"
+                + base64.b64encode(imagem).decode("ascii")
+            },
+        },
+    ])
+    for tentativa in range(1, MAX_TENTATIVAS_RELEITURA_CPF + 1):
+        try:
+            resposta = cliente.invoke([mensagem])
+            if isinstance(resposta.content, str):
+                cpf_lido = _ler_resposta_json(resposta.content).get("paciente_cpf")
+                if validar_cpf(cpf_lido):
+                    return normalizar_cpf(cpf_lido)
+        except Exception as erro:
+            # Não registrar imagem, caminho ou qualquer valor de CPF.
+            logger.warning(
+                "Falha na releitura visual de CPF, tentativa %d/%d (%s).",
+                tentativa,
+                MAX_TENTATIVAS_RELEITURA_CPF,
+                type(erro).__name__,
+            )
+    return None
+
+
 def node_extracao(state: GraphState) -> GraphState:
     """Extrai os dados somente pela LLM; erro de provedor ou schema interrompe a triagem."""
     texto = texto_clinico_sem_metadados(state["documento_texto"])
@@ -71,9 +129,16 @@ def node_extracao(state: GraphState) -> GraphState:
     dados_identificacao = state.get("identificacao_documento") or {}
     paciente_identificado = dados_identificacao.get("paciente") or {}
     medico_identificado = dados_identificacao.get("medico_solicitante") or {}
+    cpf_bruto = dados.get("paciente_cpf") or paciente_identificado.get("cpf")
+    cpf_extraido = normalizar_cpf(cpf_bruto)
+    cpf_releitura_visual = False
+    if not validar_cpf(cpf_bruto):
+        cpf_extraido = _reler_cpf_na_imagem(cliente, state)
+        cpf_releitura_visual = cpf_extraido is not None
     dados_extraidos = {
         "paciente": {
             "nome": dados["paciente_nome"] or paciente_identificado.get("nome"),
+            "cpf": cpf_extraido,
             "idade": (
                 paciente_identificado.get("idade")
                 if paciente_identificado.get("idade") is not None
@@ -94,6 +159,7 @@ def node_extracao(state: GraphState) -> GraphState:
     evidencias_campos = {}
     valores = {
         "paciente.nome": dados_extraidos["paciente"]["nome"],
+        "paciente.cpf": dados_extraidos["paciente"]["cpf"],
         "paciente.idade": dados_extraidos["paciente"]["idade"],
         "medico_solicitante.nome": dados_extraidos["medico_solicitante"]["nome"],
         "medico_solicitante.crm": dados_extraidos["medico_solicitante"]["crm"],
@@ -105,6 +171,11 @@ def node_extracao(state: GraphState) -> GraphState:
     for caminho, valor in valores.items():
         literal = str(valor).strip() if valor is not None else ""
         inicio = texto.casefold().find(literal.casefold()) if literal else -1
+        if caminho == "paciente.cpf" and inicio < 0 and literal:
+            intervalo = localizar_trecho_cpf(texto, literal)
+            if intervalo:
+                inicio, fim = intervalo
+                literal = texto[inicio:fim]
         evidencias_campos[caminho] = {
             "valor": valor,
             "trecho": texto[inicio : inicio + len(literal)] if inicio >= 0 else None,
@@ -124,4 +195,6 @@ def node_extracao(state: GraphState) -> GraphState:
         "diagnostico_principal": dados_extraidos["diagnostico_principal"],
         "cid_sugerido": dados_extraidos["cid_sugerido"],
         "status": "extraido",
+        "cpf_releitura_visual": cpf_releitura_visual,
+        "cpf_validacao_falhou": cpf_extraido is None,
     }

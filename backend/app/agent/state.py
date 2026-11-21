@@ -43,6 +43,8 @@ class GraphState(TypedDict, total=False):
     etapa_atual: Optional[str]
     dados_extraidos: Optional[Dict[str, Any]]
     paciente: Optional[Dict[str, Any]]
+    cpf_releitura_visual: bool
+    cpf_validacao_falhou: bool
     medico_solicitante: Optional[Dict[str, Any]]
     exame_realizado: Optional[str]
     diagnostico_principal: Optional[str]

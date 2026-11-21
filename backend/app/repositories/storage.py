@@ -36,7 +36,7 @@ class StorageRepository:
 
     @property
     def oci_ativo(self) -> bool:
-        return True
+        return self.oci_storage.ativo
 
     def _salvar_local_atomico(self, caminho: str, conteudo: bytes) -> None:
         self.local_storage.salvar_atomico(caminho, conteudo)

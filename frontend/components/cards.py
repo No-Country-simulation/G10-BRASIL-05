@@ -103,8 +103,10 @@ def exibir_dados_extraidos(dados: dict) -> None:
         _exibir_campo("Paciente", _formatar_paciente(dados.get("paciente")))
         _exibir_campo("Médico solicitante", _formatar_medico(dados.get("medico_solicitante") or {}))
     with coluna_clinica:
-        _exibir_campo("Diagnóstico principal", dados.get("diagnostico_principal"))
-        _exibir_campo("CID-10 sugerido", dados.get("cid_sugerido"))
+        if dados.get("diagnostico_principal"):
+            _exibir_campo("Achado clínico", dados["diagnostico_principal"])
+        if dados.get("cid_sugerido"):
+            _exibir_campo("CID-10 no documento", dados["cid_sugerido"])
     _exibir_itens_clinicos(dados)
 
 
@@ -114,15 +116,12 @@ def exibir_resultado_da_triagem(resposta: dict) -> None:
     exibir_classificacao(resposta.get("classificacao") or {})
     st.subheader("Dados extraídos")
     exibir_dados_extraidos(resposta.get("dados_extraidos") or {})
-    exibir_armazenamento(resposta.get("armazenamento_oci"))
     with st.expander("Ver resposta completa (JSON)"):
         st.json(resposta)
 
 
 def exibir_item_de_auditoria(item: dict) -> None:
     _exibir_selo_de_prioridade(item.get("nivel_prioridade"))
-    motivo = item.get("justificativa_roteamento") or NAO_INFORMADO
-    st.warning(f"**Revisão humana necessária**\n\n{motivo}", icon=":material/clinical_notes:")
     coluna_tipo, coluna_confianca = st.columns(2)
     with coluna_tipo:
         _exibir_campo("Tipo de documento", rotular_tipo_documento(item.get("tipo_documento")))
@@ -172,10 +171,25 @@ def _formatar_notificacao(notificacao: dict) -> str | None:
     return f"{mensagem} (canal: {canal})" if mensagem and canal else mensagem
 
 
+def _formatar_cpf(cpf: str | None) -> str | None:
+    if not cpf:
+        return None
+    digitos = "".join(c for c in str(cpf) if c.isdigit())
+    if len(digitos) == 11:
+        return f"{digitos[:3]}.{digitos[3:6]}.{digitos[6:9]}-{digitos[9:]}"
+    return str(cpf)
+
+
 def _formatar_paciente(paciente) -> str | None:
     nome = nome_do_paciente(paciente)
     idade = paciente.get("idade") if isinstance(paciente, dict) else None
-    return f"{nome}, {idade} anos" if nome and idade else nome
+    cpf = paciente.get("cpf") if isinstance(paciente, dict) else None
+    partes = [nome] if nome else []
+    if cpf:
+        partes.append(f"CPF {_formatar_cpf(cpf)}")
+    if idade is not None:
+        partes.append(f"{idade} anos")
+    return ", ".join(partes) or None
 
 
 def _formatar_medico(medico: dict) -> str | None:

@@ -1,6 +1,7 @@
 from typing import List
 from app.agent.state import GraphState
 from app.agent.config import TERMOS_URGENCIA_CRITICA, DEFAULT_CONFIDENCE_THRESHOLD
+from app.schemas.classificacao import TipoDocumento
 
 
 def node_avaliacao(state: GraphState) -> GraphState:
@@ -34,7 +35,12 @@ def node_avaliacao(state: GraphState) -> GraphState:
     if not (medico.get("crm") or medico.get("crm_uf")):
         inconsistencias.append("Número de CRM do médico ausente ou inconsistente.")
 
-    if len(texto) < 40 or not state.get("diagnostico_principal"):
+    tipo_documento = state.get("tipo_documento")
+    diagnostico_exigido = tipo_documento in {
+        TipoDocumento.RELATORIO_ALTA,
+        TipoDocumento.RELATORIO_ALTA.value,
+    }
+    if len(texto) < 40 or (diagnostico_exigido and not state.get("diagnostico_principal")):
         inconsistencias.append("Documento com dados insuficientes ou hipótese diagnóstica ausente.")
 
     # 3. Cálculo de Score de Confiança Ponderado

@@ -53,6 +53,7 @@ services:
     image: redis:7-alpine
     container_name: g10-redis
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT}:6379"
     volumes:
@@ -125,6 +126,13 @@ services:
       dockerfile: Dockerfile
     container_name: g10-backend
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
     env_file:
       - ./backend/.env
     environment: &backend_environment
@@ -155,12 +163,11 @@ services:
     ports:
       - "${BACKEND_PORT}:8000"
     volumes:
-      - "${OCI_KEY_FILE}:/run/secrets/oci_api_key.pem:ro"
+      - "${OCI_KEY_FILE:-./backend/Dockerfile}:/run/secrets/oci_api_key.pem:ro"
       - ./Storage:/app/Storage
       - ./backend/app:/app/app
-      - ./backend/app:/app/app
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8000/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6
@@ -179,7 +186,7 @@ services:
       <<: *backend_environment
       TRIAGEM_WORKER_CONCURRENCY: ${TRIAGEM_WORKER_CONCURRENCY:-5}
     volumes:
-      - "${OCI_KEY_FILE}:/run/secrets/oci_api_key.pem:ro"
+      - "${OCI_KEY_FILE:-./backend/Dockerfile}:/run/secrets/oci_api_key.pem:ro"
       - ./Storage:/app/Storage
       - ./backend/app:/app/app
     depends_on:
@@ -199,7 +206,13 @@ services:
     environment:
       # Dentro do Compose, localhost aponta ao container Streamlit; use o serviço backend.
       API_URL_LOCAL: http://backend:8000
+      API_URL_PRODUCTION: http://backend:8000
+      # URL pública usada pelo navegador para SSE; a API HTTP do Streamlit segue interna.
+      API_BROWSER_URL_LOCAL: http://localhost:${BACKEND_PORT:-8000}
+      API_TIMEOUT: "60"
       STREAMLIT_SERVER_HEADLESS: "true"
+      STREAMLIT_SERVER_MAX_MESSAGE_SIZE: "100"
+      STREAMLIT_SERVER_MAX_UPLOAD_SIZE: "100"
       BROWSER_GATHER_USAGE_STATS: "false"
     ports:
       - "${FRONTEND_PORT}:8501"

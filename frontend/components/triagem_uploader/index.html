@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+      color: #12304A;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Card único */
+    .triagem-card {
+      position: relative;
+      background: #FFFFFF;
+      border: 1px solid #DCE6F2;
+      border-radius: 14px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 100%;
+      max-width: 880px;
+      margin: 0 auto;
+    }
+
+    /* 1. Seletor de modo (pílula) */
+    .seletor-modo-container {
+      display: inline-flex;
+      background: #EEF4FB;
+      border-radius: 999px;
+      padding: 4px;
+      align-self: flex-start;
+      gap: 0;
+    }
+
+    .seletor-modo-btn {
+      height: 40px;
+      padding: 0 20px;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: #3A4D6E;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.15s ease, color 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .seletor-modo-btn:focus-visible {
+      outline: 2px solid #0B2A5B;
+      outline-offset: 2px;
+    }
+
+    .seletor-modo-btn[aria-selected="true"] {
+      background: #0B2A5B;
+      color: #FFFFFF;
+    }
+
+    /* 2. Área de arraste COMPACTA */
+    .dropzone-faixa {
+      border: 1.5px dashed #9DB9D9;
+      border-radius: 14px;
+      background: #F3F8FD;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .dropzone-faixa:hover,
+    .dropzone-faixa.dragover {
+      border-color: #1B3F95;
+      background: #E3EEFC;
+    }
+
+    .dropzone-faixa:focus-visible {
+      outline: 2px solid #0B2A5B;
+      outline-offset: 2px;
+    }
+
+    .dropzone-circulo {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      border-radius: 50%;
+      background: #E3EEFC;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .dropzone-texto {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 500;
+      color: #0B2A5B;
+      user-select: none;
+    }
+
+    .btn-selecionar {
+      height: 44px;
+      padding: 0 18px;
+      background: #FFFFFF;
+      border: 1px solid #9DB9D9;
+      border-radius: 10px;
+      color: #0B2A5B;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+      flex-shrink: 0;
+    }
+
+    .btn-selecionar:hover {
+      background: #F8FAFC;
+      border-color: #0B2A5B;
+    }
+
+    .btn-selecionar:focus-visible {
+      outline: 2px solid #0B2A5B;
+      outline-offset: 2px;
+    }
+
+    /* Mensagem de validação */
+    .msg-validacao {
+      font-size: 13px;
+      color: #B42318;
+      background: #FEF3F2;
+      border: 1px solid #FECDCA;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* 3. Lista de arquivos */
+    .lista-arquivos-bloco {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .lista-cabecalho {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .lista-titulo {
+      font-size: 15px;
+      font-weight: 600;
+      color: #12304A;
+    }
+
+    .btn-limpar {
+      font-size: 13px;
+      color: #4A5B78;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: color 0.15s ease;
+    }
+
+    .btn-limpar:hover {
+      color: #0B2A5B;
+    }
+
+    .btn-limpar:focus-visible {
+      outline: 2px solid #0B2A5B;
+      outline-offset: 1px;
+    }
+
+    .lista-itens {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .arq-item {
+      border: 1px solid #DCE6F2;
+      border-radius: 12px;
+      background: #FFFFFF;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .arq-linha-principal {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .arq-icone-quadrado {
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
+      border-radius: 10px;
+      background: #E3EEFC;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .arq-bloco-texto {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .arq-nome {
+      font-size: 14px;
+      font-weight: 500;
+      color: #12304A;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 2px;
+    }
+
+    .arq-status-enviando {
+      font-size: 12px;
+      color: #4A5B78;
+    }
+
+    .arq-status-pronto {
+      font-size: 12px;
+      color: #0B6B4B;
+      font-weight: 500;
+    }
+
+    .arq-acoes {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .arq-check-circulo {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 50%;
+      background: #DDF3EA;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-lixeira {
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.15s ease;
+    }
+
+    .btn-lixeira:hover {
+      background: #FEE4E2;
+    }
+
+    .btn-lixeira:focus-visible {
+      outline: 2px solid #A3281C;
+      outline-offset: 1px;
+    }
+
+    .arq-progresso-trilho {
+      margin: 12px 0 2px 52px;
+      height: 6px;
+      border-radius: 999px;
+      background: #E3EEFC;
+      overflow: hidden;
+    }
+
+    .arq-progresso-barra {
+      height: 100%;
+      border-radius: 999px;
+      background: #2358C6;
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .arq-progresso-barra {
+        transition: none !important;
+      }
+    }
+
+    /* Aba Colar texto */
+    .painel-texto {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .textarea-clinico {
+      width: 100%;
+      border: 1px solid #DCE6F2;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 14px;
+      color: #12304A;
+      background: #FFFFFF;
+      min-height: 200px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .textarea-clinico:focus {
+      outline: 2px solid #0B2A5B;
+      outline-offset: 0;
+    }
+
+    /* 4. Rodapé do card */
+    .card-rodape {
+      border-top: 1px solid #E6EDF6;
+      padding-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .rodape-aguardando {
+      font-size: 13px;
+      color: #4A5B78;
+      display: none;
+    }
+
+    .btn-analisar {
+      height: 48px;
+      padding: 0 24px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      background: #E6EDF6;
+      color: #4A5B78;
+      cursor: default;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .btn-analisar.habilitado {
+      background: #0B2A5B;
+      color: #FFFFFF;
+      cursor: pointer;
+    }
+
+    .btn-analisar.habilitado:hover {
+      background: #082046;
+    }
+
+    .btn-analisar:focus-visible {
+      outline: 2px solid #0B2A5B;
+      outline-offset: 2px;
+    }
+
+    /* Responsivo */
+    @media (max-width: 640px) {
+      .dropzone-faixa {
+        flex-direction: column;
+        text-align: center;
+        padding: 20px 16px;
+      }
+      .dropzone-texto {
+        margin: 4px 0 8px 0;
+      }
+      .btn-selecionar {
+        width: 100%;
+      }
+      .card-rodape {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .btn-analisar {
+        width: 100%;
+      }
+      .rodape-aguardando {
+        text-align: center;
+      }
+      .arq-progresso-trilho {
+        margin-left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="triagem-card" id="triagem-card">
+    <!-- 1. Seletor de modo (pílula) -->
+    <div class="seletor-modo-container" role="tablist" aria-label="Seletor de modo de envio">
+      <button type="button" role="tab" id="tab-arquivo" aria-selected="true" aria-controls="painel-arquivo" class="seletor-modo-btn">Enviar arquivo</button>
+      <button type="button" role="tab" id="tab-texto" aria-selected="false" aria-controls="painel-texto" class="seletor-modo-btn">Colar texto</button>
+    </div>
+
+    <!-- 2. Painel de Arquivo -->
+    <div id="painel-arquivo" role="tabpanel" aria-labelledby="tab-arquivo" style="display: flex; flex-direction: column; gap: 16px;">
+      <div class="dropzone-faixa" id="dropzone" tabindex="0" role="region" aria-label="Área para arrastar documentos">
+        <div class="dropzone-circulo" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1B3F95" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <div class="dropzone-texto">Arraste os documentos aqui</div>
+        <button type="button" class="btn-selecionar" id="btn-selecionar">Selecionar arquivo</button>
+        <input type="file" id="input-arquivo" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.txt,.json" style="display: none;" aria-hidden="true">
+      </div>
+
+      <div class="msg-validacao" id="msg-validacao" role="alert" aria-live="polite"></div>
+
+      <!-- 3. Lista de arquivos -->
+      <div class="lista-arquivos-bloco" id="lista-arquivos-bloco">
+        <div class="lista-cabecalho">
+          <span class="lista-titulo" id="lista-titulo">0 arquivos anexados</span>
+          <button type="button" class="btn-limpar" id="btn-limpar">Limpar tudo</button>
+        </div>
+        <ul class="lista-itens" id="lista-itens"></ul>
+      </div>
+    </div>
+
+    <!-- Painel de Colar Texto -->
+    <div id="painel-texto" class="painel-texto" role="tabpanel" aria-labelledby="tab-texto">
+      <textarea id="textarea-texto" class="textarea-clinico" placeholder="Cole aqui o conteúdo do documento clínico..." aria-label="Texto do documento clínico"></textarea>
+      <div class="msg-validacao" id="msg-validacao-texto" role="alert" aria-live="polite"></div>
+    </div>
+
+    <!-- 4. Rodapé do card -->
+    <div class="card-rodape">
+      <div class="rodape-aguardando" id="rodape-aguardando">Aguardando o envio terminar.</div>
+      <button type="button" class="btn-analisar" id="btn-analisar" aria-disabled="true">Analisar documentos</button>
+    </div>
+  </div>
+
+  <script>
+    const EXTENSOES_PERMITIDAS = new Set(["pdf", "png", "jpg", "jpeg", "webp", "heic", "txt", "json"]);
+    const LIMITE_BYTES = 10 * 1024 * 1024; // 10 MB
+    const LIMITE_TOTAL_LOTE_BYTES = 70 * 1024 * 1024; // 70 MB de arquivos brutos (que geram ~93 MB em Base64, respeitando com folga o limite de 100 MB do WebSocket)
+
+    let modoAtual = "arquivo";
+    let arquivosLista = []; // [{ id, name, size, type, state: "ENVIANDO"|"PRONTO", percent: 0, loaded: 0, total: 0, data_b64: null }]
+
+    function sendComponentValue(value) {
+      window.parent.postMessage(
+        { isStreamlitMessage: true, type: "streamlit:setComponentValue", value },
+        "*"
+      );
+    }
+
+    function notifyHeight() {
+      requestAnimationFrame(() => {
+        const card = document.getElementById("triagem-card");
+        const cardHeight = card ? card.offsetHeight + 16 : 0;
+        const height = Math.max(
+          document.documentElement.scrollHeight,
+          document.body.scrollHeight,
+          cardHeight,
+          320
+        );
+        window.parent.postMessage(
+          { isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: height },
+          "*"
+        );
+      });
+    }
+
+    const observer = new MutationObserver(() => {
+      notifyHeight();
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+
+    function formatarTamanho(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) {
+        return (bytes / 1024).toFixed(1).replace(".", ",") + " KB";
+      }
+      return (bytes / (1024 * 1024)).toFixed(1).replace(".", ",") + " MB";
+    }
+
+    function obterTipoRotulo(nome) {
+      const p = nome.split(".");
+      return p.length > 1 ? p.pop().toUpperCase() : "DOC";
+    }
+
+    function escaparHtml(texto) {
+      const div = document.createElement("div");
+      div.innerText = texto || "";
+      return div.innerHTML;
+    }
+
+    // Elementos DOM
+    const tabArquivo = document.getElementById("tab-arquivo");
+    const tabTexto = document.getElementById("tab-texto");
+    const painelArquivo = document.getElementById("painel-arquivo");
+    const painelTexto = document.getElementById("painel-texto");
+    const dropzone = document.getElementById("dropzone");
+    const btnSelecionar = document.getElementById("btn-selecionar");
+    const inputArquivo = document.getElementById("input-arquivo");
+    const msgValidacao = document.getElementById("msg-validacao");
+    const msgValidacaoTexto = document.getElementById("msg-validacao-texto");
+    const listaBloco = document.getElementById("lista-arquivos-bloco");
+    const listaTitulo = document.getElementById("lista-titulo");
+    const btnLimpar = document.getElementById("btn-limpar");
+    const listaItens = document.getElementById("lista-itens");
+    const textareaTexto = document.getElementById("textarea-texto");
+    const rodapeAguardando = document.getElementById("rodape-aguardando");
+    const btnAnalisar = document.getElementById("btn-analisar");
+
+    // Alternador de abas
+    tabArquivo.addEventListener("click", () => setModo("arquivo"));
+    tabTexto.addEventListener("click", () => setModo("texto"));
+
+    function setModo(modo) {
+      modoAtual = modo;
+      if (modo === "arquivo") {
+        tabArquivo.setAttribute("aria-selected", "true");
+        tabTexto.setAttribute("aria-selected", "false");
+        painelArquivo.style.display = "flex";
+        painelTexto.style.display = "none";
+      } else {
+        tabArquivo.setAttribute("aria-selected", "false");
+        tabTexto.setAttribute("aria-selected", "true");
+        painelArquivo.style.display = "none";
+        painelTexto.style.display = "flex";
+      }
+      atualizarEstadoGeral();
+      notifyHeight();
+    }
+
+    // Arraste e solte
+    dropzone.addEventListener("click", (e) => {
+      if (e.target !== btnSelecionar) {
+        inputArquivo.click();
+      }
+    });
+
+    btnSelecionar.addEventListener("click", (e) => {
+      e.stopPropagation();
+      inputArquivo.click();
+    });
+
+    ["dragenter", "dragover"].forEach(evt => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(evt => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove("dragover");
+      });
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        processarArquivosSelecionados(Array.from(dt.files));
+      }
+    });
+
+    inputArquivo.addEventListener("change", (e) => {
+      if (inputArquivo.files && inputArquivo.files.length > 0) {
+        processarArquivosSelecionados(Array.from(inputArquivo.files));
+        inputArquivo.value = "";
+      }
+    });
+
+    // Limpar tudo
+    btnLimpar.addEventListener("click", () => {
+      arquivosLista = [];
+      ocultarValidacao();
+      atualizarListaVisual();
+      atualizarEstadoGeral();
+      notifyHeight();
+    });
+
+    function mostrarValidacao(msg) {
+      msgValidacao.innerText = msg;
+      msgValidacao.style.display = "block";
+      notifyHeight();
+    }
+
+    function ocultarValidacao() {
+      msgValidacao.innerText = "";
+      msgValidacao.style.display = "none";
+    }
+
+    function processarArquivosSelecionados(arquivosNovos) {
+      ocultarValidacao();
+      let houveRejeicao = false;
+
+      for (const arq of arquivosNovos) {
+        const partes = arq.name.split(".");
+        const ext = partes.length > 1 ? partes.pop().toLowerCase() : "";
+
+        if (!EXTENSOES_PERMITIDAS.has(ext)) {
+          mostrarValidacao(`${arq.name} não é aceito. Use PDF, PNG, JPG, WEBP, HEIC, TXT ou JSON.`);
+          houveRejeicao = true;
+          continue;
+        }
+
+        if (arq.size > LIMITE_BYTES) {
+          mostrarValidacao(`${arq.name} excede o limite de 10 MB.`);
+          houveRejeicao = true;
+          continue;
+        }
+
+        const idUnico = "arq_" + Math.random().toString(36).substring(2, 11) + "_" + Date.now();
+        const itemObj = {
+          id: idUnico,
+          file: arq,
+          name: arq.name,
+          size: arq.size,
+          tipoRotulo: obterTipoRotulo(arq.name),
+          state: "ENVIANDO",
+          percent: 0,
+          loaded: 0,
+          total: arq.size,
+          data_b64: null,
+        };
+
+        arquivosLista.push(itemObj);
+        iniciarUploadItem(itemObj);
+      }
+
+      atualizarListaVisual();
+      atualizarEstadoGeral();
+      notifyHeight();
+    }
+
+    function iniciarUploadItem(item) {
+      const reader = new FileReader();
+
+      reader.onprogress = (evt) => {
+        if (evt.lengthComputable) {
+          item.loaded = evt.loaded;
+          item.total = evt.total || item.size;
+          item.percent = Math.min(99, Math.round((evt.loaded / item.total) * 100));
+          renderizarItemEspecifico(item);
+          atualizarCabecalhoLista();
+        }
+      };
+
+      reader.onload = () => {
+        item.loaded = item.size;
+        item.percent = 100;
+        item.state = "PRONTO";
+        const result = reader.result;
+        if (typeof result === "string") {
+          const idx = result.indexOf(",");
+          item.data_b64 = idx !== -1 ? result.substring(idx + 1) : result;
+        }
+        renderizarItemEspecifico(item);
+        atualizarCabecalhoLista();
+        atualizarEstadoGeral();
+        notifyHeight();
+      };
+
+      reader.onerror = () => {
+        removerArquivoId(item.id);
+        mostrarValidacao(`Erro ao ler o arquivo ${item.name}.`);
+      };
+
+      reader.readAsDataURL(item.file);
+    }
+
+    function removerArquivoId(id) {
+      arquivosLista = arquivosLista.filter(a => a.id !== id);
+      atualizarListaVisual();
+      atualizarEstadoGeral();
+      notifyHeight();
+    }
+
+    function atualizarCabecalhoLista() {
+      const total = arquivosLista.length;
+      if (total === 0) return;
+
+      const prontos = arquivosLista.filter(a => a.state === "PRONTO").length;
+      const enviando = total - prontos;
+
+      if (enviando === 0) {
+        listaTitulo.innerText = total === 1 ? "1 arquivo anexado" : `${total} arquivos anexados`;
+        btnLimpar.style.display = "block";
+      } else {
+        listaTitulo.innerText = `${total} arquivos · ${prontos} pronto(s)`;
+        btnLimpar.style.display = "none";
+      }
+    }
+
+    function atualizarListaVisual() {
+      if (arquivosLista.length === 0) {
+        listaBloco.style.display = "none";
+        listaItens.innerHTML = "";
+        return;
+      }
+
+      listaBloco.style.display = "flex";
+      atualizarCabecalhoLista();
+
+      listaItens.innerHTML = "";
+      for (const item of arquivosLista) {
+        const li = document.createElement("li");
+        li.className = "arq-item";
+        li.id = "el_" + item.id;
+        li.innerHTML = gerarHtmlItem(item);
+        listaItens.appendChild(li);
+
+        atribuirEventosItem(li, item);
+      }
+    }
+
+    function renderizarItemEspecifico(item) {
+      const li = document.getElementById("el_" + item.id);
+      if (li) {
+        li.innerHTML = gerarHtmlItem(item);
+        atribuirEventosItem(li, item);
+      }
+    }
+
+    function gerarHtmlItem(item) {
+      const ehPronto = item.state === "PRONTO";
+
+      const htmlLinhaPrincipal = `
+        <div class="arq-linha-principal">
+          <div class="arq-icone-quadrado" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B3F95" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+          </div>
+          <div class="arq-bloco-texto">
+            <div class="arq-nome" title="${escaparHtml(item.name)}">${escaparHtml(item.name)}</div>
+            ${
+              ehPronto
+                ? `<div class="arq-status-pronto">${escaparHtml(item.tipoRotulo)} · ${formatarTamanho(item.size)} · pronto para análise</div>`
+                : `<div class="arq-status-enviando">Enviando… ${item.percent}% · ${formatarTamanho(item.loaded)} de ${formatarTamanho(item.total)}</div>`
+            }
+          </div>
+          ${
+            ehPronto
+              ? `
+              <div class="arq-acoes">
+                <div class="arq-check-circulo" aria-label="Pronto">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0B6B4B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <button type="button" class="btn-lixeira" aria-label="Remover ${escaparHtml(item.name)}" data-remover="${item.id}">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A3281C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                  </svg>
+                </button>
+              </div>
+              `
+              : ""
+          }
+        </div>
+        ${
+          !ehPronto
+            ? `
+            <div class="arq-progresso-trilho" role="progressbar" aria-valuenow="${item.percent}" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso do envio">
+              <div class="arq-progresso-barra" style="width: ${item.percent}%;"></div>
+            </div>
+            `
+            : ""
+        }
+      `;
+
+      return htmlLinhaPrincipal;
+    }
+
+    function atribuirEventosItem(li, item) {
+      const btnRemover = li.querySelector("[data-remover]");
+      if (btnRemover) {
+        btnRemover.addEventListener("click", () => {
+          removerArquivoId(item.id);
+        });
+      }
+    }
+
+    // Textarea do modo texto
+    textareaTexto.addEventListener("input", () => {
+      if (modoAtual === "texto") {
+        atualizarEstadoGeral();
+      }
+    });
+
+    function atualizarEstadoGeral() {
+      if (modoAtual === "arquivo") {
+        const total = arquivosLista.length;
+        const totalBytes = arquivosLista.reduce((acc, a) => acc + a.size, 0);
+        const excedeLimiteTotal = totalBytes > LIMITE_TOTAL_LOTE_BYTES;
+        const enviando = arquivosLista.some(a => a.state === "ENVIANDO");
+        const todosProntos = total > 0 && !enviando && !excedeLimiteTotal;
+
+        if (excedeLimiteTotal) {
+          mostrarValidacao(`O tamanho total do lote (${formatarTamanho(totalBytes)}) excede o limite de 70 MB por envio. Remova alguns documentos para continuar.`);
+        } else if (msgValidacao.innerText.includes("excede o limite de 70 MB")) {
+          ocultarValidacao();
+        }
+
+        if (total === 1) {
+          btnAnalisar.innerText = "Analisar documento";
+        } else {
+          btnAnalisar.innerText = "Analisar documentos";
+        }
+
+        if (excedeLimiteTotal) {
+          rodapeAguardando.style.display = "none";
+          btnAnalisar.classList.remove("habilitado");
+          btnAnalisar.setAttribute("aria-disabled", "true");
+        } else if (enviando) {
+          rodapeAguardando.style.display = "block";
+          btnAnalisar.classList.remove("habilitado");
+          btnAnalisar.setAttribute("aria-disabled", "true");
+        } else if (todosProntos) {
+          rodapeAguardando.style.display = "none";
+          btnAnalisar.classList.add("habilitado");
+          btnAnalisar.removeAttribute("aria-disabled");
+        } else {
+          rodapeAguardando.style.display = "none";
+          btnAnalisar.classList.remove("habilitado");
+          btnAnalisar.setAttribute("aria-disabled", "true");
+        }
+      } else {
+        // Modo Texto
+        rodapeAguardando.style.display = "none";
+        btnAnalisar.innerText = "Analisar documento";
+        const temTexto = textareaTexto.value.trim().length > 0;
+        if (temTexto) {
+          btnAnalisar.classList.add("habilitado");
+          btnAnalisar.removeAttribute("aria-disabled");
+        } else {
+          btnAnalisar.classList.remove("habilitado");
+          btnAnalisar.setAttribute("aria-disabled", "true");
+        }
+      }
+    }
+
+    // Clique em Analisar
+    btnAnalisar.addEventListener("click", () => {
+      if (!btnAnalisar.classList.contains("habilitado")) return;
+
+      if (modoAtual === "arquivo") {
+        const totalBytes = arquivosLista.reduce((acc, a) => acc + a.size, 0);
+        if (totalBytes > LIMITE_TOTAL_LOTE_BYTES) return;
+
+        const prontos = arquivosLista.filter(a => a.state === "PRONTO");
+        if (prontos.length === 0) return;
+
+        const payload = {
+          acao: "analisar_arquivos",
+          arquivos: prontos.map(a => ({
+            name: a.name,
+            size: a.size,
+            type: a.file.type || "",
+            data_b64: a.data_b64,
+          })),
+        };
+
+        // Limpa a tela imediatamente deixando-a normal e vazia
+        arquivosLista = [];
+        inputArquivo.value = "";
+        atualizarListaVisual();
+        atualizarEstadoGeral();
+        notifyHeight();
+
+        sendComponentValue(payload);
+      } else {
+        const texto = textareaTexto.value.trim();
+        if (!texto) {
+          msgValidacaoTexto.innerText = "Cole o texto do documento para analisar.";
+          msgValidacaoTexto.style.display = "block";
+          return;
+        }
+        msgValidacaoTexto.style.display = "none";
+
+        const payload = {
+          acao: "analisar_texto",
+          texto: texto,
+        };
+
+        // Limpa o textarea imediatamente deixando a tela normal
+        textareaTexto.value = "";
+        atualizarEstadoGeral();
+        notifyHeight();
+
+        sendComponentValue(payload);
+      }
+    });
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== window.parent || event.data?.type !== "streamlit:render") {
+        return;
+      }
+      notifyHeight();
+    });
+
+    window.addEventListener("resize", notifyHeight);
+    window.addEventListener("load", notifyHeight);
+
+    // Comunica ao Streamlit que o componente foi inicializado e está pronto
+    window.parent.postMessage(
+      { isStreamlitMessage: true, type: "streamlit:componentReady", apiVersion: 1 },
+      "*"
+    );
+
+    notifyHeight();
+    setTimeout(notifyHeight, 50);
+    setTimeout(notifyHeight, 200);
+    setTimeout(notifyHeight, 500);
+  </script>
+</body>
+</html>

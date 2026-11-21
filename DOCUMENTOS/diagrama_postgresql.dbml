@@ -1,0 +1,263 @@
+// MediFlow — esquema relacional PostgreSQL
+// Fonte: backend/app/models/triagem.py + migrations Alembic 0001–0021.
+// É um diagrama do esquema declarado no repositório; não foi comparado com uma instância ativa.
+// Cole este conteúdo no editor do dbdiagram.io como DBML.
+
+Project mediflow_postgresql {
+  database_type: 'PostgreSQL'
+  Note: 'Banco principal MediFlow. O banco lógico da Evolution e as tabelas internas do checkpointer LangGraph estão fora deste diagrama.'
+}
+
+Table hospitais {
+  id integer [pk, increment]
+  nome varchar(150) [not null, unique]
+  cnpj varchar(30) [unique]
+  cidade varchar(100) [default: 'São Paulo']
+  uf varchar(2) [default: 'SP']
+  ativo boolean [default: true]
+  created_at timestamp
+  estabelecimento_id integer [unique]
+  categoria_id integer
+}
+
+Table medicos {
+  id integer [pk, increment]
+  crm varchar(30) [not null, unique]
+  nome varchar(150) [not null]
+  especialidade varchar(100) [default: 'Clínica Médica']
+  uf varchar(2) [default: 'SP']
+  created_at timestamp
+}
+
+Table pacientes {
+  id integer [pk, increment]
+  cpf varchar(20) [unique]
+  nome varchar(150) [not null]
+  idade integer
+  cadastro_provisorio boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table documentos_triagem {
+  id integer [pk, increment]
+  documento_id varchar(100) [not null, unique]
+  tipo_arquivo varchar(50) [not null]
+  canal_origem varchar(100) [default: 'Pronto_Socorro']
+  documento_texto text
+  paciente_id integer
+  medico_id integer
+  hospital_id integer
+  tipo_documento varchar(100)
+  especialidade varchar(100)
+  nivel_prioridade varchar(50) [default: 'Rotina']
+  score_confianca float [default: 1.0]
+  destino_principal varchar(100)
+  requer_auditoria_humana boolean [default: false]
+  status_processamento varchar(50) [default: 'processado']
+  justificativa_roteamento text
+  dados_extraidos json
+  evidencias_campos json
+  metadados_documento json
+  campos_rotulados json
+  escopo_documento varchar(30)
+  legibilidade_documento varchar(30)
+  evidencias_escopo json
+  justificativa_escopo text
+  motivo_revisao text
+  etapa_revisao varchar(50)
+  caminho_fonte varchar(500)
+  bucket_oci varchar(150)
+  caminho_objeto_oci varchar(255)
+  whatsapp_numero varchar(30)
+  whatsapp_nome varchar(150)
+  whatsapp_message_id varchar(150)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table trilha_auditoria {
+  id integer [pk, increment]
+  documento_id varchar(100) [not null]
+  auditor_nome varchar(150) [not null]
+  decisao varchar(50) [not null]
+  justificativa text [not null]
+  dados_anteriores json
+  dados_finais json
+  created_at timestamp
+}
+
+Table usuarios_sistema {
+  id integer [pk, increment]
+  email varchar(150) [not null, unique]
+  nome varchar(150) [not null]
+  senha_hash varchar(255) [not null]
+  papel varchar(50) [not null, default: 'INSTITUCIONAL_WHATSAPP']
+  trocar_senha_obrigatorio boolean [not null, default: false]
+  registro varchar(100)
+  especialidade varchar(150)
+  pode_gerenciar_whatsapp boolean [not null, default: false]
+  ativo boolean [not null, default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table instancias_whatsapp {
+  id integer [pk, increment]
+  instance_name varchar(100) [not null, unique]
+  status_conexao varchar(50) [not null, default: 'close']
+  conectado boolean [not null, default: false]
+  numero_conectado varchar(30)
+  webhook_url varchar(500)
+  gerenciado_por_email varchar(150) [not null, default: 'mediflow@equipe.com.br']
+  modo_operacao varchar(50) [not null, default: 'AGENTE_AUTONOMO_UNICO']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table enfermeiros {
+  id integer [pk, increment]
+  coren varchar(30) [not null, unique]
+  nome varchar(150) [not null]
+  area_atuacao varchar(100)
+  uf varchar(2)
+  created_at timestamp
+}
+
+Table estabelecimentos_saude {
+  id integer [pk, increment]
+  tipo varchar(20) [not null, note: 'CHECK: HOSPITAL ou CLINICA']
+  nome varchar(180) [not null]
+  cnpj varchar(30) [unique]
+  logradouro varchar(180)
+  numero varchar(30)
+  complemento varchar(120)
+  bairro varchar(100)
+  cidade varchar(100) [not null]
+  uf varchar(2) [not null]
+  cep varchar(12)
+  ativo boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table categorias_hospital {
+  id integer [pk, increment]
+  nome varchar(80) [not null, unique]
+  descricao varchar(250)
+}
+
+Table clinicas {
+  estabelecimento_id integer [pk]
+}
+
+Table estabelecimento_profissionais {
+  estabelecimento_id integer [not null]
+  medico_id integer [not null]
+  funcao varchar(50)
+  ativo boolean [not null, default: true]
+  inicio_vinculo timestamp
+  fim_vinculo timestamp
+
+  indexes {
+    (estabelecimento_id, medico_id) [pk]
+  }
+}
+
+Table estabelecimento_enfermeiros {
+  estabelecimento_id integer [not null]
+  enfermeiro_id integer [not null]
+  funcao varchar(50)
+  ativo boolean [not null, default: true]
+  inicio_vinculo timestamp
+  fim_vinculo timestamp
+
+  indexes {
+    (estabelecimento_id, enfermeiro_id) [pk]
+  }
+}
+
+Table hospital_diretores {
+  hospital_id integer [not null]
+  usuario_id integer [not null]
+  inicio_vinculo timestamp
+  fim_vinculo timestamp
+
+  indexes {
+    (hospital_id, usuario_id) [pk]
+  }
+}
+
+Table atendimentos {
+  id integer [pk, increment]
+  paciente_id integer [not null]
+  estabelecimento_id integer
+  data_atendimento timestamp [not null, default: `now()`]
+  status varchar(30) [not null, default: 'ABERTO']
+}
+
+Table atendimento_profissionais {
+  atendimento_id integer [not null]
+  medico_id integer [not null]
+  funcao varchar(50)
+
+  indexes {
+    (atendimento_id, medico_id) [pk]
+  }
+}
+
+Table atendimento_enfermeiros {
+  atendimento_id integer [not null]
+  enfermeiro_id integer [not null]
+  funcao varchar(50)
+
+  indexes {
+    (atendimento_id, enfermeiro_id) [pk]
+  }
+}
+
+Table destinos_roteamento {
+  id integer [pk, increment]
+  codigo varchar(50) [not null, unique]
+  tipo varchar(25) [not null, note: 'CHECK: FILA ou ESTABELECIMENTO']
+  estabelecimento_id integer
+  descricao varchar(250)
+}
+
+Table encaminhamentos {
+  id integer [pk, increment]
+  atendimento_id integer [not null]
+  destino_id integer [not null]
+  status varchar(25) [not null, default: 'SOLICITADO', note: 'CHECK: SOLICITADO, ACEITO, CONCLUIDO, RECUSADO ou CANCELADO']
+  solicitado_em timestamp [not null, default: `now()`]
+  concluido_em timestamp
+  usuario_responsavel_id integer
+  observacao text
+}
+
+Ref: documentos_triagem.paciente_id > pacientes.id
+Ref: documentos_triagem.medico_id > medicos.id
+Ref: documentos_triagem.hospital_id > hospitais.id
+
+Ref: hospitais.estabelecimento_id - estabelecimentos_saude.id
+Ref: hospitais.categoria_id > categorias_hospital.id
+Ref: clinicas.estabelecimento_id > estabelecimentos_saude.id
+Ref: estabelecimento_profissionais.estabelecimento_id > estabelecimentos_saude.id
+Ref: estabelecimento_profissionais.medico_id > medicos.id
+Ref: estabelecimento_enfermeiros.estabelecimento_id > estabelecimentos_saude.id
+Ref: estabelecimento_enfermeiros.enfermeiro_id > enfermeiros.id
+Ref: hospital_diretores.hospital_id > hospitais.id
+Ref: hospital_diretores.usuario_id > usuarios_sistema.id
+
+Ref: atendimentos.paciente_id > pacientes.id
+Ref: atendimentos.estabelecimento_id > estabelecimentos_saude.id
+Ref: atendimento_profissionais.atendimento_id > atendimentos.id
+Ref: atendimento_profissionais.medico_id > medicos.id
+Ref: atendimento_enfermeiros.atendimento_id > atendimentos.id
+Ref: atendimento_enfermeiros.enfermeiro_id > enfermeiros.id
+Ref: destinos_roteamento.estabelecimento_id > estabelecimentos_saude.id
+Ref: encaminhamentos.atendimento_id > atendimentos.id
+Ref: encaminhamentos.destino_id > destinos_roteamento.id
+Ref: encaminhamentos.usuario_responsavel_id > usuarios_sistema.id
+
+// A migration/modelo não declara FK de trilha_auditoria.documento_id
+// para documentos_triagem.documento_id; por isso não há Ref aqui.

@@ -112,6 +112,7 @@ class TriagemService:
         dados_extraidos = DadosExtraidos(
             paciente=Paciente(
                 nome=paciente_dict.get("nome"),
+                cpf=paciente_dict.get("cpf"),
                 idade=paciente_dict.get("idade"),
             ),
             medico_solicitante=MedicoSolicitante(
@@ -273,7 +274,12 @@ class TriagemService:
             paciente_cadastro = {"status": "ambiguo", "candidatos": len(candidatos_paciente)}
         else:
             paciente_cadastro = {"status": "nao_encontrado"}
-        paciente_cadastro.update({"dados_documento": {"nome": nome_paciente or None, "idade": idade_paciente}})
+        cpf_paciente = paciente_documento.get("cpf")
+        paciente_cadastro.update({"dados_documento": {
+            "nome": nome_paciente or None,
+            "cpf": cpf_paciente,
+            "idade": idade_paciente,
+        }})
 
         nome_medico = (medico_documento.get("nome") or "").strip()
         crm_medico = (medico_documento.get("crm") or "").strip().upper()

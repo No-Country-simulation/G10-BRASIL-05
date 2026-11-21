@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 from typing import Any
 
@@ -116,3 +117,70 @@ class RedisAuditService:
             return json.loads(valor)
         except Exception:
             return None
+
+    def adquirir_lock_upload(self, usuario_id: int | str, ttl_segundos: int = 30) -> bool:
+        """Adquire trava exclusiva de submissao de lote de upload por usuario no Redis."""
+        chave = f"lock:upload_lote:{usuario_id}"
+        return bool(self._client.set(chave, "1", nx=True, ex=ttl_segundos))
+
+    def liberar_lock_upload(self, usuario_id: int | str) -> bool:
+        """Remove trava de submissao de lote de upload do usuario no Redis."""
+        chave = f"lock:upload_lote:{usuario_id}"
+        return bool(self._client.delete(chave))
+
+    def verificar_lock_upload(self, usuario_id: int | str) -> bool:
+        """Verifica se existe trava ativa de lote de upload para o usuario no Redis."""
+        chave = f"lock:upload_lote:{usuario_id}"
+        return bool(self._client.exists(chave))
+
+
+_LOCK_UPLOAD_MEMORIA = threading.Lock()
+_COOLDOWN_UPLOAD_MEMORIA: dict[str, float] = {}
+
+
+def adquirir_lock_upload_lote(usuario_id: int | str, ttl_segundos: int = 30) -> bool:
+    """Tenta adquirir trava de envio de lote para o usuario por 30s.
+
+    Usa Redis se disponivel atraves de RedisAuditService (chave lock:upload_lote:{usuario_id}).
+    Se Redis estiver offline, utiliza fallback seguro em memoria.
+    Retorna True se adquiriu o lock com sucesso, ou False se o cooldown ainda esta ativo.
+    """
+    chave = f"lock:upload_lote:{usuario_id}"
+    try:
+        servico = RedisAuditService()
+        return servico.adquirir_lock_upload(usuario_id, ttl_segundos=ttl_segundos)
+    except Exception:
+        pass
+
+    agora = time.time()
+    with _LOCK_UPLOAD_MEMORIA:
+        expiradas = [k for k, exp in _COOLDOWN_UPLOAD_MEMORIA.items() if exp <= agora]
+        for k in expiradas:
+            del _COOLDOWN_UPLOAD_MEMORIA[k]
+
+        expiracao = _COOLDOWN_UPLOAD_MEMORIA.get(chave)
+        if expiracao is not None and expiracao > agora:
+            return False
+
+        _COOLDOWN_UPLOAD_MEMORIA[chave] = agora + ttl_segundos
+        return True
+
+
+def liberar_lock_upload_lote(usuario_id: int | str) -> None:
+    """Libera a trava de upload caso a submissao falhe antes de processar qualquer arquivo."""
+    chave = f"lock:upload_lote:{usuario_id}"
+    try:
+        servico = RedisAuditService()
+        servico.liberar_lock_upload(usuario_id)
+    except Exception:
+        pass
+
+    with _LOCK_UPLOAD_MEMORIA:
+        _COOLDOWN_UPLOAD_MEMORIA.pop(chave, None)
+
+
+def limpar_locks_upload_memoria() -> None:
+    """Limpa o registro de cooldown em memoria para testes unitarios."""
+    with _LOCK_UPLOAD_MEMORIA:
+        _COOLDOWN_UPLOAD_MEMORIA.clear()
+

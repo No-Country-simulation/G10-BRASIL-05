@@ -2,6 +2,8 @@ from pathlib import Path
 
 import streamlit as st
 
+from services.autenticacao import deslogar, esta_autenticado
+
 CAMINHO_DA_LOGO = Path(__file__).resolve().parents[1] / "assets" / "logo.png"
 CAMINHO_DO_ICONE = Path(__file__).resolve().parents[1] / "assets" / "logo_icone.png"
 
@@ -59,6 +61,11 @@ def exibir_barra_lateral() -> None:
             """,
             unsafe_allow_html=True,
         )
+
+        if esta_autenticado(st.session_state):
+            if st.button("Sair da conta", icon=":material/logout:", use_container_width=True, key="btn_sair_barra_lateral"):
+                deslogar(st.session_state)
+                st.rerun()
 
         st.markdown(
             """

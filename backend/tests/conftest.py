@@ -56,6 +56,7 @@ def autenticar_clientes_de_teste(request):
                 nome="Diretor de Teste",
                 senha_hash=gerar_hash_senha(SENHA_DIRETOR_TESTE),
                 papel="DIRETOR",
+                trocar_senha_obrigatorio=False,
                 ativo=True,
                 pode_gerenciar_whatsapp=False,
             )
@@ -63,6 +64,7 @@ def autenticar_clientes_de_teste(request):
         else:
             diretor.senha_hash = gerar_hash_senha(SENHA_DIRETOR_TESTE)
             diretor.papel = "DIRETOR"
+            diretor.trocar_senha_obrigatorio = False
             diretor.ativo = True
         institucional = db.query(UsuarioSistemaModel).filter_by(email="mediflow@equipe.com.br").first()
         if not institucional:
@@ -71,6 +73,7 @@ def autenticar_clientes_de_teste(request):
                 nome="Conta WhatsApp de Teste",
                 senha_hash=gerar_hash_senha(SENHA_WPP_TESTE),
                 papel="INSTITUCIONAL_WHATSAPP",
+                trocar_senha_obrigatorio=False,
                 ativo=True,
                 pode_gerenciar_whatsapp=True,
             )
@@ -78,6 +81,7 @@ def autenticar_clientes_de_teste(request):
         else:
             institucional.senha_hash = gerar_hash_senha(SENHA_WPP_TESTE)
             institucional.papel = "INSTITUCIONAL_WHATSAPP"
+            institucional.trocar_senha_obrigatorio = False
             institucional.ativo = True
             institucional.pode_gerenciar_whatsapp = True
         db.commit()
@@ -95,3 +99,23 @@ def autenticar_clientes_de_teste(request):
         if isinstance(objeto, TestClient):
             objeto.headers["Authorization"] = f"Bearer {token_diretor}"
     yield
+
+
+@pytest.fixture(autouse=True)
+def mockar_fila_em_testes_isolados(monkeypatch, request):
+    """Em testes isolados sem container Redis, evita que testes funcionais de controllers falhem por ausência de fila."""
+    modulo_nome = getattr(request.module, "__name__", "")
+    if "resiliencia" in request.node.name or "resiliencia" in modulo_nome:
+        yield
+        return
+
+    from unittest.mock import MagicMock
+    job_mock = MagicMock()
+    job_mock.id = "JOB-MOCK-TEST"
+
+    monkeypatch.setattr("app.controllers.triagem_jobs.reservar_trabalho", lambda *args, **kwargs: 1)
+    monkeypatch.setattr("app.controllers.triagem_jobs.enfileirar_documento", lambda *args, **kwargs: job_mock)
+    monkeypatch.setattr("app.controllers.triagem_jobs.enfileirar_texto", lambda *args, **kwargs: job_mock)
+    monkeypatch.setattr("app.controllers.triagem_jobs.registrar_lote_triagem", lambda *args, **kwargs: None)
+    yield
+

@@ -61,17 +61,20 @@ def test_aceita_medico_e_medicamento_com_subcampos_ausentes():
     assert dados.medicamentos[1].dosagem is None
 
 
-@pytest.mark.parametrize(
-    ("payload", "campo_extra"),
-    [
-        ({"campo_desconhecido": "valor"}, "campo_desconhecido"),
-        ({"medico_solicitante": {"uf": "SP"}}, "uf"),
-        ({"medicamentos": [{"frequencia": "8/8h"}]}, "frequencia"),
-    ],
-)
-def test_rejeita_campos_extras(payload, campo_extra):
-    with pytest.raises(ValidationError, match=campo_extra):
-        DadosExtraidos.model_validate(payload)
+def test_ignora_campos_extras_da_llm_no_schema_e_nos_modelos_filhos():
+    dados = DadosExtraidos.model_validate(
+        {
+            "achados_criticos": ["campo adicional"],
+            "metodo": "llm_generativa",
+            "paciente": {"nome": "Maria Silva", "registro": "extra"},
+            "medico_solicitante": {"nome": "João Souza", "uf": "SP"},
+            "medicamentos": [{"medicamento": "AAS", "frequencia": "8/8h"}],
+        }
+    )
+
+    assert dados.paciente.nome == "Maria Silva"
+    assert dados.medico_solicitante.nome == "João Souza"
+    assert dados.medicamentos[0].medicamento == "AAS"
 
 
 @pytest.mark.parametrize(

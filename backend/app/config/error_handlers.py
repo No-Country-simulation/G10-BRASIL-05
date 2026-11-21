@@ -46,6 +46,7 @@ def obter_codigo_http(status_code: int) -> str:
         status.HTTP_404_NOT_FOUND: "RECURSO_NAO_ENCONTRADO",
         status.HTTP_409_CONFLICT: "CONFLITO_DADOS",
         status.HTTP_413_REQUEST_ENTITY_TOO_LARGE: "TAMANHO_ARQUIVO_EXCEDIDO",
+        status.HTTP_429_TOO_MANY_REQUESTS: "MUITAS_REQUISICOES",
         HTTP_UNPROCESSABLE_ENTITY: "ENTIDADE_NAO_PROCESSAVEL",
         status.HTTP_500_INTERNAL_SERVER_ERROR: "ERRO_INTERNO_SERVIDOR",
         status.HTTP_503_SERVICE_UNAVAILABLE: "SERVICO_INDISPONIVEL",
@@ -93,6 +94,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
         mensagem=mensagem,
         path=request.url.path,
     )
+    payload["detail"] = mensagem
     return JSONResponse(status_code=exc.status_code, content=payload)
 
 

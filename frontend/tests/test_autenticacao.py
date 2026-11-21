@@ -85,6 +85,7 @@ def test_sessao_e_encerrada_se_api_nao_validar_token(modo_api_real, monkeypatch)
 
         def get(self, *args, **kwargs):
             response = Resposta()
+            response.status_code = 401
             response.is_error = True
             return response
 
@@ -92,6 +93,51 @@ def test_sessao_e_encerrada_se_api_nao_validar_token(modo_api_real, monkeypatch)
     state = {CHAVE_IS_AUTENTICADO: True, CHAVE_JWT_TOKEN: "expired", CHAVE_USUARIO_LOGADO: {"id": "u1"}}
     assert not validar_sessao_api(state)
     assert not esta_autenticado(state)
+
+
+def test_validar_sessao_api_tolera_falha_de_rede_sem_deslogar(monkeypatch):
+    import httpx
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, *args, **kwargs):
+            raise httpx.ReadTimeout("Timeout ao conectar com backend durante envio de lote")
+
+    monkeypatch.setattr("services.autenticacao.httpx.Client", Client)
+    state = {CHAVE_IS_AUTENTICADO: True, CHAVE_JWT_TOKEN: "token_valido", CHAVE_USUARIO_LOGADO: {"id": "u1"}}
+    assert validar_sessao_api(state) is True
+    assert esta_autenticado(state) is True
+
+
+def test_validar_sessao_api_tolera_erro_5xx_sem_deslogar(monkeypatch):
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, *args, **kwargs):
+            response = Resposta()
+            response.status_code = 503
+            response.is_error = True
+            return response
+
+    monkeypatch.setattr("services.autenticacao.httpx.Client", Client)
+    state = {CHAVE_IS_AUTENTICADO: True, CHAVE_JWT_TOKEN: "token_valido", CHAVE_USUARIO_LOGADO: {"id": "u1"}}
+    assert validar_sessao_api(state) is True
+    assert esta_autenticado(state) is True
 
 
 def test_deslogar_limpa_sessao():

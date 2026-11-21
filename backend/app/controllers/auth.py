@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.models.triagem import UsuarioSistemaModel
@@ -15,10 +15,15 @@ from app.services.autenticacao import (
     autenticar_usuario,
     emitir_token,
     exigir_papeis,
+    exigir_usuario_atual_cookie,
     exigir_usuario_atual,
     gerar_hash_senha,
     usuario_publico,
 )
+from app.config.settings import settings
+
+
+NOME_COOKIE_SESSAO = "mediflow_access_token"
 
 
 
@@ -44,6 +49,43 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 def obter_sessao(usuario: UsuarioSistemaModel = Depends(exigir_usuario_atual)):
     return usuario_publico(usuario)
+
+
+def definir_cookie_sessao(
+    request: Request,
+    response: Response,
+    usuario: UsuarioSistemaModel = Depends(exigir_usuario_atual),
+):
+    """Emite cookie HttpOnly após validar o Bearer apresentado pelo frontend."""
+    autorizacao = request.headers.get("authorization", "")
+    esquema, _, token = autorizacao.partition(" ")
+    if esquema.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="Autenticação necessária.")
+    response.set_cookie(
+        key=NOME_COOKIE_SESSAO,
+        value=token,
+        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=True,
+        secure=settings.APP_ENV.lower() in {"production", "prod"},
+        samesite="lax",
+        path="/",
+    )
+    return {"ok": True}
+
+
+def encerrar_sessao_cookie(
+    response: Response,
+    _usuario: UsuarioSistemaModel = Depends(exigir_usuario_atual_cookie),
+):
+    """Remove o cookie HttpOnly da sessão autenticada no navegador."""
+    response.delete_cookie(
+        key=NOME_COOKIE_SESSAO,
+        httponly=True,
+        secure=settings.APP_ENV.lower() in {"production", "prod"},
+        samesite="lax",
+        path="/",
+    )
+    return {"ok": True}
 
 
 def alterar_senha(

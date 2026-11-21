@@ -1,4 +1,5 @@
 from copy import deepcopy
+import re
 
 from utils.formatadores import (
     crm_do_medico,
@@ -45,8 +46,15 @@ def montar_rotulo_da_fila(item: dict) -> str:
 def extrair_valores_editaveis(item: dict) -> dict:
     dados = item.get("dados_extraidos") or {}
     medico = dados.get("medico_solicitante") or {}
+    paciente = dados.get("paciente")
+    cpf = ""
+    if isinstance(paciente, dict):
+        cpf = paciente.get("cpf") or ""
+    if not cpf:
+        cpf = item.get("paciente_cpf") or ""
     return {
-        "paciente_nome": nome_do_paciente(dados.get("paciente")) or "",
+        "paciente_nome": nome_do_paciente(paciente) or "",
+        "paciente_cpf": cpf or "",
         "medico_nome": medico.get("nome") or "",
         "crm": crm_do_medico(medico) or "",
         "diagnostico_principal": dados.get("diagnostico_principal") or "",
@@ -64,8 +72,8 @@ def calcular_correcoes(valores_atuais: dict, valores_editados: dict) -> dict:
 
 def aplicar_correcoes(dados_extraidos: dict, correcoes: dict) -> dict:
     dados = deepcopy(dados_extraidos)
-    if "paciente_nome" in correcoes:
-        dados["paciente"] = _paciente_com_nome(dados.get("paciente"), correcoes["paciente_nome"])
+    if "paciente_nome" in correcoes or "paciente_cpf" in correcoes:
+        dados["paciente"] = _paciente_corrigido(dados.get("paciente"), correcoes)
     if "medico_nome" in correcoes or "crm" in correcoes:
         dados["medico_solicitante"] = _medico_corrigido(dados.get("medico_solicitante"), correcoes)
     if "medico_solicitante" in dados and dados["medico_solicitante"]:
@@ -79,6 +87,19 @@ def aplicar_correcoes(dados_extraidos: dict, correcoes: dict) -> dict:
         if campo in correcoes:
             dados[campo] = correcoes[campo]
     return dados
+
+
+def _paciente_corrigido(paciente, correcoes: dict):
+    if isinstance(paciente, str):
+        if "paciente_cpf" in correcoes:
+            return {"nome": correcoes.get("paciente_nome", paciente), "cpf": correcoes["paciente_cpf"]}
+        return correcoes.get("paciente_nome", paciente)
+    pac = dict(paciente or {})
+    if "paciente_nome" in correcoes:
+        pac["nome"] = correcoes["paciente_nome"]
+    if "paciente_cpf" in correcoes:
+        pac["cpf"] = correcoes["paciente_cpf"]
+    return pac
 
 
 def validar_decisao(acao: str, auditor: str, justificativa: str, correcoes: dict) -> str | None:
@@ -132,3 +153,50 @@ def _medico_corrigido(medico: dict | None, correcoes: dict) -> dict:
         corrigido["crm_uf"] = correcoes["crm"]
         corrigido.pop("crm", None)
     return corrigido
+
+
+_MAPEAMENTO_CLINICO = [
+    (re.compile(r"extra inputs are not permitted", re.IGNORECASE), None),
+    (re.compile(r"o campo ['\"]paciente\.nome['\"] é obrigatório", re.IGNORECASE), "Nome do paciente não identificado no documento."),
+    (re.compile(r"o campo ['\"]exame_realizado['\"] é obrigatório", re.IGNORECASE), "Exame realizado não identificado no documento."),
+    (re.compile(r"o campo ['\"]medico_solicitante\.nome['\"] é obrigatório", re.IGNORECASE), "Nome do médico solicitante não identificado no documento."),
+    (re.compile(r"o campo ['\"]medico_solicitante\.crm_uf['\"] é obrigatório", re.IGNORECASE), "CRM do médico solicitante não identificado no documento."),
+    (re.compile(r"o campo ['\"]medico_solicitante\.crm_uf['\"] tem formato inválido", re.IGNORECASE), "CRM do médico com formato não reconhecido."),
+    (re.compile(r"o campo ['\"]diagnostico_principal['\"] é obrigatório", re.IGNORECASE), "Diagnóstico principal não identificado no documento."),
+    (re.compile(r"o campo ['\"]cid_sugerido['\"] não está no formato cid-10", re.IGNORECASE), "Código CID-10 informado com formato inválido."),
+    (re.compile(r"o campo ['\"]paciente\.idade['\"] deve ser um inteiro", re.IGNORECASE), "Idade do paciente fora da faixa clínica esperada (0 a 120 anos)."),
+    (re.compile(r"receita requer ao menos um medicamento", re.IGNORECASE), "Receita sem medicamentos válidos com dose identificada."),
+    (re.compile(r"a evidência textual ainda não foi verificada contra uma fonte", re.IGNORECASE), "Necessária conferência visual contra o documento original."),
+    (re.compile(r"há valores extraídos sem correspondência literal", re.IGNORECASE), "Dados extraídos requerem confirmação com o documento original."),
+]
+
+
+def humanizar_motivos_revisao(texto: str | None) -> list[str]:
+    """Converte mensagens técnicas de validação e Pydantic em linguagem clínica amigável."""
+    if not texto:
+        return ["Revisão humana necessária para validação clínica."]
+
+    texto_limpo = texto.strip()
+    if texto_limpo.startswith("Encaminhado para fila médica Human-in-the-Loop:"):
+        texto_limpo = texto_limpo.replace("Encaminhado para fila médica Human-in-the-Loop:", "").strip()
+
+    partes = [p.strip() for p in texto_limpo.split(";") if p.strip()]
+    motivos_humanizados: list[str] = []
+
+    for parte in partes:
+        traduzido = None
+        for padrao, substituicao in _MAPEAMENTO_CLINICO:
+            if padrao.search(parte):
+                traduzido = substituicao
+                break
+
+        if traduzido is None:
+            if any(p.search(parte) for p, sub in _MAPEAMENTO_CLINICO if sub is None):
+                continue
+            msg = parte.rstrip(".") + "."
+            if msg and msg not in motivos_humanizados:
+                motivos_humanizados.append(msg)
+        elif traduzido and traduzido not in motivos_humanizados:
+            motivos_humanizados.append(traduzido)
+
+    return motivos_humanizados or ["Revisão humana necessária para validação clínica."]

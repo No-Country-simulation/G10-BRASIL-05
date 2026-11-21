@@ -55,6 +55,10 @@ def test_decisao_aprovada_ou_rejeitada_nao_aceita_correcao(status):
         {"cid_sugerido": "I20.0"},
         {"paciente": {"nome": "Maria Silva"}},
         {"medicamentos": [{"medicamento": "AAS", "dosagem": "100 mg"}]},
+        {
+            "paciente": {"nome": "Maria Silva", "campo_extra": "ignorado"},
+            "achados_criticos": ["ignorado"],
+        },
     ],
 )
 def test_decisao_corrigido_aceita_correcao_parcial_valida(dados_corrigidos):

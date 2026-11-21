@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
+from app.services.health_service import verificar_prontidao_sistema
 
 from app.config.settings import settings
 from app.controllers.auditoria import (
@@ -15,6 +16,8 @@ from app.controllers.auth import (
     alterar_senha,
     atualizar_usuario,
     desativar_usuario,
+    definir_cookie_sessao,
+    encerrar_sessao_cookie,
     listar_usuarios,
     login,
     obter_sessao,
@@ -37,6 +40,7 @@ from app.controllers.evolution import (
 from app.controllers.evolution_webhook import receber_webhook_evolution, verificar_status_webhook
 from app.controllers.historico import listar_documentos
 from app.controllers.triagem import processar_triagem
+from app.controllers.triagem_eventos import stream_eventos_triagem
 from app.controllers.triagem_upload import inspecionar_extracao_documento, processar_upload_triagem
 from app.controllers.triagem_jobs import (
     consultar_trabalho_triagem,
@@ -104,6 +108,10 @@ _register_route(
     "/triagem/trabalhos/{documento_id}", consultar_trabalho_triagem, methods=["GET"],
     tags=["Triagem Clínica"], status_code=status.HTTP_200_OK,
     dependencies=_triagem_access,
+)
+_register_route(
+    "/triagem/eventos/stream", stream_eventos_triagem, methods=["GET"],
+    tags=["Triagem Clínica"], status_code=status.HTTP_200_OK,
 )
 
 # Histórico e auditoria clínica
@@ -193,11 +201,14 @@ _register_route("/webhook/evolution/configurar-webhook", auto_configurar_webhook
 _register_route("/webhook/evolution/desconectar", desconectar_whatsapp, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
 _register_route("/webhook/evolution", verificar_status_webhook, methods=["GET"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
 _register_route("/webhook/evolution", receber_webhook_evolution, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
+_register_route("/webhook/evolution/{evento_path}", receber_webhook_evolution, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
 
 # Autenticação e usuários
 _auth_tag = ["Autenticação e Usuários"]
 _register_route("/auth/login", login, methods=["POST"], tags=_auth_tag, response_model=LoginResponse)
 _register_route("/auth/me", obter_sessao, methods=["GET"], tags=_auth_tag, response_model=UsuarioAutenticado)
+_register_route("/auth/session-cookie", definir_cookie_sessao, methods=["POST"], tags=_auth_tag)
+_register_route("/auth/logout", encerrar_sessao_cookie, methods=["POST"], tags=_auth_tag)
 _register_route("/auth/password", alterar_senha, methods=["PUT"], tags=_auth_tag)
 _register_route("/auth/usuarios", listar_usuarios, methods=["GET"], tags=_auth_tag, response_model=list[UsuarioAutenticado])
 _register_route(
@@ -226,10 +237,29 @@ def root():
 
 
 @api_router.get("/health", tags=["Health"])
-def health_check():
-    """Endpoint de verificação de saúde da aplicação."""
+def health_check(response: Response):
+    """Endpoint de verificação de saúde e prontidão da aplicação."""
+    resultado = verificar_prontidao_sistema()
+    if resultado["status"] != "ready":
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return {
-        "status": "healthy",
+        "status": "healthy" if resultado["status"] == "ready" else "unhealthy",
         "environment": settings.APP_ENV,
-        "database": "configured",
+        "database": resultado["dependencias"]["postgres"]["detalhe"],
+        "dependencias": resultado["dependencias"],
     }
+
+
+@api_router.get("/health/live", tags=["Health"])
+def liveness_check():
+    """Liveness probe: indica apenas se o processo HTTP está em execução."""
+    return {"status": "alive", "app": settings.APP_NAME}
+
+
+@api_router.get("/health/ready", tags=["Health"])
+def readiness_check(response: Response):
+    """Readiness probe: mede conexões reais aos bancos requeridos (PostgreSQL, Redis, Mongo)."""
+    resultado = verificar_prontidao_sistema()
+    if resultado["status"] != "ready":
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return resultado
