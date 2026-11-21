@@ -29,7 +29,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def init_db() -> None:
     """Aplica migrations antes das seeds; SQLite permanece conveniente em dev/testes."""
-    from app.seeders import executar_seeders
+    from app.seeders.execucao import executar_seeders
 
     if "sqlite" in settings.DATABASE_URL.lower():
         Base.metadata.create_all(bind=engine)

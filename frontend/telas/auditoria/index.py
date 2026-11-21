@@ -25,7 +25,7 @@ def render() -> None:
     from components.cards import exibir_item_de_auditoria
     from components.erros import chamar_api_ou_parar
     from services.erros import ErroDeApi
-    from api import (
+    from api.cliente_http import (
         bloquear_documento_auditoria,
         listar_fila_auditoria,
         listar_documentos,

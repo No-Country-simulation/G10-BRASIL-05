@@ -17,7 +17,7 @@ def render() -> None:
     from components.estilos import aplicar_css
     from components.triagem_uploader import render_triagem_uploader
     from telas.triagem.arquivos import ArquivoCarregado
-    from api import enfileirar_documentos, enfileirar_texto_documento
+    from api.cliente_http import enfileirar_documentos, enfileirar_texto_documento
     from services.erros import ErroDeApi
     from utils.requisicao import montar_requisicao
 

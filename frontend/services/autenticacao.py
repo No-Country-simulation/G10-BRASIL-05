@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from api import autenticacao as api_autenticacao
+import api.autenticacao as api_autenticacao
 
 logger = logging.getLogger(__name__)
 

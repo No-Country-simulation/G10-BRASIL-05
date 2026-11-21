@@ -3,14 +3,14 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: mediflow
-      POSTGRES_PASSWORD: mediflow_local_test
-      POSTGRES_DB: mediflow_local_test
+      POSTGRES_PASSWORD: mediflow_password_example
+      POSTGRES_DB: mediflow_db
     ports:
-      - "5435:5432"
+      - "5432:5432"
     volumes:
-      - postgres_local_test_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mediflow -d mediflow_local_test"]
+      test: ["CMD-SHELL", "pg_isready -U mediflow -d mediflow_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -18,9 +18,9 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6380:6379"
+      - "6379:6379"
     volumes:
-      - redis_local_test_data:/data
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -30,9 +30,9 @@ services:
   mongodb:
     image: mongo:7
     ports:
-      - "27018:27017"
+      - "27017:27017"
     volumes:
-      - mongo_local_test_data:/data/db
+      - mongo_data:/data/db
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok' | grep 1"]
       interval: 5s
@@ -44,23 +44,18 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     env_file:
-      - ./backend/.env
+      - ./backend/.env.example
     environment:
       APP_ENV: local
       APP_HOST: 0.0.0.0
       APP_PORT: "8000"
-      DATABASE_URL: postgresql+psycopg://mediflow:mediflow_local_test@postgres:5432/mediflow_local_test
+      DATABASE_URL: postgresql+psycopg://mediflow:mediflow_password_example@postgres:5432/mediflow_db
       REDIS_URL: redis://redis:6379/0
       MONGODB_URL: mongodb://mongodb:27017
-      MONGODB_DATABASE: mediflow_auditoria_local_test
-      OCI_AUTH_MODE: api_key
-      OCI_KEY_FILE: /run/secrets/oci_api_key.pem
-      OPENROUTER_MANAGEMENT_KEY: ""
-    volumes:
-      - "${OCI_KEY_FILE}:/run/secrets/oci_api_key.pem:ro"
-      - backend_local_test_storage:/app/Storage
+      MONGODB_DATABASE: mediflow_auditoria
+      OCI_AUTH_MODE: instance_principal
     ports:
-      - "8767:8000"
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,8 +70,21 @@ services:
       retries: 10
       start_period: 30s
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    env_file:
+      - ./frontend/.env.example
+    environment:
+      APP_ENV: local
+      API_URL_LOCAL: http://backend:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+
 volumes:
-  postgres_local_test_data:
-  redis_local_test_data:
-  mongo_local_test_data:
-  backend_local_test_storage:
+  postgres_data:
+  redis_data:
+  mongo_data:

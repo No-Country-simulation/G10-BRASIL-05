@@ -14,6 +14,7 @@ from sqlalchemy import (
     func, text,
 )
 from sqlalchemy.orm import declarative_base, relationship, synonym, validates
+from sqlalchemy.dialects.postgresql import JSONB
 
 Base = declarative_base()
 
@@ -173,10 +174,6 @@ class UsuarioSistemaModel(Base):
     medico = relationship("MedicoModel")
     enfermeiro = relationship("EnfermeiroModel")
 
-    @property
-    def registro(self) -> str | None:
-        return self.medico.crm if self.medico else self.enfermeiro.coren if self.enfermeiro else None
-
 class EstabelecimentoProfissionalModel(Base):
     __tablename__ = "estabelecimento_profissionais"
     estabelecimento_id = Column(Integer, ForeignKey("estabelecimentos_saude.id", ondelete="RESTRICT", onupdate="RESTRICT"), primary_key=True)
@@ -296,7 +293,11 @@ class DocumentoTriagemModel(Base):
     paciente = relationship("PacienteModel", back_populates="documentos")
     medico = relationship("MedicoModel", back_populates="documentos")
     estabelecimento = relationship("EstabelecimentoSaudeModel")
-    atendimento = relationship("AtendimentoModel")
+    atendimento = relationship(
+        "AtendimentoModel",
+        foreign_keys=[atendimento_id],
+        primaryjoin="DocumentoTriagemModel.atendimento_id == AtendimentoModel.id",
+    )
     destino = relationship("DestinoRoteamentoModel")
     especialidades = relationship("EspecialidadeModel", secondary="documento_especialidades")
     arquivos = relationship("DocumentoArquivoModel", back_populates="documento")
@@ -460,6 +461,7 @@ class InstanciaWhatsAppModel(Base):
     numero_conectado = Column(String(30))
     webhook_url = Column(String(500))
     gerenciado_por_usuario_id = Column(Integer, ForeignKey("usuarios_sistema.id", ondelete="RESTRICT", onupdate="RESTRICT"))
+    gerenciado_por_email_configurado = Column(String(150))
     modo_operacao = Column(String(50), nullable=False, default="AGENTE_AUTONOMO_UNICO", server_default="AGENTE_AUTONOMO_UNICO")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
@@ -478,7 +480,11 @@ class InstanciaWhatsAppModel(Base):
 
     @property
     def gerenciado_por_email(self) -> str | None:
-        return self.gerenciado_por.email if self.gerenciado_por else None
+        return self.gerenciado_por.email if self.gerenciado_por else self.gerenciado_por_email_configurado
+
+    @gerenciado_por_email.setter
+    def gerenciado_por_email(self, value: str | None) -> None:
+        self.gerenciado_por_email_configurado = value
 
 
 class DocumentoOrigemWhatsAppModel(Base):
@@ -518,6 +524,8 @@ class AuditoriaOutboxModel(Base):
     __tablename__ = "auditoria_outbox"
     __table_args__ = (
         UniqueConstraint("documento_id", "sequencia", name="uq_outbox_documento_sequencia"),
+        CheckConstraint("sequencia > 0", name="ck_outbox_sequencia_positiva"),
+        CheckConstraint("tentativas >= 0", name="ck_outbox_tentativas_nao_negativas"),
         CheckConstraint("status IN ('PENDENTE','EM_PUBLICACAO','PUBLICADO','ERRO','ERRO_INTEGRIDADE')", name="ck_outbox_status"),
         Index("ix_outbox_pendente", "criado_em", postgresql_where=text("status = 'PENDENTE'")),
         Index("ix_outbox_stream_sequencia", "documento_id", "sequencia"),
@@ -528,7 +536,7 @@ class AuditoriaOutboxModel(Base):
     sequencia = Column(Integer, nullable=False)
     tipo_evento = Column(String(60), nullable=False)
     ocorrido_em = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    payload = Column(JSON, nullable=False)
+    payload = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
     payload_hash = Column(String(64), nullable=False)
     status = Column(String(20), nullable=False, default="PENDENTE", server_default="PENDENTE")
     tentativas = Column(Integer, nullable=False, default=0, server_default="0")

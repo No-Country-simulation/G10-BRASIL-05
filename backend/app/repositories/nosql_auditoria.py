@@ -16,7 +16,12 @@ class ErroIntegridadeOutbox(RuntimeError):
 class MongoAuditoriaRepository:
     """Persiste eventos de auditoria exclusivamente no MongoDB."""
 
-    def __init__(self, mongo_url: str | None = None, db_name: str | None = None):
+    def __init__(
+        self,
+        mongo_url: str | None = None,
+        db_name: str | None = None,
+        criar_indices: bool = False,
+    ):
         url = settings.MONGODB_URL if mongo_url is None else mongo_url
         nome_banco = settings.MONGODB_DATABASE if db_name is None else db_name
         try:
@@ -33,6 +38,10 @@ class MongoAuditoriaRepository:
 
         self._db: Database = self._client[nome_banco]
         self._collection: Collection = self._db["auditoria_documentos"]
+        if criar_indices:
+            self.criar_indices()
+
+    def criar_indices(self) -> None:
         self._collection.create_index(
             [("evento_id", pymongo.ASCENDING)], unique=True,
             partialFilterExpression={"evento_id": {"$type": "string"}},

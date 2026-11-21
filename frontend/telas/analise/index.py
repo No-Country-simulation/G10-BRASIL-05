@@ -20,7 +20,7 @@ def render() -> None:
 
     from components.cards import exibir_resultado_da_triagem
     from components.erros import chamar_api_ou_parar
-    from api import listar_documentos, obter_fonte_original, obter_status_triagem
+    from api.cliente_http import listar_documentos, obter_fonte_original, obter_status_triagem
     from telas.analise.dados import corresponde_filtro
     from services.triagem_event_stream import escutar_eventos_triagem, obter_url_stream_triagem
 

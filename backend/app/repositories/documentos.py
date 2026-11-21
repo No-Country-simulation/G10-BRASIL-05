@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.config.logger import logger
 
 from app.models.triagem import (
+    ArquivoMovimentacaoModel,
     DocumentoArquivoModel,
     DocumentoTriagemModel,
     DestinoRoteamentoModel,
@@ -160,6 +161,17 @@ class DocumentosRepository:
         if arquivo is None:
             arquivo = DocumentoArquivoModel(documento_id=documento.id, papel="RESULTADO")
             documento.arquivos.append(arquivo)
+        elif arquivo.id and (arquivo.bucket != bucket or arquivo.caminho_atual != caminho):
+            self.db.add(
+                ArquivoMovimentacaoModel(
+                    arquivo_id=arquivo.id,
+                    bucket_origem=arquivo.bucket,
+                    caminho_origem=arquivo.caminho_atual,
+                    bucket_destino=bucket,
+                    caminho_destino=caminho,
+                    motivo="ATUALIZACAO_TRIAGEM",
+                )
+            )
         arquivo.bucket = bucket
         arquivo.caminho_atual = caminho
         arquivo.hash_sha256 = documento.hash_sha256
@@ -172,11 +184,12 @@ class DocumentosRepository:
             self.hidratar_payload_clinico(documento)
         return documento
 
-    def hidratar_payload_clinico(self, documento: DocumentoTriagemModel) -> None:
+    def hidratar_payload_clinico(self, documento: DocumentoTriagemModel, mongo=None) -> None:
         """Reconstrói os campos transitórios a partir dos eventos imutáveis no Mongo."""
-        mongo = None
+        mongo_proprio = mongo is None
         try:
-            mongo = MongoAuditoriaRepository()
+            if mongo is None:
+                mongo = MongoAuditoriaRepository()
             payload = documento.get_clinical_payload()
             for evento in mongo.listar_por_documento(documento.documento_id):
                 dados = evento.get("payload") or {}
@@ -194,7 +207,7 @@ class DocumentosRepository:
         except Exception:
             logger.exception("Não foi possível hidratar o payload clínico do documento %s pelo Mongo.", documento.documento_id)
         finally:
-            if mongo is not None:
+            if mongo_proprio and mongo is not None:
                 mongo.fechar()
 
     def excluir_documento_e_auditoria(self, documento_id: str) -> None:
@@ -212,6 +225,14 @@ class DocumentosRepository:
             .limit(limit)
             .all()
         )
-        for documento in documentos:
-            self.hidratar_payload_clinico(documento)
+        mongo = None
+        try:
+            mongo = MongoAuditoriaRepository()
+            for documento in documentos:
+                self.hidratar_payload_clinico(documento, mongo)
+        except Exception:
+            logger.exception("Não foi possível carregar os payloads clínicos do Mongo para a lista.")
+        finally:
+            if mongo is not None:
+                mongo.fechar()
         return documentos

@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.models.triagem import DocumentoTriagemModel, RevisaoModel, UsuarioSistemaModel
 from app.repositories.documentos import DocumentosRepository
+from app.repositories.nosql_auditoria import MongoAuditoriaRepository
+from app.config.logger import logger
 
 class AuditoriaDatabaseRepository:
     """Lista a fila de revisão e registra decisões de auditoria."""
@@ -20,8 +22,16 @@ class AuditoriaDatabaseRepository:
             .order_by(DocumentoTriagemModel.created_at.desc())
             .all()
         )
-        for documento in documentos:
-            self.documentos.hidratar_payload_clinico(documento)
+        mongo = None
+        try:
+            mongo = MongoAuditoriaRepository()
+            for documento in documentos:
+                self.documentos.hidratar_payload_clinico(documento, mongo)
+        except Exception:
+            logger.exception("Não foi possível carregar os payloads clínicos da fila pelo Mongo.")
+        finally:
+            if mongo is not None:
+                mongo.fechar()
         return documentos
 
     def registrar_decisao(
@@ -31,12 +41,18 @@ class AuditoriaDatabaseRepository:
         auditor_nome: str,
         justificativa: str,
         dados_corrigidos: Optional[Dict[str, Any]] = None,
+        revisor_id: int | None = None,
     ) -> Optional[DocumentoTriagemModel]:
         documento = self.documentos.buscar_por_documento_id(documento_id)
         if not documento:
             return None
 
-        revisor = self.db.query(UsuarioSistemaModel).filter_by(nome=auditor_nome, ativo=True).first()
+        consulta_revisor = self.db.query(UsuarioSistemaModel).filter_by(ativo=True)
+        revisor = (
+            consulta_revisor.filter_by(id=revisor_id).first()
+            if revisor_id is not None
+            else consulta_revisor.filter_by(nome=auditor_nome).first()
+        )
         if revisor is None:
             raise ValueError("O revisor autenticado não foi encontrado no cadastro de usuários.")
         self.db.add(

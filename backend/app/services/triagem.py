@@ -303,7 +303,9 @@ class TriagemService:
             }
         }
 
-    def registrar_decisao_medica(self, documento_id: str, payload: DecisaoAuditoriaRequest):
+    def registrar_decisao_medica(
+        self, documento_id: str, payload: DecisaoAuditoriaRequest, revisor_id: int | None = None
+    ):
         """Aprova, corrige ou rejeita um item na fila de Human-in-the-Loop."""
         dados_corrigidos = (
             payload.dados_corrigidos.model_dump()
@@ -381,6 +383,7 @@ class TriagemService:
                 auditor_nome=payload.auditor_nome,
                 justificativa=payload.justificativa,
                 dados_corrigidos=None,
+                revisor_id=revisor_id,
             )
             enfileirar_evento(
                 self.db_repo.db,
@@ -422,6 +425,7 @@ class TriagemService:
                 auditor_nome=payload.auditor_nome,
                 justificativa=payload.justificativa,
                 dados_corrigidos=dados_corrigidos,
+                revisor_id=revisor_id,
             )
 
             if doc_atualizado:

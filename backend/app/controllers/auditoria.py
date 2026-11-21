@@ -69,7 +69,9 @@ def registrar_decisao_auditoria(
     service = TriagemService(db)
     auditor_nome = getattr(usuario, "nome", None) or getattr(payload, "auditor_nome", None) or "Auditor"
     payload_validado = payload.model_copy(update={"auditor_nome": auditor_nome})
-    doc_atualizado = service.registrar_decisao_medica(documento_id, payload_validado)
+    doc_atualizado = service.registrar_decisao_medica(
+        documento_id, payload_validado, revisor_id=getattr(usuario, "id", None)
+    )
     if not doc_atualizado:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

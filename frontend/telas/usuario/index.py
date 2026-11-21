@@ -5,7 +5,7 @@ import re
 from typing import Any
 import streamlit as st
 
-from api import (
+from api.cliente_http import (
     atualizar_usuario,
     desativar_usuario,
     listar_usuarios,

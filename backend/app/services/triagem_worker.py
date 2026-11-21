@@ -162,7 +162,8 @@ def processar_documento_enfileirado(
             finally:
                 configurar_checkpointer(None)
 
-        # O resultado clínico permanece no Postgres; o Redis guarda só fila e estado.
+        # O estado operacional permanece no Postgres; o payload clínico/auditável
+        # segue para o Mongo por meio do outbox transacional.
         logger.info(
             "Triagem em fila concluída: documento_id=%s, status=%s",
             documento_id,

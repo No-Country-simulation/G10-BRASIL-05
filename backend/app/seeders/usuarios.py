@@ -7,61 +7,13 @@ from app.services.autenticacao import gerar_hash_senha
 from app.seeders.errors import BootstrapAdminError
 
 
-MEMBROS_EQUIPE: tuple[dict[str, str], ...] = (
-    {"slug": "pedro", "nome": "Pedro Araujo", "crm": "CRM 101001-SP", "coren": "COREN 202001-SP"},
-    {"slug": "lianna", "nome": "Lianna Ribeiro", "crm": "CRM 101002-SP", "coren": "COREN 202002-SP"},
-    {"slug": "marcio", "nome": "Marcio Jose de Morais", "crm": "CRM 101003-SP", "coren": "COREN 202003-SP"},
-    {"slug": "joao", "nome": "Joao Pedro Alves Botelho", "crm": "CRM 101004-SP", "coren": "COREN 202004-SP"},
-    {"slug": "pedrohenrique", "nome": "Pedro Henrique Marinho Euzebio", "crm": "CRM 101005-SP", "coren": "COREN 202005-SP"},
-    {"slug": "otavio", "nome": "Otávio Oliveira Santos", "crm": "CRM 101006-SP", "coren": "COREN 202006-SP"},
-    {"slug": "adilson", "nome": "Adilson Gaspar Morais Manuel", "crm": "CRM 101007-SP", "coren": "COREN 202007-SP"},
-    {"slug": "patrick", "nome": "Patrick Gutenberg Gomes Duarte", "crm": "CRM 101008-SP", "coren": "COREN 202008-SP"},
-)
-
-
-def _gerar_contas_equipe() -> list[dict[str, Any]]:
-    contas: list[dict[str, Any]] = []
-    for m in MEMBROS_EQUIPE:
-        contas.extend([
-            {
-                "nome": f"{m['nome']} (Diretor)",
-                "email": f"{m['slug']}.diretor@mediflow.com.br",
-                "papel": "DIRETOR",
-                "registro": m["crm"],
-                "especialidade": "Diretoria Clínica & Governança",
-                "trocar_senha_obrigatorio": False,
-                "pode_gerenciar_whatsapp": False,
-            },
-            {
-                "nome": f"Dr(a). {m['nome']}",
-                "email": f"{m['slug']}.medico@mediflow.com.br",
-                "papel": "MEDICO",
-                "registro": m["crm"],
-                "especialidade": "Clínica Médica & Auditoria",
-                "trocar_senha_obrigatorio": False,
-                "pode_gerenciar_whatsapp": False,
-            },
-            {
-                "nome": f"Enf. {m['nome']}",
-                "email": f"{m['slug']}.enfermeiro@mediflow.com.br",
-                "papel": "ENFERMEIRO",
-                "registro": m["coren"],
-                "especialidade": "Triagem Clínica (Human-in-the-Loop)",
-                "trocar_senha_obrigatorio": False,
-                "pode_gerenciar_whatsapp": False,
-            },
-        ])
-    return contas
-
-
 USUARIOS_A_SEMEAR: tuple[dict[str, Any], ...] = (
-    # Contas genéricas por cargo
     {
-        "nome": "Diretor Geral",
+        "nome": "Dr. Diretor Clínico",
         "email": "diretor@mediflow.com.br",
         "papel": "DIRETOR",
         "registro": "CRM 110022-SP",
-        "especialidade": "Gestão Hospitalar",
+        "especialidade": "Gestão Hospitalar & Governança",
         "trocar_senha_obrigatorio": False,
         "pode_gerenciar_whatsapp": False,
     },
@@ -70,7 +22,7 @@ USUARIOS_A_SEMEAR: tuple[dict[str, Any], ...] = (
         "email": "medico@mediflow.com.br",
         "papel": "MEDICO",
         "registro": "CRM 123456-SP",
-        "especialidade": "Clínica Médica",
+        "especialidade": "Clínica Médica & Auditoria",
         "trocar_senha_obrigatorio": False,
         "pode_gerenciar_whatsapp": False,
     },
@@ -83,7 +35,6 @@ USUARIOS_A_SEMEAR: tuple[dict[str, Any], ...] = (
         "trocar_senha_obrigatorio": False,
         "pode_gerenciar_whatsapp": False,
     },
-    *_gerar_contas_equipe(),
 )
 
 

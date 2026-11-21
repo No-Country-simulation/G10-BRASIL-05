@@ -47,3 +47,11 @@ def _exigir_sucesso(resposta: dict, mensagem: str) -> dict:
 def _montar_mensagem(mensagem: str, resposta: dict) -> str:
     detalhe = str(resposta.get("erro") or resposta.get("resposta") or "sem detalhes")
     return f"{mensagem} Detalhe: {detalhe[:TAMANHO_MAXIMO_DO_DETALHE]}"
+
+
+obter_status_whatsapp = obter_status
+gerar_qrcode_whatsapp = gerar_qrcode
+configurar_webhook_whatsapp = configurar_webhook
+desconectar_whatsapp = desconectar
+enviar_teste_whatsapp = enviar_mensagem_de_teste
+

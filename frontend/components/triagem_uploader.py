@@ -3,7 +3,7 @@
 from pathlib import Path
 import streamlit.components.v1 as components
 
-_COMPONENT_PATH = Path(__file__).resolve().parent
+_COMPONENT_PATH = Path(__file__).resolve().parent / "triagem_uploader"
 
 _triagem_uploader = components.declare_component(
     "mediflow_triagem_uploader",

@@ -3,7 +3,7 @@ import logging
 import streamlit as st
 
 from components.erros import chamar_api_ou_parar
-from api import (
+from api.cliente_whatsapp import (
     desconectar_whatsapp,
     enviar_teste_whatsapp,
     gerar_qrcode_whatsapp,

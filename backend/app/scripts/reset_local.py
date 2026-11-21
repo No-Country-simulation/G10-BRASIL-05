@@ -10,7 +10,8 @@ from sqlalchemy.engine import make_url
 
 from app.config.settings import settings
 from app.repositories.database import SessionLocal
-from app.seeders import executar_seeders
+from app.repositories.nosql_auditoria import MongoAuditoriaRepository
+from app.seeders.execucao import executar_seeders
 
 
 HOSTS_LOCAIS = {"localhost", "127.0.0.1", "::1", "postgres", "mongodb"}
@@ -44,9 +45,19 @@ def main() -> None:
         return
     if args.confirm_postgres != pg_name or args.confirm_mongo != mongo_name:
         raise SystemExit("Reset bloqueado: as confirmações precisam coincidir com os bancos exibidos.")
+    if len(settings.ADMIN_BOOTSTRAP_PASSWORD) < 12:
+        raise SystemExit("Reset bloqueado: configure ADMIN_BOOTSTRAP_PASSWORD com pelo menos 12 caracteres antes de reaplicar seeds.")
 
     engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
     try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        client = MongoClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000)
+        try:
+            client.admin.command("ping")
+        finally:
+            client.close()
+
         with engine.begin() as connection:
             connection.execute(text("DROP SCHEMA public CASCADE"))
             connection.execute(text("CREATE SCHEMA public"))
@@ -55,10 +66,11 @@ def main() -> None:
 
     client = MongoClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000)
     try:
-        client.admin.command("ping")
         client.drop_database(mongo_name)
     finally:
         client.close()
+    mongo_repo = MongoAuditoriaRepository(criar_indices=True)
+    mongo_repo.fechar()
 
     backend = Path(__file__).resolve().parents[2]
     config = Config(str(backend / "alembic.ini"))

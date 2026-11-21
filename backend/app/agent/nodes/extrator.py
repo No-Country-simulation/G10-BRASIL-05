@@ -148,6 +148,7 @@ def node_extracao(state: GraphState) -> GraphState:
                 paciente_identificado.get("data_nascimento")
                 if paciente_identificado.get("data_nascimento")
                 else dados.get("paciente_data_nascimento")
+                or (identificacao_contexto.get("paciente") or {}).get("data_nascimento")
             ),
         },
         "medico_solicitante": {

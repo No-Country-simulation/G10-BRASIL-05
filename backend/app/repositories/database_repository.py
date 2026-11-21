@@ -108,9 +108,10 @@ class DatabaseRepository:
         auditor_nome: str,
         justificativa: str,
         dados_corrigidos: Optional[Dict[str, Any]] = None,
+        revisor_id: int | None = None,
     ) -> Optional[DocumentoTriagemModel]:
         return self._auditoria.registrar_decisao(
-            documento_id, decisao, auditor_nome, justificativa, dados_corrigidos
+            documento_id, decisao, auditor_nome, justificativa, dados_corrigidos, revisor_id
         )
 
     def garantir_instancia_whatsapp(self) -> InstanciaWhatsAppModel:
