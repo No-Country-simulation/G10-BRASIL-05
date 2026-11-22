@@ -172,22 +172,6 @@ def render() -> None:
     except Exception:
         docs_geral = []
 
-    # Integra dados de demonstração/mock para a tela de Revisão
-    from telas.auditoria.dados_mock import obter_mocks_auditoria_fila, obter_mocks_auditoria_geral
-    ids_na_fila = {item.get("documento_id") for item in fila}
-    for m in obter_mocks_auditoria_fila():
-        if m.get("documento_id") not in ids_na_fila:
-            fila.append(m)
-            ids_na_fila.add(m.get("documento_id"))
-
-    fila = ordenar_fila(fila)
-
-    ids_geral = {doc.get("documento_id") for doc in docs_geral}
-    for mg in obter_mocks_auditoria_geral():
-        if mg.get("documento_id") not in ids_geral:
-            docs_geral.append(mg)
-            ids_geral.add(mg.get("documento_id"))
-
     # =========================================================================
     # ÁREA DE DETALHE / REVISÃO DO DOCUMENTO SELECIONADO
     # =========================================================================
