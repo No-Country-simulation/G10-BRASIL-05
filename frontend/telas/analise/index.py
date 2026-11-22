@@ -24,7 +24,7 @@ from components.visualizador_documento import (
 )
 from services.autenticacao import esta_autenticado
 from services.triagem_event_stream import escutar_eventos_triagem, obter_url_stream_triagem
-from telas.analise.dados import corresponde_filtro, obter_documentos_demo
+from telas.analise.dados import corresponde_filtro
 from utils.alertas_clinicos import (
     exibir_alerta_global_se_necessario,
     exibir_alerta_individual,
@@ -368,12 +368,6 @@ def render() -> None:
                 "erro": doc.get("erro"),
                 "etapa_atual": doc.get("etapa_atual"),
             })
-
-    for doc_demo in obter_documentos_demo():
-        doc_id = doc_demo["documento_id"]
-        if doc_id not in ids_vistos:
-            ids_vistos.add(doc_id)
-            todos_documentos.append(doc_demo)
 
     # Alerta clínico no topo da tela para casos de Emergência ou Perigo
     exibir_alerta_global_se_necessario(todos_documentos)

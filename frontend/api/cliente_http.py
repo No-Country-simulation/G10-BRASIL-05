@@ -101,9 +101,6 @@ def buscar_documento(documento_id: str) -> dict | None:
             return detalhe
     except Exception:
         pass
-    if str(documento_id).startswith("REV-"):
-        from telas.auditoria.dados_mock import obter_mock_documento_por_id
-        return obter_mock_documento_por_id(documento_id)
     return None
 
 
@@ -112,48 +109,27 @@ def listar_fila_auditoria() -> list[dict]:
 
 
 def registrar_decisao(documento_id: str, decisao: dict) -> dict:
-    try:
-        return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/decisao", json=decisao)
-    except Exception:
-        if str(documento_id).startswith("REV-"):
-            from telas.auditoria.dados_mock import registrar_decisao_mock
-            return registrar_decisao_mock(documento_id, decisao)
-        raise
+    return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/decisao", json=decisao)
 
 
 def obter_status_lock_auditoria(documento_id: str) -> dict:
-    try:
-        return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/status-lock")
-    except Exception:
-        if str(documento_id).startswith("REV-"):
-            return {"bloqueado": False}
-        raise
+    return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/status-lock")
 
 
 def bloquear_documento_auditoria(documento_id: str, auditor_nome: str, ttl_segundos: int = 300) -> dict:
-    try:
-        return requisitar(
-            "POST",
-            f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/bloquear",
-            json={"auditor_nome": auditor_nome, "ttl_segundos": ttl_segundos},
-        )
-    except Exception:
-        if str(documento_id).startswith("REV-"):
-            return {"status": "bloqueado", "auditor_nome": auditor_nome}
-        raise
+    return requisitar(
+        "POST",
+        f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/bloquear",
+        json={"auditor_nome": auditor_nome, "ttl_segundos": ttl_segundos},
+    )
 
 
 def desbloquear_documento_auditoria(documento_id: str, auditor_nome: str) -> dict:
-    try:
-        return requisitar(
-            "POST",
-            f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/desbloquear",
-            json={"auditor_nome": auditor_nome},
-        )
-    except Exception:
-        if str(documento_id).startswith("REV-"):
-            return {"status": "desbloqueado"}
-        raise
+    return requisitar(
+        "POST",
+        f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/desbloquear",
+        json={"auditor_nome": auditor_nome},
+    )
 
 
 def obter_fonte_original(documento_id: str) -> tuple[bytes, str, str]:
@@ -170,12 +146,6 @@ def obter_fonte_original(documento_id: str) -> tuple[bytes, str, str]:
                     return resposta.content, resposta.headers.get("content-type", "application/octet-stream"), nome
         except Exception:
             pass
-
-    # Disponibiliza a imagem anexada pelo usuário para conferência de detalhes
-    from pathlib import Path
-    caminho_demo = Path(__file__).resolve().parent.parent / "assets" / "documentos_demo" / "IMG_2147_1.jpeg"
-    if caminho_demo.exists():
-        return caminho_demo.read_bytes(), "image/jpeg", "IMG_2147.jpeg"
 
     raise ErroDeApi("Documento original indisponível no momento.")
 
