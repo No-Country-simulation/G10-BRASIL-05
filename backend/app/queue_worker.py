@@ -13,6 +13,7 @@ logger = logging.getLogger("mediflow.triagem_worker")
 
 def _executar_worker(indice: int) -> None:
     # Cada processo cria sua própria conexão Redis e consome um job por vez.
+    import uuid
     from redis import Redis
     from rq import Queue, Worker
 
@@ -21,10 +22,11 @@ def _executar_worker(indice: int) -> None:
 
     connection = Redis.from_url(settings.REDIS_URL)
     fila = Queue(NOME_FILA_TRIAGEM, connection=connection)
+    worker_id = uuid.uuid4().hex[:6]
     Worker(
         [fila],
         connection=connection,
-        name=f"triagem-worker-{indice}",
+        name=f"triagem-worker-{indice}-{worker_id}",
     ).work(with_scheduler=False)
 
 

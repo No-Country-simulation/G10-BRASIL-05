@@ -128,4 +128,39 @@
     padding: 14px 18px;
     margin-bottom: 16px;
 }
+
+.badge-estado {
+    display: inline-block !important;
+    padding: 2px 7px !important;
+    border-radius: 6px !important;
+    font-size: 0.70rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.04em !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+}
+
+.badge-estado-emergencia {
+    background: #FEF2F2 !important;
+    color: #B91C1C !important;
+    border: 1px solid #FCA5A5 !important;
+}
+
+.badge-estado-perigo {
+    background: #FFF7ED !important;
+    color: #C2410C !important;
+    border: 1px solid #FDBA74 !important;
+}
+
+.badge-estado-estavel {
+    background: #F0FDF4 !important;
+    color: #15803D !important;
+    border: 1px solid #86EFAC !important;
+}
+
+.badge-estado-andamento {
+    background: #F8FAFC !important;
+    color: #475569 !important;
+    border: 1px solid #CBD5E1 !important;
+}
 </style>

@@ -120,6 +120,9 @@ class DocumentParserService:
                     headers={"X-Error-Code": "PDF_CORROMPIDO_OU_PROTEGIDO"},
                 )
 
+        elif extensao.lower() in {".txt", ".text"}:
+            return conteudo.decode("utf-8", errors="replace"), "texto"
+
         else:
             # Imagem (PNG, JPEG, WebP ou HEIC)
             try:
@@ -173,6 +176,14 @@ class DocumentParserService:
             return DocumentParserService._inspecionar_pdf(
                 conteudo, nome_arquivo, incluir_metadados
             )
+
+        if extensao.lower() in {".txt", ".text"}:
+            texto = conteudo.decode("utf-8", errors="replace")
+            metadados = {}
+            if incluir_metadados:
+                from app.services.metadados_inspecao import extrair_metadados_documento
+                metadados = extrair_metadados_documento(texto).model_dump(mode="json")
+            return texto, "texto", None, metadados
 
         try:
             imagem = Image.open(io.BytesIO(conteudo))
