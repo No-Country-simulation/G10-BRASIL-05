@@ -232,3 +232,19 @@ def test_alerta_de_urgencia_mostra_o_canal_do_plantao():
     at = _renderizar("exibir_resultado_da_triagem", resposta)
 
     assert "ALERTA URGENTE: DOC-1 (canal: Alerta_Plantao_Medico)" in _textos(at)
+
+
+def test_exibir_resultado_da_triagem_json_canonico():
+    import json
+
+    resposta = deepcopy(RESPOSTA_DA_API)
+    resposta["metadados_debug"] = "ignorado"
+    at = _renderizar("exibir_resultado_da_triagem", resposta)
+
+    assert not at.exception
+    assert len(at.json) == 1
+    dados_exibidos = json.loads(at.json[0].value) if isinstance(at.json[0].value, str) else at.json[0].value
+    chaves_esperadas = {"status", "documento_id", "classificacao", "dados_extraidos", "decisao_roteamento", "armazenamento_oci"}
+    assert set(dados_exibidos.keys()) == chaves_esperadas
+    assert "metadados_debug" not in dados_exibidos
+
