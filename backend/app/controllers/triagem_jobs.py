@@ -306,6 +306,63 @@ async def enfileirar_upload_triagem(
 
 
 def _resultado_persistido(documento: DocumentoTriagemModel) -> dict:
+    revisao_info = None
+    revisoes = getattr(documento, "revisoes", None)
+    if not revisoes and getattr(documento, "id", None):
+        try:
+            from sqlalchemy.orm import object_session
+            sessao = object_session(documento)
+            if sessao:
+                from app.models.triagem import RevisaoModel
+                revisoes = (
+                    sessao.query(RevisaoModel)
+                    .filter_by(documento_id=documento.id)
+                    .order_by(RevisaoModel.id.asc())
+                    .all()
+                )
+        except Exception:
+            pass
+
+    if revisoes:
+        ult = None
+        if isinstance(revisoes, list) and revisoes:
+            decisoes_auditoria = [
+                r for r in revisoes if getattr(r, "decisao", "").upper() != "INICIADA"
+            ]
+            ult = decisoes_auditoria[-1] if decisoes_auditoria else revisoes[-1]
+        elif hasattr(revisoes, "__iter__"):
+            lista = list(revisoes)
+            if lista:
+                decisoes_auditoria = [
+                    r for r in lista if getattr(r, "decisao", "").upper() != "INICIADA"
+                ]
+                ult = decisoes_auditoria[-1] if decisoes_auditoria else lista[-1]
+
+        if ult:
+            revisor = getattr(ult, "revisor", None)
+            if not revisor and getattr(ult, "revisor_id", None):
+                try:
+                    from sqlalchemy.orm import object_session
+                    sessao = object_session(ult)
+                    if sessao:
+                        from app.models.users import UsuarioSistemaModel
+                        revisor = sessao.query(UsuarioSistemaModel).filter_by(id=ult.revisor_id).first()
+                except Exception:
+                    pass
+
+            revisao_info = {
+                "decisao": ult.decisao,
+                "justificativa": ult.observacao or "",
+                "revisado_em": (
+                    ult.revisado_em.isoformat()
+                    if hasattr(ult.revisado_em, "isoformat")
+                    else str(ult.revisado_em)
+                ),
+                "revisor_nome": revisor.nome if revisor else "Auditor Clínico",
+                "revisor_papel": revisor.papel if revisor else "",
+                "revisor_registro": revisor.registro if revisor else "",
+            }
+
     return {
         "status": documento.status_processamento,
         "documento_id": documento.documento_id,
@@ -339,6 +396,7 @@ def _resultado_persistido(documento: DocumentoTriagemModel) -> dict:
         },
         "evidencias_campos": documento.evidencias_campos,
         "motivo_revisao": documento.motivo_revisao,
+        "revisao": revisao_info,
     }
 
 

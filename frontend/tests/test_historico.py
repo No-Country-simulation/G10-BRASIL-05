@@ -3,6 +3,7 @@ import pytest
 from utils.historico import (
     FILTROS_DE_STATUS,
     FILTRO_TODOS,
+    OPCOES_FILTRO_STATUS,
     STATUS_APROVADO,
     STATUS_DESCONHECIDO,
     STATUS_EM_AUDITORIA,
@@ -37,6 +38,8 @@ def documentos():
         ("Farmacia_Hospitalar", STATUS_APROVADO),
         ("Fila_Emergencia_Medica", STATUS_URGENCIA),
         ("Auditoria_Humana", STATUS_EM_AUDITORIA),
+        ("Nao_Elegivel", STATUS_REJEITADO),
+        ("Descarte", STATUS_REJEITADO),
         ("Destino_Novo", STATUS_DESCONHECIDO),
     ],
 )
@@ -55,6 +58,8 @@ def test_documento_sem_destino_fica_sem_classificacao():
         ("auditoria_aprovado", STATUS_APROVADO),
         ("auditoria_corrigido", STATUS_APROVADO),
         ("auditoria_rejeitado", STATUS_REJEITADO),
+        ("REJEITADO", STATUS_REJEITADO),
+        ("rejeitado", STATUS_REJEITADO),
     ],
 )
 def test_documento_ja_auditado_usa_a_decisao_do_auditor(status_processamento, status_esperado):

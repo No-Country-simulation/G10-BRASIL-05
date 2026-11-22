@@ -19,6 +19,7 @@ STATUS_DESCONHECIDO = "Não classificado"
 SEM_VALOR = "-"
 
 FILTROS_DE_STATUS = [FILTRO_TODOS, STATUS_APROVADO, STATUS_URGENCIA, STATUS_EM_AUDITORIA, STATUS_REJEITADO]
+OPCOES_FILTRO_STATUS = FILTROS_DE_STATUS
 
 FILTROS_DE_PRIORIDADE = ["Todas", "Emergência", "Urgente", "Rotina"]
 
@@ -43,12 +44,21 @@ STATUS_POR_DESTINO = {
     "Farmacia_Hospitalar": STATUS_APROVADO,
     "Fila_Emergencia_Medica": STATUS_URGENCIA,
     "Auditoria_Humana": STATUS_EM_AUDITORIA,
+    "Nao_Elegivel": STATUS_REJEITADO,
+    "Descarte": STATUS_REJEITADO,
 }
 
 STATUS_POR_DECISAO_DE_AUDITORIA = {
     "auditoria_aprovado": STATUS_APROVADO,
     "auditoria_corrigido": STATUS_APROVADO,
     "auditoria_rejeitado": STATUS_REJEITADO,
+    "REJEITADO": STATUS_REJEITADO,
+    "rejeitado": STATUS_REJEITADO,
+    "auditoria_rejeitado": STATUS_REJEITADO,
+    "APROVADO": STATUS_APROVADO,
+    "aprovado": STATUS_APROVADO,
+    "CORRIGIDO": STATUS_APROVADO,
+    "corrigido": STATUS_APROVADO,
 }
 
 ICONE_POR_STATUS = {
@@ -88,6 +98,13 @@ def identificar_status(documento: dict) -> str:
     status_da_auditoria = STATUS_POR_DECISAO_DE_AUDITORIA.get(documento.get("status_processamento"))
     if status_da_auditoria:
         return status_da_auditoria
+    revisao = documento.get("revisao")
+    if isinstance(revisao, dict) and revisao.get("decisao"):
+        dec = str(revisao.get("decisao")).lower()
+        if "rejeit" in dec:
+            return STATUS_REJEITADO
+        if "aprov" in dec or "corrig" in dec:
+            return STATUS_APROVADO
     return STATUS_POR_DESTINO.get(documento.get("destino_principal"), STATUS_DESCONHECIDO)
 
 
