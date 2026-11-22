@@ -23,7 +23,13 @@ from services.browser_session import (
     salvar_token_persistido,
 )
 from services.cookie_sessao import sincronizar_cookie_sessao
-from utils.usuarios import NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO, eh_conta_institucional_whatsapp
+from utils.usuarios import (
+    NIVEL_ADMIN_GERAL,
+    NIVEL_DIRETOR,
+    NIVEL_ENFERMEIRO,
+    NIVEL_MEDICO,
+    eh_conta_institucional_whatsapp,
+)
 
 st.set_page_config(page_title="MediFlow", layout="wide")
 aplicar_css(Path(__file__).resolve().parent / "assets" / "app.css")
