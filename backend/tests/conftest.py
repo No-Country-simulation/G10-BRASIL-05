@@ -117,5 +117,11 @@ def mockar_fila_em_testes_isolados(monkeypatch, request):
     monkeypatch.setattr("app.controllers.triagem_jobs.enfileirar_documento", lambda *args, **kwargs: job_mock)
     monkeypatch.setattr("app.controllers.triagem_jobs.enfileirar_texto", lambda *args, **kwargs: job_mock)
     monkeypatch.setattr("app.controllers.triagem_jobs.registrar_lote_triagem", lambda *args, **kwargs: None)
+
+    if "redis" not in modulo_nome and "auditoria" not in modulo_nome:
+        redis_mock = MagicMock()
+        redis_mock.publicar_evento.return_value = None
+        redis_mock.liberar_lock.return_value = True
+        monkeypatch.setattr("app.services.triagem.RedisAuditService", lambda *args, **kwargs: redis_mock)
     yield
 

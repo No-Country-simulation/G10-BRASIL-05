@@ -19,7 +19,7 @@ def node_roteamento(state: GraphState) -> GraphState:
     requer_auditoria = state.get("requer_auditoria_humana", False)
     tipo_doc = state.get("tipo_documento", "")
     doc_id = state.get("documento_id", "DOC-SEM-ID")
-    canal = state.get("canal_origem", "Pronto_Socorro")
+    canal = state.get("canal_origem", "Interno")
 
     notificacao: Optional[Dict[str, Any]] = None
 

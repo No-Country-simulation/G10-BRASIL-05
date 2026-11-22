@@ -25,7 +25,7 @@ def node_revisao_humana(state: GraphState) -> GraphState:
     atualizacao = {**state, "decisao_humana": decisao, "status": "revisao_respondida"}
     acao = decisao.get("status_aprovacao")
 
-    if state.get("etapa_revisao") == "elegibilidade" and acao == "rejeitado":
+    if (state.get("etapa_revisao") == "elegibilidade" or state.get("elegibilidade") == "incerto") and acao == "rejeitado":
         atualizacao["elegibilidade"] = "nao_medico"
         return atualizacao
     if acao in {"rejeitado", "solicitar_reenvio"}:

@@ -30,14 +30,7 @@ from app.controllers.ecossistema import (
     obter_historico_paciente,
     obter_paciente,
 )
-from app.controllers.evolution import (
-    auto_configurar_webhook,
-    conectar_whatsapp_qrcode,
-    consultar_status_instancia,
-    desconectar_whatsapp,
-    enviar_mensagem_teste,
-)
-from app.controllers.evolution_webhook import receber_webhook_evolution, verificar_status_webhook
+from app.whatsapp.controller import router as whatsapp_router
 from app.controllers.historico import listar_documentos, obter_documento
 from app.controllers.triagem import processar_triagem
 from app.controllers.triagem_eventos import stream_eventos_triagem
@@ -201,16 +194,17 @@ _register_route(
     dependencies=_ecossistema_access,
 )
 
-# Evolution API e webhook recebido
-_evolution_tag = ["WhatsApp (Evolution API)"]
-_register_route("/webhook/evolution/enviar-teste", enviar_mensagem_teste, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
-_register_route("/webhook/evolution/status-instancia", consultar_status_instancia, methods=["GET"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
-_register_route("/webhook/evolution/conectar", conectar_whatsapp_qrcode, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
-_register_route("/webhook/evolution/configurar-webhook", auto_configurar_webhook, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
-_register_route("/webhook/evolution/desconectar", desconectar_whatsapp, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
-_register_route("/webhook/evolution", verificar_status_webhook, methods=["GET"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
-_register_route("/webhook/evolution", receber_webhook_evolution, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
-_register_route("/webhook/evolution/{evento_path}", receber_webhook_evolution, methods=["POST"], tags=_evolution_tag, status_code=status.HTTP_200_OK)
+# Evolution API e webhook recebido (Módulo Autônomo app/whatsapp)
+for _wpp_route in whatsapp_router.routes:
+    _subpath = _wpp_route.path.rstrip("/")
+    _full_path = f"/webhook/evolution{_subpath}" if _subpath else "/webhook/evolution"
+    _register_route(
+        _full_path,
+        _wpp_route.endpoint,
+        methods=list(_wpp_route.methods or ["GET"]),
+        tags=["WhatsApp (Evolution API)"],
+        summary=_wpp_route.summary,
+    )
 
 # Autenticação e usuários
 _auth_tag = ["Autenticação e Usuários"]

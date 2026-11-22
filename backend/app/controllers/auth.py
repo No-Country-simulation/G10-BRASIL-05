@@ -1,32 +1,31 @@
 from fastapi import Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
-from app.models.triagem import UsuarioSistemaModel
+from app.config.settings import settings
+from app.models.users import UsuarioSistemaModel
 from app.repositories.database import get_db
+from app.repositories.medicos_repository import MedicosRepository
+from app.repositories.users_repository import UsersRepository
 from app.schemas.auth import (
     AlterarSenhaRequest,
     LoginRequest,
-    LoginResponse,
     UsuarioAtualizarRequest,
-    UsuarioAutenticado,
     UsuarioProvisionarRequest,
 )
 from app.services.autenticacao import (
     autenticar_usuario,
     emitir_token,
     exigir_papeis,
-    exigir_usuario_atual_cookie,
     exigir_usuario_atual,
+    exigir_usuario_atual_cookie,
     gerar_hash_senha,
     usuario_publico,
 )
-from app.config.settings import settings
+from app.services.medicos_service import MedicosService
+from app.services.users_service import UsersService
 
 
 NOME_COOKIE_SESSAO = "mediflow_access_token"
-
-
-
 
 
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
@@ -100,21 +99,18 @@ def alterar_senha(
         )
     usuario.senha_hash = gerar_hash_senha(payload.nova_senha)
     usuario.trocar_senha_obrigatorio = False
-    db.commit()
-    db.refresh(usuario)
-    return usuario_publico(usuario)
+    users_repo = UsersRepository(db)
+    salvo = users_repo.salvar(usuario)
+    return usuario_publico(salvo)
 
 
 def listar_usuarios(
     usuario: UsuarioSistemaModel = Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
     db: Session = Depends(get_db),
 ):
-    consulta = db.query(UsuarioSistemaModel).filter(UsuarioSistemaModel.ativo.is_(True))
-    if usuario.papel == "MEDICO":
-        consulta = consulta.filter(UsuarioSistemaModel.papel == "ENFERMEIRO")
-    else:
-        consulta = consulta.filter(UsuarioSistemaModel.papel.in_(["DIRETOR", "MEDICO", "ENFERMEIRO"]))
-    return [usuario_publico(item) for item in consulta.order_by(UsuarioSistemaModel.nome).all()]
+    users_repo = UsersRepository(db)
+    service = UsersService(users_repo=users_repo)
+    return service.listar_usuarios(ator=usuario)
 
 
 def provisionar_usuario(
@@ -122,25 +118,10 @@ def provisionar_usuario(
     ator: UsuarioSistemaModel = Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
     db: Session = Depends(get_db),
 ):
-    if ator.papel == "MEDICO" and payload.nivel != "ENFERMEIRO":
-        raise HTTPException(status_code=403, detail="Médicos podem provisionar somente enfermeiros.")
-    if db.query(UsuarioSistemaModel).filter_by(email=payload.email).first():
-        raise HTTPException(status_code=409, detail="Já existe uma conta com esse e-mail.")
-    novo = UsuarioSistemaModel(
-        email=payload.email,
-        nome=payload.nome.strip(),
-        senha_hash=gerar_hash_senha(payload.senha),
-        papel=payload.nivel,
-        trocar_senha_obrigatorio=False,
-        registro=payload.registro.strip() or None,
-        especialidade=payload.especialidade.strip() or None,
-        ativo=True,
-        pode_gerenciar_whatsapp=False,
-    )
-    db.add(novo)
-    db.commit()
-    db.refresh(novo)
-    return usuario_publico(novo)
+    users_repo = UsersRepository(db)
+    medicos_repo = MedicosRepository(db)
+    service = MedicosService(users_repo=users_repo, medicos_repo=medicos_repo)
+    return service.provisionar_profissional(payload=payload, ator=ator)
 
 
 def atualizar_usuario(
@@ -149,46 +130,9 @@ def atualizar_usuario(
     ator: UsuarioSistemaModel = Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
     db: Session = Depends(get_db),
 ):
-    alvo = db.query(UsuarioSistemaModel).filter_by(id=usuario_id).first()
-    if not alvo or alvo.papel == "INSTITUCIONAL_WHATSAPP":
-        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
-    if alvo.papel == "ADMIN_GERAL" and ator.papel != "ADMIN_GERAL":
-        raise HTTPException(status_code=403, detail="Somente o Administrador Geral pode gerenciar esse perfil.")
-    if ator.papel == "MEDICO" and alvo.papel != "ENFERMEIRO":
-        raise HTTPException(status_code=403, detail="Médicos podem gerenciar somente enfermeiros.")
-    alteracoes = payload.model_dump(exclude_unset=True)
-    if "email" in alteracoes:
-        existente = db.query(UsuarioSistemaModel).filter_by(email=alteracoes["email"]).first()
-        if existente and existente.id != alvo.id:
-            raise HTTPException(status_code=409, detail="Já existe uma conta com esse e-mail.")
-    if ator.id == alvo.id and alteracoes.get("ativo") is False:
-        raise HTTPException(status_code=400, detail="Não é possível desativar a própria conta.")
-    if ator.id == alvo.id and alteracoes.get("nivel", alvo.papel) != alvo.papel:
-        raise HTTPException(status_code=400, detail="Não é possível alterar o próprio perfil.")
-    if ator.papel == "MEDICO" and alteracoes.get("nivel", "ENFERMEIRO") != "ENFERMEIRO":
-        raise HTTPException(status_code=403, detail="Médicos não podem alterar o papel de enfermeiro.")
-    papel_final = alteracoes.get("nivel", alvo.papel)
-    remove_direcao_ativa = (
-        alvo.papel == "DIRETOR"
-        and alvo.ativo
-        and (papel_final != "DIRETOR" or alteracoes.get("ativo") is False)
-    )
-    if remove_direcao_ativa:
-        diretores_ativos = db.query(UsuarioSistemaModel).filter_by(papel="DIRETOR", ativo=True).count()
-        if diretores_ativos <= 1:
-            raise HTTPException(status_code=409, detail="É necessário manter ao menos um diretor ativo.")
-    if alteracoes.get("senha"):
-        alvo.senha_hash = gerar_hash_senha(alteracoes.pop("senha"))
-    if "nivel" in alteracoes:
-        alteracoes["papel"] = alteracoes.pop("nivel")
-    for campo in ("nome", "email", "papel", "registro", "especialidade", "ativo"):
-        if campo in alteracoes:
-            setattr(alvo, campo, alteracoes[campo])
-    if alvo.papel not in {"INSTITUCIONAL_WHATSAPP", "ADMIN_GERAL"}:
-        alvo.pode_gerenciar_whatsapp = False
-    db.commit()
-    db.refresh(alvo)
-    return usuario_publico(alvo)
+    users_repo = UsersRepository(db)
+    service = UsersService(users_repo=users_repo)
+    return service.atualizar_usuario(usuario_id=usuario_id, dados=payload, ator=ator)
 
 
 def desativar_usuario(
@@ -196,18 +140,6 @@ def desativar_usuario(
     ator: UsuarioSistemaModel = Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
     db: Session = Depends(get_db),
 ):
-    alvo = db.query(UsuarioSistemaModel).filter_by(id=usuario_id).first()
-    if not alvo or alvo.papel == "INSTITUCIONAL_WHATSAPP":
-        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
-    if alvo.papel == "ADMIN_GERAL" and ator.papel != "ADMIN_GERAL":
-        raise HTTPException(status_code=403, detail="Somente o Administrador Geral pode gerenciar esse perfil.")
-    if ator.id == alvo.id:
-        raise HTTPException(status_code=400, detail="Não é possível desativar a própria conta.")
-    if ator.papel == "MEDICO" and alvo.papel != "ENFERMEIRO":
-        raise HTTPException(status_code=403, detail="Médicos podem gerenciar somente enfermeiros.")
-    if alvo.papel == "DIRETOR":
-        diretores_ativos = db.query(UsuarioSistemaModel).filter_by(papel="DIRETOR", ativo=True).count()
-        if diretores_ativos <= 1:
-            raise HTTPException(status_code=409, detail="É necessário manter ao menos um diretor ativo.")
-    alvo.ativo = False
-    db.commit()
+    users_repo = UsersRepository(db)
+    service = UsersService(users_repo=users_repo)
+    service.desativar_usuario(usuario_id=usuario_id, ator=ator)

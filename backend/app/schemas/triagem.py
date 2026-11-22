@@ -9,7 +9,7 @@ class RequisicaoTriagem(BaseModel):
     documento_id: str = Field(..., json_schema_extra={"example": "DOC-CLIN-2026-8942"}, description="Identificador único do documento")
     tipo_arquivo: str = Field(..., json_schema_extra={"example": "PDF"}, description="Extensão ou tipo do arquivo (PDF, IMAGEM, TEXTO, JSON)")
     documento_texto: str = Field(..., description="Conteúdo textual bruto do documento extraído ou enviado diretamente")
-    canal_origem: str = Field("Pronto_Socorro", json_schema_extra={"example": "Pronto_Socorro"}, description="Setor de origem do documento")
+    canal_origem: str = Field("Interno", json_schema_extra={"example": "Interno"}, description="Setor de origem do documento")
     whatsapp_numero: Optional[str] = Field(None, description="Número do remetente no WhatsApp quando originado pelo agente autônomo")
     whatsapp_nome: Optional[str] = Field(None, description="Nome do remetente no WhatsApp (pushName)")
     whatsapp_message_id: Optional[str] = Field(None, description="Identificador da mensagem na Evolution API")
@@ -20,7 +20,7 @@ class EnfileirarTextoTriagemRequest(BaseModel):
     documento_id: Optional[str] = None
     tipo_arquivo: Literal["TEXTO", "JSON"] = "TEXTO"
     documento_texto: str = Field(..., min_length=1)
-    canal_origem: str = "Pronto_Socorro"
+    canal_origem: str = "Interno"
 
     @field_validator("documento_texto")
     @classmethod
@@ -121,7 +121,7 @@ class DecisaoAuditoriaRequest(BaseModel):
     status_aprovacao: Literal["aprovado", "corrigido", "rejeitado", "solicitar_reenvio"] = Field(
         ..., json_schema_extra={"example": "aprovado"}, description="aprovado, corrigido, rejeitado ou solicitar_reenvio"
     )
-    versao: int = Field(..., ge=0, description="Versão exibida ao revisor; decisões com versão antiga são recusadas.")
+    versao: int = Field(0, ge=0, description="Versão exibida ao revisor; decisões com versão antiga são recusadas.")
     auditor_nome: str = Field(..., json_schema_extra={"example": "Dr. Roberto Silva"})
     justificativa: str = Field(..., json_schema_extra={"example": "Dados conferidos e aprovados clinicamente."})
     dados_corrigidos: Optional[DadosExtraidosClinicos] = None

@@ -35,6 +35,9 @@ class PacientesRepository:
                 return None
 
         if not paciente:
+            if data_nascimento is None and idade is not None:
+                hoje = date.today()
+                data_nascimento = date(hoje.year - idade, hoje.month, hoje.day)
             paciente = PacienteModel(
                 nome=nome.strip() if nome else "Paciente Não Identificado",
                 cpf=cpf,
@@ -45,6 +48,9 @@ class PacientesRepository:
             self.db.flush()
         elif data_nascimento is not None and paciente.data_nascimento is None:
             paciente.data_nascimento = data_nascimento
+        elif idade is not None and paciente.data_nascimento is None:
+            hoje = date.today()
+            paciente.data_nascimento = date(hoje.year - idade, hoje.month, hoje.day)
 
         return paciente
 

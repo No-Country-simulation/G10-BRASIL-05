@@ -14,7 +14,7 @@ def test_grafo_cenario_urgencia_tep():
     estado_entrada = {
         "documento_id": "TEST-URG-001",
         "tipo_arquivo": "pdf",
-        "canal_origem": "Pronto_Socorro",
+        "canal_origem": "Interno",
         "documento_texto": (
             "Hospital Geral - Laudo de Tomografia Computadorizada\n"
             "Paciente: Carlos Eduardo Mendes, 52 anos. Médico: Dra. Renata Silveira CRM: 145892-SP.\n"
@@ -83,7 +83,7 @@ def test_endpoint_triagem_com_grafo_integrado():
     payload = {
         "documento_id": "DOC-GRAFO-TEST-004",
         "tipo_arquivo": "texto",
-        "canal_origem": "Pronto_Socorro",
+        "canal_origem": "Interno",
         "documento_texto": (
             "Paciente: Carlos Eduardo Mendes, 52 anos. Dr. Renato CRM: 145892-SP. "
             "Laudo de Tomografia de Tórax: Tromboembolismo Pulmonar Agudo detectado."
