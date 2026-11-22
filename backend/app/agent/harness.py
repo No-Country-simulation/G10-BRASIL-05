@@ -60,6 +60,48 @@ def _validar_evidencias(
     return resultado.model_copy(update={"evidencias": evidencias_validas})
 
 
+def _normalizar_dict_escopo(dados: dict) -> dict:
+    if not isinstance(dados, dict):
+        return {}
+    dados_norm = dict(dados)
+    if not dados_norm.get("justificativa"):
+        for campo in ("explicacao", "motivo", "justificativa_escopo", "razao", "analise"):
+            if dados_norm.get(campo):
+                dados_norm["justificativa"] = str(dados_norm[campo])
+                break
+        if not dados_norm.get("justificativa"):
+            dados_norm["justificativa"] = "Análise do escopo do documento realizada pela inteligência clínica."
+
+    evidencias = dados_norm.get("evidencias")
+    if isinstance(evidencias, dict):
+        evidencias = list(evidencias.values())
+        dados_norm["evidencias"] = evidencias
+
+    if isinstance(evidencias, list):
+        evidencias_normalizadas = []
+        for item in evidencias:
+            if isinstance(item, dict):
+                copia = dict(item)
+                if not copia.get("fonte"):
+                    copia["fonte"] = "visual" if copia.get("observacao") else "texto"
+                if not copia.get("categoria"):
+                    copia["categoria"] = "conteudo_clinico"
+                if copia.get("fonte") == "texto" and not copia.get("citacao") and copia.get("observacao"):
+                    copia["citacao"] = copia["observacao"]
+                elif copia.get("fonte") == "visual" and not copia.get("observacao") and copia.get("citacao"):
+                    copia["observacao"] = copia["citacao"]
+                evidencias_normalizadas.append(copia)
+            elif isinstance(item, str) and item.strip():
+                evidencias_normalizadas.append({
+                    "fonte": "visual",
+                    "categoria": "conteudo_clinico",
+                    "observacao": item.strip(),
+                })
+        dados_norm["evidencias"] = evidencias_normalizadas
+
+    return dados_norm
+
+
 def parsear_resultado_escopo(
     resposta: str,
     texto_fonte: str = "",
@@ -67,7 +109,9 @@ def parsear_resultado_escopo(
 ) -> ResultadoEscopoDocumento:
     """Valida o JSON do classificador e remove evidências que não sustentam a fonte."""
     try:
-        resultado = ResultadoEscopoDocumento.model_validate(_extrair_json(resposta))
+        dados_brutos = _extrair_json(resposta)
+        dados_normalizados = _normalizar_dict_escopo(dados_brutos)
+        resultado = ResultadoEscopoDocumento.model_validate(dados_normalizados)
     except (ValueError, TypeError) as erro:
         raise DependencyUnavailableError(
             "O serviço de IA retornou uma resposta inválida para a análise do documento."

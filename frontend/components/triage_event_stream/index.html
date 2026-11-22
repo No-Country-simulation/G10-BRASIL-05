@@ -3,12 +3,28 @@
   <body>
     <script>
       const STATE_KEY = "__mediflowTriagemEventSource";
+      let pollInterval = null;
 
       function sendComponentValue(value) {
         window.parent.postMessage(
           { isStreamlitMessage: true, type: "streamlit:setComponentValue", value },
           "*",
         );
+      }
+
+      function iniciarFallbackPoll() {
+        if (!pollInterval) {
+          pollInterval = setInterval(() => {
+            sendComponentValue({ id: Date.now().toString(), evento: "poll" });
+          }, 2500);
+        }
+      }
+
+      function pararFallbackPoll() {
+        if (pollInterval) {
+          clearInterval(pollInterval);
+          pollInterval = null;
+        }
       }
 
       function enviarEvento(evento) {
@@ -40,8 +56,19 @@
         const estado = { url: urlFinal, source };
         window[STATE_KEY] = estado;
 
+        source.onopen = () => {
+          pararFallbackPoll();
+        };
+
+        source.onerror = () => {
+          iniciarFallbackPoll();
+        };
+
         ["status_update", "paciente_identificado", "concluido", "falha"].forEach((nome) => {
-          source.addEventListener(nome, enviarEvento);
+          source.addEventListener(nome, (evt) => {
+            pararFallbackPoll();
+            enviarEvento(evt);
+          });
         });
       }
 

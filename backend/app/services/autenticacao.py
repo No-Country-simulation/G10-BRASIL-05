@@ -158,8 +158,12 @@ def exigir_usuario_atual(
 
 
 def exigir_usuario_atual_cookie(request: Request, db: Session = Depends(get_db)) -> UsuarioSistemaModel:
-    """Autentica endpoints de browser pelo JWT persistido no cookie da sessão."""
-    token = request.cookies.get("mediflow_access_token")
+    """Autentica endpoints de browser pelo JWT persistido no cookie da sessão, query param ou header."""
+    token = request.cookies.get("mediflow_access_token") or request.query_params.get("token")
+    if not token:
+        auth = request.headers.get("Authorization") or ""
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
