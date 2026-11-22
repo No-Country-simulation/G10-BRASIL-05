@@ -1,8 +1,36 @@
+import re
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.clinico import EnfermeiroModel, EspecialidadeModel, MedicoModel
+
+
+UFS_BRASIL = {
+    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
+    "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+}
+
+
+def extrair_crm_e_uf(crm_texto: str | None) -> tuple[str, str]:
+    """Extrai número limpo do CRM e sigla da UF com segurança (tamanho máximo 2)."""
+    if not crm_texto:
+        return "INDEFINIDO", "SP"
+
+    texto = str(crm_texto).strip().upper()
+    uf_encontrada = "SP"
+    tokens = re.split(r"[\s\-\/\.]+", texto)
+    for token in tokens:
+        if token in UFS_BRASIL:
+            uf_encontrada = token
+            break
+
+    numeros = "".join(ch for ch in texto if ch.isdigit())
+    if not numeros:
+        palavras = [t for t in tokens if t not in {"CRM", uf_encontrada} and t]
+        numeros = "".join(palavras)[:20] or "INDEFINIDO"
+
+    return numeros[:20], uf_encontrada[:2]
 
 
 class MedicosRepository:
@@ -30,10 +58,11 @@ class MedicosRepository:
         uf: str,
         especialidade: Optional[str] = None,
     ) -> MedicoModel:
+        uf_limpa = (uf or "SP").strip().upper()[:2]
         medico = MedicoModel(
-            nome=(nome or "").strip(),
-            crm=(crm or "").strip(),
-            uf=(uf or "").strip().upper(),
+            nome=(nome or "").strip()[:150],
+            crm=(crm or "").strip()[:50],
+            uf=uf_limpa,
         )
         self.db.add(medico)
         self.db.flush()
@@ -91,10 +120,7 @@ class MedicosRepository:
     def obter_ou_criar_medico(
         self, nome: str, crm: str, especialidade: Optional[str] = None
     ) -> MedicoModel:
-        crm_formatado = crm.strip().upper() if crm else "CRM-INDEFINIDO"
-        uf = crm_formatado.rsplit("-", 1)[-1] if "-" in crm_formatado else "SP"
-        numero = crm_formatado.rsplit("-", 1)[0] if "-" in crm_formatado else crm_formatado
-        numero = numero.removeprefix("CRM ").removeprefix("CRM-").strip()
+        numero, uf = extrair_crm_e_uf(crm)
         medico = (
             self.db.query(MedicoModel)
             .filter(MedicoModel.crm == numero, MedicoModel.uf == uf)
@@ -102,7 +128,9 @@ class MedicosRepository:
         )
         if medico is None:
             medico = MedicoModel(
-                nome=nome.strip() if nome else "Médico Solicitante", crm=numero, uf=uf
+                nome=(nome or "Médico Solicitante").strip()[:150],
+                crm=numero,
+                uf=uf,
             )
             self.db.add(medico)
             self.db.flush()
@@ -122,8 +150,5 @@ class MedicosRepository:
     def buscar_por_crm(self, crm: str) -> Optional[MedicoModel]:
         if not crm:
             return None
-        texto = crm.strip().upper()
-        uf = texto.rsplit("-", 1)[-1] if "-" in texto else "SP"
-        numero = texto.rsplit("-", 1)[0] if "-" in texto else texto
-        numero = numero.removeprefix("CRM ").removeprefix("CRM-").strip()
+        numero, uf = extrair_crm_e_uf(crm)
         return self.db.query(MedicoModel).filter_by(crm=numero, uf=uf).first()
