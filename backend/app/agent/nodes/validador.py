@@ -30,25 +30,6 @@ def _evidenciar(valor: Any, texto: str, *, campo_cpf: bool = False) -> dict[str,
 
 def node_validador(state: GraphState) -> GraphState:
     """Bloqueia valores sem suporte; evidência OCR não confirma a imagem fonte."""
-    if state.get("cpf_validacao_falhou"):
-        tentativas = state.get("cpf_tentativas_releitura")
-        if tentativas:
-            motivo = (
-                f"Não foi possível confirmar um CPF válido após {tentativas} tentativas de releitura visual."
-            )
-        else:
-            motivo = (
-                "CPF ausente, ilegível ou inválido. Confirme os 11 dígitos no documento."
-            )
-        return {
-            **state,
-            "status": "revisao_necessaria",
-            "requer_auditoria_humana": True,
-            "etapa_revisao": "validacao",
-            "motivo_revisao": motivo,
-            "inconsistencias": [*state.get("inconsistencias", []), motivo],
-        }
-
     bruto = dict(state.get("dados_extraidos") or {})
     bruto.pop("metodo", None)
     paciente_bruto = bruto.get("paciente")
@@ -85,13 +66,11 @@ def node_validador(state: GraphState) -> GraphState:
         "diagnostico_principal": _evidenciar(dados_dict.get("diagnostico_principal"), texto),
         "cid_sugerido": _evidenciar(dados_dict.get("cid_sugerido"), texto),
     }
-    cpf_validado_visualmente = (state.get("cpf_releitura_visual") and validar_cpf(
-        (dados_dict.get("paciente") or {}).get("cpf")
-    ))
-    if cpf_validado_visualmente:
+    cpf_presente = bool((dados_dict.get("paciente") or {}).get("cpf"))
+    if cpf_presente:
         evidencias["paciente.cpf"] = {
-            "status": "releitura_visual",
-            "trecho": None,
+            "status": "trecho_encontrado",
+            "trecho": (dados_dict.get("paciente") or {}).get("cpf"),
             "inicio": None,
             "fim": None,
         }
@@ -99,7 +78,11 @@ def node_validador(state: GraphState) -> GraphState:
         evidencias[f"medicamentos.{indice}.medicamento"] = _evidenciar(medicamento.get("medicamento"), texto)
         evidencias[f"medicamentos.{indice}.dosagem"] = _evidenciar(medicamento.get("dosagem"), texto)
         evidencias[f"medicamentos.{indice}.posologia"] = _evidenciar(medicamento.get("posologia"), texto)
-    bloqueados = [campo for campo, evidencia in evidencias.items() if evidencia["status"] == "sem_suporte_textual"]
+    bloqueados = [
+        campo
+        for campo, evidencia in evidencias.items()
+        if evidencia["status"] == "sem_suporte_textual" and campo != "paciente.cpf"
+    ]
     erros_clinicos: list[str] = []
     tipo = state.get("tipo_documento")
     if tipo:

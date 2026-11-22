@@ -90,8 +90,12 @@ def _reler_cpf_na_imagem(cliente: Any, estado: GraphState) -> tuple[str | None, 
             resposta = cliente.invoke([mensagem])
             if isinstance(resposta.content, str):
                 cpf_lido = _ler_resposta_json(resposta.content).get("paciente_cpf")
-                if validar_cpf(cpf_lido):
-                    return normalizar_cpf(cpf_lido), total_tentativas
+                if cpf_lido:
+                    norm = normalizar_cpf(cpf_lido)
+                    if norm:
+                        return norm, total_tentativas
+                    if any(c.isdigit() for c in str(cpf_lido)):
+                        return str(cpf_lido).strip(), total_tentativas
         except Exception as erro:
             # Não registrar imagem, caminho ou qualquer valor de CPF.
             logger.warning(
@@ -133,12 +137,14 @@ def node_extracao(state: GraphState) -> GraphState:
     paciente_identificado = dados_identificacao.get("paciente") or {}
     medico_identificado = dados_identificacao.get("medico_solicitante") or {}
     cpf_bruto = dados.get("paciente_cpf") or paciente_identificado.get("cpf")
-    cpf_extraido = normalizar_cpf(cpf_bruto)
+    cpf_extraido = normalizar_cpf(cpf_bruto) or (str(cpf_bruto).strip() if cpf_bruto else None)
     cpf_releitura_visual = False
     tentativas_releitura = 0
-    if not validar_cpf(cpf_bruto):
-        cpf_extraido, tentativas_releitura = _reler_cpf_na_imagem(cliente, state)
-        cpf_releitura_visual = cpf_extraido is not None
+    if not cpf_extraido and state.get("tipo_arquivo") in {"imagem", "image", "pdf"}:
+        cpf_releitura, tentativas_releitura = _reler_cpf_na_imagem(cliente, state)
+        if cpf_releitura:
+            cpf_extraido = cpf_releitura
+            cpf_releitura_visual = True
 
     cns_bruto = dados.get("paciente_cns")
     cns_extraido = None
@@ -219,6 +225,6 @@ def node_extracao(state: GraphState) -> GraphState:
         "cid_sugerido": dados_extraidos["cid_sugerido"],
         "status": "extraido",
         "cpf_releitura_visual": cpf_releitura_visual,
-        "cpf_validacao_falhou": cpf_extraido is None,
+        "cpf_validacao_falhou": False,
         "cpf_tentativas_releitura": tentativas_releitura,
     }

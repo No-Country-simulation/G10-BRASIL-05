@@ -47,7 +47,7 @@ def registrar_lote_triagem(lote_id: str, usuario_id: int, trabalhos: list[dict])
         redis = obter_redis_fila()
         redis.set(
             chave_lote_triagem(lote_id),
-            json.dumps(dados, ensure_ascii=False),
+            json.dumps(dados, ensure_ascii=False, default=str),
             ex=TTL_PROPRIETARIO_SEGUNDOS,
         )
     except (RedisError, Exception) as erro:

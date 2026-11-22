@@ -45,21 +45,19 @@ def test_motor_regras_faixa_confiavel_direto():
 
 
 def test_motor_regras_faixa_revisao_humana():
-    """Documento com dados parciais (sem CPF) cai na faixa REVISAO_HUMANA."""
+    """Documento com dados parciais (sem CRM e sem identificador regulatório) cai na faixa REVISAO_HUMANA."""
     estado: GraphState = {
         "documento_texto": (
             "Receituário Médico - Clínica Médica\n"
             "Paciente: Mariana Souza, 35 anos.\n"
-            "Médico: Dr. Lucas Ramos CRM: 87654-SP.\n"
             "Uso oral: Losartana 50mg pela manhã."
         ),
         "qualidade_documento": {"status": "adequada"},
         "legibilidade_documento": "legivel",
         "paciente": {"nome": "Mariana Souza", "idade": 35, "cpf": None},
-        "medico_solicitante": {"nome": "Dr. Lucas Ramos", "crm": "87654", "crm_uf": "SP"},
+        "medico_solicitante": {"nome": "Dr. Lucas Ramos", "crm": None, "crm_uf": None},
         "tipo_documento": "RECEITA",
         "medicamentos": [{"medicamento": "Losartana", "dosagem": "50mg"}],
-        "cpf_validacao_falhou": True,
     }
 
     resultado = node_avaliacao(estado)
@@ -67,8 +65,8 @@ def test_motor_regras_faixa_revisao_humana():
     detalhes = resultado["score_detalhes"]
     assert detalhes["etapa_1_qualidade"]["pontos"] == 15.0
     assert detalhes["etapa_2_cadastro"]["pontos"] == 20.0
-    # Sem CPF válido: ganha 7 pts do CRM, corte é 10 -> corte reprovado
-    assert detalhes["etapa_3_regulatorio"]["pontos"] == 7.0
+    # Sem CRM e sem CPF/CNS: ganha 5 pts, corte é 10 -> corte reprovado
+    assert detalhes["etapa_3_regulatorio"]["pontos"] == 5.0
     assert detalhes["etapa_3_regulatorio"]["aprovado"] is False
 
     assert resultado["faixa_motor_regras"] == "REVISAO_HUMANA"

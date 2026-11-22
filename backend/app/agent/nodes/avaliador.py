@@ -67,12 +67,18 @@ def node_avaliacao(state: GraphState) -> GraphState:
     if medico.get("nome"):
         score_cadastro += 7.0
 
-    # Etapa 3: Validação Regulatória de CPF, CRM, CNS (Máx: 15 pts | Corte >= 10)
+    # Etapa 3: Validação Regulatória (CRM tem prioridade clínica máxima; CPF não é obrigatório nem reduz pontos)
     score_regulatorio = 0.0
-    if paciente.get("cpf") and not state.get("cpf_validacao_falhou", False):
-        score_regulatorio += 8.0
-    if medico.get("crm") or medico.get("crm_uf"):
-        score_regulatorio += 7.0
+    tem_crm = bool(medico.get("crm") or medico.get("crm_uf"))
+    tem_cpf = bool(paciente.get("cpf"))
+    tem_cns = bool(paciente.get("cns"))
+
+    if tem_crm:
+        score_regulatorio = 15.0
+    elif tem_cpf or tem_cns:
+        score_regulatorio = 10.0
+    else:
+        score_regulatorio = 5.0
 
     # Etapa 4: Interpretação de Sinais Clínicos e Diagnósticos (Máx: 50 pts | Corte >= 16)
     score_clinico = 0.0
