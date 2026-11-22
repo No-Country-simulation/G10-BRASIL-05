@@ -1,6 +1,6 @@
 """Fluxo de interface da tela de análise de documentos."""
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 from html import escape
 import io
 from pathlib import Path
@@ -327,7 +327,7 @@ def render() -> None:
                 "paciente_nome": item.get("paciente_nome") or "",
                 "paciente_cpf": item.get("paciente_cpf") or "-",
                 "data_hora": item.get("data_envio") or "-",
-                "data_iso": item.get("data_envio") or "",
+                "data_iso": item.get("data_iso") or item.get("data_envio") or "",
                 "status": item.get("status") or "na_fila",
                 "status_processamento": item.get("status_processamento"),
                 "canal_origem": item.get("canal_origem") or "Interno",
@@ -517,12 +517,29 @@ def render() -> None:
     ]
 
     # Ordenação
-    def chave_data(d: dict):
-        val = d.get("data_iso") or ""
-        try:
-            return datetime.fromisoformat(val)
-        except Exception:
-            return datetime.min
+    def chave_data(d: dict) -> datetime:
+        val = d.get("data_iso") or d.get("data_hora") or d.get("data_envio") or d.get("created_at") or ""
+        if isinstance(val, datetime):
+            if val.tzinfo is not None:
+                return val.astimezone(timezone.utc).replace(tzinfo=None)
+            return val
+        if isinstance(val, str):
+            val = val.strip()
+            if not val or val == "-":
+                return datetime.min
+            try:
+                dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                if dt.tzinfo is not None:
+                    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+                return dt
+            except Exception:
+                pass
+            for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(val, fmt)
+                except Exception:
+                    pass
+        return datetime.min
 
     if filtro_ord == "Mais recentes primeiro":
         documentos_filtrados.sort(key=chave_data, reverse=True)

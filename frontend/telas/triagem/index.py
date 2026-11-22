@@ -2,7 +2,7 @@
 
 def render() -> None:
     import base64
-    from datetime import datetime
+    from datetime import datetime, timezone
     from pathlib import Path
     import time
 
@@ -39,6 +39,7 @@ def render() -> None:
     if resultado and isinstance(resultado, dict):
         acao = resultado.get("acao")
         agora_formatado = datetime.now().strftime("%d/%m/%Y %H:%M")
+        agora_iso = datetime.now(timezone.utc).isoformat()
         novos_trabalhos = []
 
         if acao in ("analisar_arquivos", "analisar_texto"):
@@ -150,6 +151,7 @@ def render() -> None:
                                         "paciente_nome": "Aguardando identificação",
                                         "paciente_cpf": "-",
                                         "data_envio": agora_formatado,
+                                        "data_iso": agora_iso,
                                         "status": "na_fila",
                                         "canal_origem": "Interno",
                                         "lote_id": lote_id,
@@ -168,6 +170,7 @@ def render() -> None:
                                 "paciente_nome": "Aguardando identificação",
                                 "paciente_cpf": "-",
                                 "data_envio": agora_formatado,
+                                "data_iso": agora_iso,
                                 "status": "na_fila",
                                 "canal_origem": "Interno",
                                 "lote_id": resposta.get("lote_id"),

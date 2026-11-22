@@ -156,19 +156,12 @@ else:
             )
         )
 
-# Registra todas as rotas válidas no roteador do Streamlit para evitar "Page not found" durante recarregamento
-paginas.append(pagina_login)
-paginas.append(pagina_trocar_senha)
-
-pagina_selecionada = st.navigation(
-    paginas,
-    position="sidebar" if esta_autenticado(st.session_state) else "hidden",
-)
-
 if not esta_autenticado(st.session_state):
-    pagina_login.run()
+    pagina_selecionada = st.navigation([pagina_login], position="hidden")
 elif precisa_trocar_senha(st.session_state):
-    pagina_trocar_senha.run()
+    pagina_selecionada = st.navigation([pagina_trocar_senha], position="hidden")
 else:
+    pagina_selecionada = st.navigation(paginas, position="sidebar")
     exibir_barra_lateral()
-    pagina_selecionada.run()
+
+pagina_selecionada.run()

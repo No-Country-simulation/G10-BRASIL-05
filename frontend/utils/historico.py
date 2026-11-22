@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import unicodedata
 
 import pandas as pd
@@ -174,12 +174,29 @@ def filtrar_historico_completo(
         resultado.append(doc)
 
     # Ordenação
-    def chave_data(d: dict):
-        val = d.get("created_at") or ""
-        try:
-            return datetime.fromisoformat(val)
-        except Exception:
-            return datetime.min
+    def chave_data(d: dict) -> datetime:
+        val = d.get("created_at") or d.get("data_iso") or ""
+        if isinstance(val, datetime):
+            if val.tzinfo is not None:
+                return val.astimezone(timezone.utc).replace(tzinfo=None)
+            return val
+        if isinstance(val, str):
+            val = val.strip()
+            if not val or val == "-":
+                return datetime.min
+            try:
+                dt = datetime.fromisoformat(val.replace("Z", "+00:00"))
+                if dt.tzinfo is not None:
+                    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+                return dt
+            except Exception:
+                pass
+            for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(val, fmt)
+                except Exception:
+                    pass
+        return datetime.min
 
     if ordenacao == "Mais recentes primeiro":
         resultado.sort(key=chave_data, reverse=True)
