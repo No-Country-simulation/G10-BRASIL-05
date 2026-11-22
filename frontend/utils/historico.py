@@ -1,19 +1,42 @@
 from datetime import datetime
+import unicodedata
 
 import pandas as pd
 
 from utils.aparencia import cor_da_confianca, cor_da_prioridade
-from utils.formatadores import rotular_prioridade, rotular_tipo_documento
+from utils.formatadores import (
+    normalizar_prioridade,
+    rotular_prioridade,
+    rotular_tipo_documento,
+)
 
 FILTRO_TODOS = "Todos"
 STATUS_APROVADO = "Aprovado"
 STATUS_URGENCIA = "Urgência"
-STATUS_EM_AUDITORIA = "Em Auditoria"
+STATUS_EM_AUDITORIA = "Aguardando revisão"
 STATUS_REJEITADO = "Rejeitado"
 STATUS_DESCONHECIDO = "Não classificado"
 SEM_VALOR = "-"
 
 FILTROS_DE_STATUS = [FILTRO_TODOS, STATUS_APROVADO, STATUS_URGENCIA, STATUS_EM_AUDITORIA, STATUS_REJEITADO]
+
+FILTROS_DE_PRIORIDADE = ["Todas", "Emergência", "Urgente", "Rotina"]
+
+FILTROS_DE_TIPO = [
+    "Todos",
+    "Laudo de Exame",
+    "Receituário Médico",
+    "Guia TISS",
+    "Relatório de Alta",
+    "Atestado Médico",
+]
+
+OPCOES_ORDENACAO = [
+    "Mais recentes primeiro",
+    "Mais antigos primeiro",
+    "Maior prioridade",
+    "Maior confiança",
+]
 
 STATUS_POR_DESTINO = {
     "Fluxo_Padrao": STATUS_APROVADO,
@@ -42,6 +65,18 @@ FUNDO_POR_STATUS = {
     STATUS_REJEITADO: "#EEEEEE",
 }
 
+PESO_PRIORIDADE = {
+    "EMERGENCIA": 3,
+    "URGENTE": 2,
+    "ROTINA": 1,
+}
+
+
+def remover_acentos(texto: str | None) -> str:
+    if not texto:
+        return ""
+    return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("utf-8").lower().strip()
+
 
 def identificar_status(documento: dict) -> str:
     status_da_auditoria = STATUS_POR_DECISAO_DE_AUDITORIA.get(documento.get("status_processamento"))
@@ -54,6 +89,105 @@ def filtrar_por_status(documentos: list[dict], filtro: str) -> list[dict]:
     if filtro == FILTRO_TODOS:
         return documentos
     return [documento for documento in documentos if identificar_status(documento) == filtro]
+
+
+def corresponde_busca(documento: dict, termo: str) -> bool:
+    termo_norm = remover_acentos(termo)
+    if not termo_norm:
+        return True
+
+    campos_para_busca = [
+        documento.get("documento_id") or "",
+        documento.get("paciente_nome") or "",
+        documento.get("paciente_cpf") or "",
+        rotular_tipo_documento(documento.get("tipo_documento")) or "",
+        documento.get("tipo_documento") or "",
+        rotular_prioridade(documento.get("nivel_prioridade")) or "",
+        documento.get("nivel_prioridade") or "",
+        identificar_status(documento),
+        documento.get("destino_principal") or "",
+    ]
+
+    for campo in campos_para_busca:
+        if termo_norm in remover_acentos(str(campo)):
+            return True
+    return False
+
+
+def calcular_metricas_historico(documentos: list[dict]) -> dict:
+    metricas = {
+        "total": len(documentos),
+        "aprovados": 0,
+        "urgencias": 0,
+        "em_auditoria": 0,
+        "rejeitados": 0,
+    }
+    for doc in documentos:
+        status = identificar_status(doc)
+        if status == STATUS_APROVADO:
+            metricas["aprovados"] += 1
+        elif status == STATUS_URGENCIA:
+            metricas["urgencias"] += 1
+        elif status == STATUS_EM_AUDITORIA:
+            metricas["em_auditoria"] += 1
+        elif status == STATUS_REJEITADO:
+            metricas["rejeitados"] += 1
+    return metricas
+
+
+def filtrar_historico_completo(
+    documentos: list[dict],
+    termo_busca: str = "",
+    filtro_status: str = FILTRO_TODOS,
+    filtro_prioridade: str = "Todas",
+    filtro_tipo: str = "Todos",
+    ordenacao: str = "Mais recentes primeiro",
+) -> list[dict]:
+    resultado = []
+    for doc in documentos:
+        # 1. Filtro de busca textual
+        if termo_busca and not corresponde_busca(doc, termo_busca):
+            continue
+
+        # 2. Filtro de status
+        if filtro_status != FILTRO_TODOS and identificar_status(doc) != filtro_status:
+            continue
+
+        # 3. Filtro de prioridade
+        if filtro_prioridade != "Todas":
+            prioridade_rotulada = rotular_prioridade(doc.get("nivel_prioridade"))
+            if prioridade_rotulada != filtro_prioridade:
+                continue
+
+        # 4. Filtro de tipo de documento
+        if filtro_tipo != "Todos":
+            tipo_rotulado = rotular_tipo_documento(doc.get("tipo_documento"))
+            if tipo_rotulado != filtro_tipo:
+                continue
+
+        resultado.append(doc)
+
+    # Ordenação
+    def chave_data(d: dict):
+        val = d.get("created_at") or ""
+        try:
+            return datetime.fromisoformat(val)
+        except Exception:
+            return datetime.min
+
+    if ordenacao == "Mais recentes primeiro":
+        resultado.sort(key=chave_data, reverse=True)
+    elif ordenacao == "Mais antigos primeiro":
+        resultado.sort(key=chave_data)
+    elif ordenacao == "Maior prioridade":
+        def chave_prioridade(d: dict):
+            pri = normalizar_prioridade(d.get("nivel_prioridade"))
+            return PESO_PRIORIDADE.get(pri, 0)
+        resultado.sort(key=chave_prioridade, reverse=True)
+    elif ordenacao == "Maior confiança":
+        resultado.sort(key=lambda d: d.get("score_confianca") or 0.0, reverse=True)
+
+    return resultado
 
 
 def montar_tabela_estilizada(documentos: list[dict]):

@@ -62,7 +62,7 @@ def baixar_fonte_original(documento_id: str, db: Session = Depends(get_db)):
 def registrar_decisao_auditoria(
     documento_id: str,
     payload: DecisaoAuditoriaRequest,
-    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
+    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO", "ENFERMEIRO")),
     db: Session = Depends(get_db),
 ):
     """Permite ao médico/auditor aprovar, corrigir ou rejeitar uma triagem de baixa confiança."""
@@ -87,7 +87,7 @@ def registrar_decisao_auditoria(
 def bloquear_documento_auditoria(
     documento_id: str,
     payload: BloqueioAuditoriaRequest,
-    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
+    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO", "ENFERMEIRO")),
     db: Session = Depends(get_db),
 ):
     """Adquire lock exclusivo no Redis para evitar que dois médicos auditem o mesmo laudo simultaneamente."""
@@ -158,7 +158,7 @@ def bloquear_documento_auditoria(
 def desbloquear_documento_auditoria(
     documento_id: str,
     payload: BloqueioAuditoriaRequest,
-    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
+    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO", "ENFERMEIRO")),
     db: Session = Depends(get_db),
 ):
     """Libera o lock exclusivo no Redis caso o médico cancele ou finalize a revisão."""

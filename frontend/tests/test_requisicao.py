@@ -20,16 +20,16 @@ class ArquivoFalso:
 
 
 def test_monta_requisicao_a_partir_de_texto_digitado():
-    requisicao = montar_requisicao(None, "suspeita de TEP", "Pronto_Socorro")
+    requisicao = montar_requisicao(None, "suspeita de TEP", "Interno")
 
     assert requisicao["tipo_arquivo"] == "TEXTO"
     assert requisicao["documento_texto"] == "suspeita de TEP"
-    assert requisicao["canal_origem"] == "Pronto_Socorro"
+    assert requisicao["canal_origem"] == "Interno"
     assert re.fullmatch(r"DOC-CLIN-\d{14}-[0-9A-F]{6}", requisicao["documento_id"])
 
 
 def test_requisicao_tem_exatamente_os_campos_do_contrato():
-    requisicao = montar_requisicao(None, "texto", "Pronto_Socorro")
+    requisicao = montar_requisicao(None, "texto", "Interno")
 
     assert set(requisicao) == {"documento_id", "tipo_arquivo", "documento_texto", "canal_origem"}
 
@@ -45,7 +45,7 @@ def test_requisicao_tem_exatamente_os_campos_do_contrato():
 def test_identifica_tipo_de_arquivo_de_texto(nome_arquivo, tipo_esperado):
     arquivo = ArquivoFalso(nome_arquivo, b"conteudo do documento")
 
-    requisicao = montar_requisicao(arquivo, "", "Pronto_Socorro")
+    requisicao = montar_requisicao(arquivo, "", "Interno")
 
     assert requisicao["tipo_arquivo"] == tipo_esperado
     assert requisicao["documento_texto"] == "conteudo do documento"
@@ -63,7 +63,7 @@ def test_identifica_tipo_de_arquivo_de_texto(nome_arquivo, tipo_esperado):
 def test_pdf_e_imagem_enviam_o_nome_do_arquivo_por_enquanto(nome_arquivo, tipo_esperado):
     arquivo = ArquivoFalso(nome_arquivo, b"\x00\x01binario")
 
-    requisicao = montar_requisicao(arquivo, "", "Pronto_Socorro")
+    requisicao = montar_requisicao(arquivo, "", "Interno")
 
     assert requisicao["tipo_arquivo"] == tipo_esperado
     assert requisicao["documento_texto"] == nome_arquivo
@@ -72,39 +72,39 @@ def test_pdf_e_imagem_enviam_o_nome_do_arquivo_por_enquanto(nome_arquivo, tipo_e
 @pytest.mark.parametrize("texto_vazio", ["", "   ", "\n\t"])
 def test_rejeita_texto_digitado_vazio(texto_vazio):
     with pytest.raises(ValueError, match="vazio"):
-        montar_requisicao(None, texto_vazio, "Pronto_Socorro")
+        montar_requisicao(None, texto_vazio, "Interno")
 
 
 def test_rejeita_arquivo_vazio():
     arquivo = ArquivoFalso("rotina.txt", b"")
 
     with pytest.raises(ValueError, match="vazio"):
-        montar_requisicao(arquivo, "", "Pronto_Socorro")
+        montar_requisicao(arquivo, "", "Interno")
 
 
 def test_rejeita_arquivo_de_texto_fora_do_utf8():
     arquivo = ArquivoFalso("laudo.txt", "açúcar".encode("latin-1"))
 
     with pytest.raises(ValueError, match="UTF-8"):
-        montar_requisicao(arquivo, "", "Pronto_Socorro")
+        montar_requisicao(arquivo, "", "Interno")
 
 
 def test_ignora_marcador_bom_no_inicio_do_arquivo():
     arquivo = ArquivoFalso("laudo.txt", b"\xef\xbb\xbfsuspeita de TEP")
 
-    requisicao = montar_requisicao(arquivo, "", "Pronto_Socorro")
+    requisicao = montar_requisicao(arquivo, "", "Interno")
 
     assert requisicao["documento_texto"] == "suspeita de TEP"
 
 
 def test_exige_arquivo_quando_a_fonte_e_arquivo():
-    problema = validar_envio(OPCAO_ARQUIVO, None, "", "Pronto_Socorro")
+    problema = validar_envio(OPCAO_ARQUIVO, None, "", "Interno")
 
     assert problema == "Selecione um arquivo para analisar."
 
 
 def test_exige_texto_quando_a_fonte_e_texto():
-    problema = validar_envio(OPCAO_TEXTO, None, "   ", "Pronto_Socorro")
+    problema = validar_envio(OPCAO_TEXTO, None, "   ", "Interno")
 
     assert problema == "Cole o texto do documento para analisar."
 
@@ -118,8 +118,8 @@ def test_exige_canal_de_origem():
 def test_aceita_envio_completo():
     arquivo = ArquivoFalso("laudo.txt", b"texto")
 
-    assert validar_envio(OPCAO_TEXTO, None, "texto", "Pronto_Socorro") is None
-    assert validar_envio(OPCAO_ARQUIVO, arquivo, "", "Pronto_Socorro") is None
+    assert validar_envio(OPCAO_TEXTO, None, "texto", "Interno") is None
+    assert validar_envio(OPCAO_ARQUIVO, arquivo, "", "Interno") is None
 
 def test_documento_id_nao_repete_nem_no_mesmo_segundo():
     ids = {montar_requisicao(None, "receita de rotina", "Ambulatorio")["documento_id"] for _ in range(500)}

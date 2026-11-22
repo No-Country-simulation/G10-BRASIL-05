@@ -56,6 +56,15 @@ class GraphState(TypedDict, total=False):
     motivo_urgencia: Optional[str]
     inconsistencias: List[str]
 
+    # Motor de Regras e Pontuação MediFlow (Excalidraw: 15/20/15/50 = 100)
+    score_qualidade: Optional[float]
+    score_cadastro: Optional[float]
+    score_regulatorio: Optional[float]
+    score_clinico: Optional[float]
+    score_total: Optional[float]
+    faixa_motor_regras: Optional[str]
+    score_detalhes: Optional[Dict[str, Any]]
+
     # Decisão de Roteamento
     decisao_roteamento: Optional[Dict[str, Any]]
     destino_principal: Optional[str]

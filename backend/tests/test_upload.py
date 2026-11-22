@@ -172,7 +172,7 @@ def test_upload_pdf_real_valido(monkeypatch):
     response = client.post(
         "/triagem/upload",
         files={"file": ("mediflow_doc.pdf", pdf_bytes, "application/pdf")},
-        data={"canal_origem": "Pronto_Socorro", "documento_id": "TEST-PDF-002"},
+        data={"canal_origem": "Interno", "documento_id": "TEST-PDF-002"},
     )
     assert response.status_code in [200, 201]
     dados = response.json()
@@ -237,7 +237,7 @@ def test_upload_enfileirar_lote_sucesso():
             ("files", ("receita.pdf", pdf_bytes, "application/pdf")),
             ("files", ("foto.png", img_bytes, "image/png")),
         ],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert response.status_code == 202
     dados = response.json()
@@ -257,7 +257,7 @@ def test_upload_enfileirar_cooldown_30s_bloqueia_duplo_envio():
     res1 = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("doc1.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert res1.status_code == 202
 
@@ -265,7 +265,7 @@ def test_upload_enfileirar_cooldown_30s_bloqueia_duplo_envio():
     res2 = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("doc2.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert res2.status_code == 429
     dados_erro = res2.json()
@@ -283,7 +283,7 @@ def test_upload_enfileirar_libera_lock_apos_expirar_cooldown(monkeypatch):
     res1 = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("doc1.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert res1.status_code == 202
 
@@ -295,7 +295,7 @@ def test_upload_enfileirar_libera_lock_apos_expirar_cooldown(monkeypatch):
     res2 = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("doc2.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert res2.status_code == 202
     assert "lote_id" in res2.json()
@@ -332,7 +332,7 @@ def test_upload_enfileirar_usuarios_diferentes_nao_se_bloqueiam():
     res1 = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("doc1.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert res1.status_code == 202
 
@@ -340,7 +340,7 @@ def test_upload_enfileirar_usuarios_diferentes_nao_se_bloqueiam():
     res2 = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("doc2.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
         headers={"Authorization": f"Bearer {token_medico}"},
     )
     assert res2.status_code == 202
@@ -349,7 +349,7 @@ def test_upload_enfileirar_usuarios_diferentes_nao_se_bloqueiam():
     res3 = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("doc3.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert res3.status_code == 429
 
@@ -361,7 +361,7 @@ def test_upload_enfileirar_libera_lock_quando_validacao_falha():
     # Requisicao invalida sem arquivos -> 400
     res_invalida = client.post(
         "/api/v1/triagem/upload/enfileirar",
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert res_invalida.status_code == 400
 
@@ -370,7 +370,7 @@ def test_upload_enfileirar_libera_lock_quando_validacao_falha():
     res_valida = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("doc_corrigido.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert res_valida.status_code == 202
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
 
-CANAIS_DE_ORIGEM = ["Pronto_Socorro", "Ambulatorio", "Telemedicina"]
+CANAIS_DE_ORIGEM = ["Interno", "Ambulatorio", "Telemedicina"]
 EXTENSOES_ACEITAS = ["pdf", "png", "jpg", "jpeg", "webp", "heic", "txt", "json"]
 
 OPCAO_ARQUIVO = "Enviar arquivo"
@@ -19,7 +19,7 @@ TIPO_ARQUIVO_POR_EXTENSAO = {
 }
 
 
-def validar_envio(fonte: str, arquivo, texto_digitado: str, canal_origem: str | None = "Pronto_Socorro") -> str | None:
+def validar_envio(fonte: str, arquivo, texto_digitado: str, canal_origem: str | None = "Interno") -> str | None:
     if fonte == OPCAO_ARQUIVO and arquivo is None:
         return "Selecione um arquivo para analisar."
     if fonte == OPCAO_TEXTO and not texto_digitado.strip():
@@ -29,7 +29,7 @@ def validar_envio(fonte: str, arquivo, texto_digitado: str, canal_origem: str | 
     return None
 
 
-def montar_requisicao(arquivo, texto_digitado: str, canal_origem: str = "Pronto_Socorro") -> dict:
+def montar_requisicao(arquivo, texto_digitado: str, canal_origem: str = "Interno") -> dict:
     if arquivo is None:
         tipo_arquivo = "TEXTO"
         documento_texto = texto_digitado

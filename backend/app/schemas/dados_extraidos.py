@@ -8,6 +8,7 @@ class PacienteExtraido(BaseModel):
 
     nome: str | None = None
     cpf: str | None = Field(default=None, pattern=r"^\d{11}$")
+    cns: str | None = Field(default=None, pattern=r"^\d{15}$", description="Cartão Nacional de Saúde (15 dígitos numéricos).")
     idade: StrictInt | None = None
     data_nascimento: date | None = None
 

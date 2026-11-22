@@ -23,12 +23,15 @@
         const args = event.data.args || {};
         try {
           if (args.action === "read") {
-            sendComponentValue(sessionStorage.getItem(STORAGE_KEY));
+            const token = sessionStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY);
+            sendComponentValue(token);
           } else if (args.action === "write" && typeof args.token === "string") {
-            sessionStorage.setItem(STORAGE_KEY, args.token);
+            try { sessionStorage.setItem(STORAGE_KEY, args.token); } catch (_e) {}
+            try { localStorage.setItem(STORAGE_KEY, args.token); } catch (_e) {}
             sendComponentValue(true);
           } else if (args.action === "clear") {
-            sessionStorage.removeItem(STORAGE_KEY);
+            try { sessionStorage.removeItem(STORAGE_KEY); } catch (_e) {}
+            try { localStorage.removeItem(STORAGE_KEY); } catch (_e) {}
             sendComponentValue(true);
           } else {
             sendComponentValue(null);

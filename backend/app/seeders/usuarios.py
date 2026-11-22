@@ -5,55 +5,27 @@ from app.config.settings import settings
 from app.models.triagem import UsuarioSistemaModel
 from app.services.autenticacao import gerar_hash_senha
 from app.seeders.errors import BootstrapAdminError
-
-
-USUARIOS_A_SEMEAR: tuple[dict[str, Any], ...] = (
-    {
-        "nome": "Dr. Diretor Clínico",
-        "email": "diretor@mediflow.com.br",
-        "papel": "DIRETOR",
-        "registro": "CRM 110022-SP",
-        "especialidade": "Gestão Hospitalar & Governança",
-        "trocar_senha_obrigatorio": False,
-        "pode_gerenciar_whatsapp": False,
-    },
-    {
-        "nome": "Dr. Médico Plantonista",
-        "email": "medico@mediflow.com.br",
-        "papel": "MEDICO",
-        "registro": "CRM 123456-SP",
-        "especialidade": "Clínica Médica & Auditoria",
-        "trocar_senha_obrigatorio": False,
-        "pode_gerenciar_whatsapp": False,
-    },
-    {
-        "nome": "Enfermeiro Triagem",
-        "email": "enfermeiro@mediflow.com.br",
-        "papel": "ENFERMEIRO",
-        "registro": "COREN 654321-SP",
-        "especialidade": "Triagem e Emergência",
-        "trocar_senha_obrigatorio": False,
-        "pode_gerenciar_whatsapp": False,
-    },
-)
+from migrations.seeders.usuarios import obter_dados_usuarios
 
 
 def semear_usuarios_configurados(db: Session) -> None:
-    if not USUARIOS_A_SEMEAR:
+    usuarios = obter_dados_usuarios()
+    if not usuarios:
         return
     senha = settings.ADMIN_BOOTSTRAP_PASSWORD
     if len(senha) < 12:
         raise BootstrapAdminError("ADMIN_BOOTSTRAP_PASSWORD deve ter pelo menos 12 caracteres.")
 
     emails_vistos: set[str] = set()
-    for dados in USUARIOS_A_SEMEAR:
+    for dados in usuarios:
         email = dados["email"].strip().lower()
         nome = dados["nome"].strip()
         papel = dados.get("papel", "ENFERMEIRO").strip().upper()
         registro = (dados.get("registro") or "").strip() or None
         especialidade = (dados.get("especialidade") or "").strip() or None
-        trocar_senha_obrigatorio = bool(dados.get("trocar_senha_obrigatorio", False))
+        trocar_senha_obrigatorio = bool(dados.get("trocar_senha_obrigatorio", True))
         pode_gerenciar_whatsapp = bool(dados.get("pode_gerenciar_whatsapp", False))
+        senha_hash = dados.get("senha_hash") or gerar_hash_senha(senha)
 
         if not email or "@" not in email or not nome:
             raise BootstrapAdminError("Cada usuário seed precisa de email e nome válidos.")
@@ -66,7 +38,7 @@ def semear_usuarios_configurados(db: Session) -> None:
             UsuarioSistemaModel(
                 email=email,
                 nome=nome,
-                senha_hash=gerar_hash_senha(senha),
+                senha_hash=senha_hash,
                 papel=papel,
                 registro=registro,
                 especialidade=especialidade,
@@ -75,3 +47,4 @@ def semear_usuarios_configurados(db: Session) -> None:
                 ativo=True,
             )
         )
+

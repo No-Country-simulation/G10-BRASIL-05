@@ -162,6 +162,8 @@ def enfileirar_texto(
     tipo_arquivo: str,
     canal_origem: str,
     usuario_id: int,
+    caminho_arquivo: str | None = None,
+    caminho_objeto_fonte: str | None = None,
 ) -> Job:
     """Enfileira texto colado pelo mesmo worker dos arquivos enviados.
 
@@ -173,10 +175,10 @@ def enfileirar_texto(
         job = fila.enqueue(
             "app.services.triagem_worker.processar_documento_enfileirado",
             documento_id=documento_id,
-            caminho_arquivo=None,
-            caminho_objeto_fonte=None,
-            nome_arquivo="Texto colado",
-            extensao=tipo_arquivo,
+            caminho_arquivo=caminho_arquivo,
+            caminho_objeto_fonte=caminho_objeto_fonte,
+            nome_arquivo=f"{documento_id}.txt" if caminho_arquivo else "Texto colado",
+            extensao=".txt" if caminho_arquivo else tipo_arquivo,
             canal_origem=canal_origem,
             usuario_id=usuario_id,
             texto_documento=documento_texto,

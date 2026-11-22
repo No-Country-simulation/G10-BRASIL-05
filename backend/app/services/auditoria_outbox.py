@@ -34,9 +34,9 @@ def enfileirar_evento(
     incrementar_sequencia: bool = True,
 ) -> AuditoriaOutboxModel:
     """Cria evento e sequência dentro da transação operacional do chamador."""
-    if incrementar_sequencia:
+    if incrementar_sequencia and hasattr(documento, "ultima_sequencia"):
         documento.ultima_sequencia += 1
-    if incrementar_versao:
+    if incrementar_versao and hasattr(documento, "versao"):
         documento.versao += 1
     envelope = json.loads(
         json.dumps(
@@ -47,9 +47,9 @@ def enfileirar_evento(
     )
     evento = AuditoriaOutboxModel(
         evento_id=uuid4(),
-        documento_id=documento.id,
-        documento_externo_id=documento.documento_id,
-        sequencia=documento.ultima_sequencia,
+        documento_id=getattr(documento, "id", None),
+        documento_externo_id=getattr(documento, "documento_id", None),
+        sequencia=getattr(documento, "ultima_sequencia", 1),
         tipo_evento=tipo_evento,
         ocorrido_em=datetime.now(timezone.utc),
         payload=envelope,

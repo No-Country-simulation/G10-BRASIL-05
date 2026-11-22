@@ -203,6 +203,11 @@ def deslogar(session_state: Any = None) -> None:
     if session_state is None:
         return
     session_state["logout_efetuado"] = True
+    try:
+        from services.browser_session import limpar_token_persistido
+        limpar_token_persistido()
+    except Exception:
+        pass
     for chave in (
         CHAVE_JWT_TOKEN,
         CHAVE_USUARIO_LOGADO,

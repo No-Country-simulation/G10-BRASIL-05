@@ -171,3 +171,79 @@ def test_tabela_estilizada_tem_uma_linha_por_documento():
     tabela = montar_tabela_estilizada(documentos)
 
     assert list(tabela.data["Documento"]) == ["DOC-1", "DOC-2"]
+
+
+def test_corresponde_busca_por_nome_e_cpf():
+    from utils.historico import corresponde_busca
+
+    doc = {
+        "documento_id": "DOC-CLIN-001",
+        "paciente_nome": "Maria de Souza Silva",
+        "paciente_cpf": "123.456.789-00",
+        "tipo_documento": "RECEITA",
+    }
+
+    assert corresponde_busca(doc, "maria")
+    assert corresponde_busca(doc, "SOUZA")
+    assert corresponde_busca(doc, "123.456")
+    assert corresponde_busca(doc, "doc-clin")
+    assert corresponde_busca(doc, "receituario")
+    assert not corresponde_busca(doc, "Carlos")
+
+
+def test_filtrar_historico_completo_com_multiplos_criterios():
+    from utils.historico import filtrar_historico_completo
+
+    docs = [
+        {
+            "documento_id": "DOC-1",
+            "paciente_nome": "Carlos Drummond",
+            "tipo_documento": "LAUDO",
+            "nivel_prioridade": "EMERGENCIA",
+            "destino_principal": "Fila_Emergencia_Medica",
+            "score_confianca": 0.99,
+            "created_at": "2026-11-20T10:00:00",
+        },
+        {
+            "documento_id": "DOC-2",
+            "paciente_nome": "Clarice Lispector",
+            "tipo_documento": "RECEITA",
+            "nivel_prioridade": "ROTINA",
+            "destino_principal": "Fluxo_Padrao",
+            "score_confianca": 0.85,
+            "created_at": "2026-11-21T10:00:00",
+        },
+    ]
+
+    # Busca por nome
+    res_busca = filtrar_historico_completo(docs, termo_busca="clarice")
+    assert len(res_busca) == 1
+    assert res_busca[0]["documento_id"] == "DOC-2"
+
+    # Filtro por prioridade
+    res_pri = filtrar_historico_completo(docs, filtro_prioridade="Emergência")
+    assert len(res_pri) == 1
+    assert res_pri[0]["documento_id"] == "DOC-1"
+
+    # Ordenação mais recente
+    res_ord = filtrar_historico_completo(docs, ordenacao="Mais recentes primeiro")
+    assert res_ord[0]["documento_id"] == "DOC-2"
+
+
+def test_calcular_metricas_historico():
+    from utils.historico import calcular_metricas_historico
+
+    docs = [
+        {"destino_principal": "Fluxo_Padrao"},
+        {"destino_principal": "Fila_Emergencia_Medica"},
+        {"destino_principal": "Auditoria_Humana"},
+        {"status_processamento": "auditoria_rejeitado"},
+    ]
+
+    metricas = calcular_metricas_historico(docs)
+    assert metricas["total"] == 4
+    assert metricas["aprovados"] == 1
+    assert metricas["urgencias"] == 1
+    assert metricas["em_auditoria"] == 1
+    assert metricas["rejeitados"] == 1
+

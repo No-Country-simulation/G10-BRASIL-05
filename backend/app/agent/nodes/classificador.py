@@ -12,6 +12,8 @@ from app.schemas.classificacao import ClassificacaoDocumento
 
 
 LIMITE_CARACTERES_PROMPT = 4000
+SCORE_MAXIMO_FALLBACK = 0.70
+SCORE_DOCUMENTO_NAO_IDENTIFICADO = 0.10
 
 
 def _extrair_json(resposta: str) -> dict[str, Any]:

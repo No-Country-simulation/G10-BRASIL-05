@@ -1,0 +1,153 @@
+<style>
+/* MediFlow - Estilos da Tela de Histórico */
+
+.historico-kpi-card {
+    background: #FFFFFF;
+    border: 1px solid #E4E7EC;
+    border-radius: 10px;
+    padding: 14px 18px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 84px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.historico-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(16, 24, 40, 0.08);
+}
+
+.historico-kpi-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #667085;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.historico-kpi-valor {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: #101828;
+    line-height: 1.2;
+    margin-top: 4px;
+}
+
+.historico-tabela-container {
+    border: 1px solid #E4E7EC;
+    border-radius: 10px;
+    background: #FFFFFF;
+    overflow: hidden;
+    margin-top: 14px;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+}
+
+.historico-tabela-cabecalho {
+    display: grid;
+    grid-template-columns: 2.2fr 2.3fr 1.6fr 1.3fr 1.1fr 1.5fr 1.4fr 1.1fr;
+    padding: 12px 16px;
+    background: #F8F9FA;
+    border-bottom: 1px solid #E4E7EC;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #475467;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    align-items: center;
+}
+
+.historico-tabela-linha {
+    transition: background-color 0.15s ease;
+    border-bottom: 1px solid #F2F4F7;
+    padding: 4px 0;
+}
+
+.historico-tabela-linha:hover {
+    background-color: #F8FAFC;
+}
+
+/* Badges de Status */
+.badge-status {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-align: center;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.badge-status-aprovado {
+    background-color: #ECFDF3;
+    color: #027A48;
+    border: 1px solid #A6F4C5;
+}
+
+.badge-status-urgencia {
+    background-color: #FEF3F2;
+    color: #B42318;
+    border: 1px solid #FECDCA;
+}
+
+.badge-status-auditoria {
+    background-color: #FFF4E0;
+    color: #B54708;
+    border: 1px solid #FEDF89;
+}
+
+.badge-status-rejeitado {
+    background-color: #F2F4F7;
+    color: #344054;
+    border: 1px solid #D0D5DD;
+}
+
+.badge-status-desconhecido {
+    background-color: #F8F9FA;
+    color: #475467;
+    border: 1px solid #E4E7EC;
+}
+
+/* Badges de Prioridade */
+.badge-pri {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.70rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.badge-pri-emergencia {
+    background-color: #FEF3F2;
+    color: #B42318;
+    border: 1px solid #FECDCA;
+}
+
+.badge-pri-urgente {
+    background-color: #FFF6ED;
+    color: #C2410C;
+    border: 1px solid #FFD6AE;
+}
+
+.badge-pri-rotina {
+    background-color: #ECFDF3;
+    color: #027A48;
+    border: 1px solid #A6F4C5;
+}
+
+/* Modal Detalhes Header */
+.modal-header-card {
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+}
+</style>

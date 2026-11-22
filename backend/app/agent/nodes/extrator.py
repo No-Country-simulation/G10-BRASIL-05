@@ -50,11 +50,11 @@ def _contexto_identificacao_publico(state: GraphState) -> dict[str, Any]:
     return contexto
 
 
-def _reler_cpf_na_imagem(cliente: Any, estado: GraphState) -> str | None:
+def _reler_cpf_na_imagem(cliente: Any, estado: GraphState) -> tuple[str | None, int]:
     """Repete a leitura visual até validar ou atingir o limite de tentativas."""
     caminho = estado.get("referencia_fonte")
     if (estado.get("tipo_arquivo") or "").lower() not in {"imagem", "image"} or not caminho:
-        return None
+        return None, 0
 
     try:
         imagem = preparar_imagem_para_releitura(Path(caminho).read_bytes())
@@ -62,7 +62,7 @@ def _reler_cpf_na_imagem(cliente: Any, estado: GraphState) -> str | None:
     except Exception as erro:
         # Não registrar imagem, caminho ou qualquer valor de CPF.
         logger.warning("Falha ao preparar imagem para releitura de CPF (%s).", type(erro).__name__)
-        return None
+        return None, 0
 
     mensagem = HumanMessage(content=[
         {
@@ -83,13 +83,15 @@ def _reler_cpf_na_imagem(cliente: Any, estado: GraphState) -> str | None:
             },
         },
     ])
+    total_tentativas = 0
     for tentativa in range(1, MAX_TENTATIVAS_RELEITURA_CPF + 1):
+        total_tentativas = tentativa
         try:
             resposta = cliente.invoke([mensagem])
             if isinstance(resposta.content, str):
                 cpf_lido = _ler_resposta_json(resposta.content).get("paciente_cpf")
                 if validar_cpf(cpf_lido):
-                    return normalizar_cpf(cpf_lido)
+                    return normalizar_cpf(cpf_lido), total_tentativas
         except Exception as erro:
             # Não registrar imagem, caminho ou qualquer valor de CPF.
             logger.warning(
@@ -98,6 +100,7 @@ def _reler_cpf_na_imagem(cliente: Any, estado: GraphState) -> str | None:
                 MAX_TENTATIVAS_RELEITURA_CPF,
                 type(erro).__name__,
             )
+    return None, total_tentativas
     return None
 
 
@@ -132,13 +135,25 @@ def node_extracao(state: GraphState) -> GraphState:
     cpf_bruto = dados.get("paciente_cpf") or paciente_identificado.get("cpf")
     cpf_extraido = normalizar_cpf(cpf_bruto)
     cpf_releitura_visual = False
+    tentativas_releitura = 0
     if not validar_cpf(cpf_bruto):
-        cpf_extraido = _reler_cpf_na_imagem(cliente, state)
+        cpf_extraido, tentativas_releitura = _reler_cpf_na_imagem(cliente, state)
         cpf_releitura_visual = cpf_extraido is not None
+
+    cns_bruto = dados.get("paciente_cns")
+    cns_extraido = None
+    if cns_bruto:
+        digitos_cns = "".join(c for c in str(cns_bruto) if c.isdigit())
+        if len(digitos_cns) == 15:
+            cns_extraido = digitos_cns
+
+    contem_manuscrito = bool(dados.get("contem_manuscrito"))
+
     dados_extraidos = {
         "paciente": {
             "nome": dados["paciente_nome"] or paciente_identificado.get("nome"),
             "cpf": cpf_extraido,
+            "cns": cns_extraido,
             "idade": (
                 paciente_identificado.get("idade")
                 if paciente_identificado.get("idade") is not None
@@ -160,6 +175,7 @@ def node_extracao(state: GraphState) -> GraphState:
         "cid_sugerido": dados["cid_sugerido"],
         "medicamentos": [_normalizar_medicamento(item) for item in medicamentos],
         "metodo": "llm_generativa",
+        "contem_manuscrito": contem_manuscrito,
     }
 
     evidencias_campos = {}
@@ -204,4 +220,5 @@ def node_extracao(state: GraphState) -> GraphState:
         "status": "extraido",
         "cpf_releitura_visual": cpf_releitura_visual,
         "cpf_validacao_falhou": cpf_extraido is None,
+        "cpf_tentativas_releitura": tentativas_releitura,
     }

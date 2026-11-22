@@ -31,7 +31,7 @@ def test_upsert_paciente_e_medico_na_triagem():
     payload = {
         "documento_id": "TEST-REL-001",
         "tipo_arquivo": "TEXTO",
-        "canal_origem": "Pronto_Socorro",
+        "canal_origem": "Interno",
         "documento_texto": (
             "HOSPITAL CENTRAL - LAUDO DE TOMOGRAFIA\n"
             "Paciente: Juliana Prado Ferreira, 42 anos, CPF: 234.567.890-11\n"

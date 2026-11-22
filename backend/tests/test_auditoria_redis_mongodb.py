@@ -21,7 +21,7 @@ def test_lock_distribuido_concorrencia_redis():
         json={
             "documento_id": doc_id,
             "tipo_arquivo": "TEXTO",
-            "canal_origem": "Pronto_Socorro",
+            "canal_origem": "Interno",
             "documento_texto": "Paciente com suspeita leve. Encaminhar para observação.",
         },
     )

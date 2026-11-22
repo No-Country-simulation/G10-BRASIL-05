@@ -59,6 +59,23 @@ def enfileirar_texto_triagem(
         )
         raise HTTPException(status_code=409 if reserva < 0 else 429, detail=mensagem)
 
+    caminho_local_txt = None
+    caminho_objeto_txt = None
+    try:
+        storage_repo = StorageRepository()
+        resultado_txt = storage_repo.salvar_arquivo_original(
+            documento_id=documento_id,
+            conteudo=requisicao.documento_texto.encode("utf-8"),
+            nome_original=f"{documento_id}.txt",
+            extensao=".txt",
+            mimetype="text/plain",
+            subpasta="texto",
+        )
+        caminho_local_txt = resultado_txt.get("caminho_local")
+        caminho_objeto_txt = resultado_txt.get("caminho_objeto_fonte")
+    except Exception as erro_txt:
+        logger.warning("Falha ao salvar arquivo TXT no bucket para %s: %s", documento_id, erro_txt)
+
     try:
         job = enfileirar_texto(
             documento_id=documento_id,
@@ -66,6 +83,8 @@ def enfileirar_texto_triagem(
             tipo_arquivo=requisicao.tipo_arquivo,
             canal_origem=requisicao.canal_origem,
             usuario_id=usuario.id,
+            caminho_arquivo=caminho_local_txt,
+            caminho_objeto_fonte=caminho_objeto_txt,
         )
         if not job or not getattr(job, "id", None):
             raise RuntimeError("Trabalho não aceito pelo RQ.")
@@ -124,7 +143,7 @@ async def enfileirar_upload_triagem(
             for item in form.getlist(campo)
             if isinstance(item, UploadFile)
         ]
-        canal_origem = form.get("canal_origem") or "Pronto_Socorro"
+        canal_origem = form.get("canal_origem") or "Interno"
         documento_id = form.get("documento_id")
         if not uploads:
             liberar_lock_upload_lote(usuario.id)
@@ -202,7 +221,7 @@ async def enfileirar_upload_triagem(
                     caminho_objeto_fonte=info_storage["caminho_objeto_fonte"],
                     nome_arquivo=f"{doc_id}{extensao}",
                     extensao=extensao,
-                    canal_origem=canal_origem or "Pronto_Socorro",
+                    canal_origem=canal_origem or "Interno",
                     usuario_id=usuario.id,
                 )
                 if not job or not getattr(job, "id", None):

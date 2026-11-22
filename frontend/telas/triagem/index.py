@@ -19,9 +19,13 @@ def render() -> None:
     from telas.triagem.arquivos import ArquivoCarregado
     from api.cliente_http import enfileirar_documentos, enfileirar_texto_documento
     from services.erros import ErroDeApi
+    from utils.alertas_clinicos import verificar_e_disparar_modal_alerta
     from utils.requisicao import montar_requisicao
 
     aplicar_css(Path(__file__).with_name("style.css"))
+
+    # Verifica se há alertas de emergência ativos para alertar de imediato
+    verificar_e_disparar_modal_alerta(st.session_state.get("trabalhos_triagem", []))
 
     st.title("Triagem clínica")
     st.markdown(
@@ -147,7 +151,7 @@ def render() -> None:
                                         "paciente_cpf": "-",
                                         "data_envio": agora_formatado,
                                         "status": "na_fila",
-                                        "canal_origem": "Pronto Socorro",
+                                        "canal_origem": "Interno",
                                         "lote_id": lote_id,
                                     })
                                 else:
@@ -165,7 +169,7 @@ def render() -> None:
                                 "paciente_cpf": "-",
                                 "data_envio": agora_formatado,
                                 "status": "na_fila",
-                                "canal_origem": "Pronto Socorro",
+                                "canal_origem": "Interno",
                                 "lote_id": resposta.get("lote_id"),
                             })
                             sucesso = True

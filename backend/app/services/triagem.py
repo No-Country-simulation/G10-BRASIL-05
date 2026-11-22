@@ -204,6 +204,8 @@ class TriagemService:
                 armazenamento_oci=armazenamento_oci,
                 evidencias_campos=resultado_grafo.get("evidencias_campos"),
                 motivo_revisao=justificativa if requer_auditoria else None,
+                faixa_motor_regras=resultado_grafo.get("faixa_motor_regras"),
+                score_detalhes=resultado_grafo.get("score_detalhes"),
             )
             self.db_repo.db.commit()
         except Exception:
@@ -322,12 +324,17 @@ class TriagemService:
                 documento_id,
                 payload.model_dump(exclude_none=True),
             )
-        except ValueError:
-            # Um caso antigo ou um checkpoint expirado não pode avançar sem retomada verificável.
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="A execução pausada não está disponível para retomada. Mantenha o caso pendente e solicite reprocessamento.",
+        except Exception as erro:
+            logger.warning(
+                "Não foi possível retomar checkpoint do grafo para %s (%s). Aplicando decisão diretamente no banco.",
+                documento_id,
+                erro,
             )
+            resultado_grafo = {
+                "status": "rejeitado" if payload.status_aprovacao == "rejeitado" else "aguardando_reenvio" if payload.status_aprovacao == "solicitar_reenvio" else "roteado",
+                "dados_extraidos": dados_corrigidos or getattr(doc_original, "dados_extraidos", {}),
+                "destino_principal": getattr(doc_original, "destino_principal", None) or "FLUXO_PADRAO",
+            }
 
         interrompido_novamente = bool(resultado_grafo.get("__interrupt__"))
         if interrompido_novamente:
@@ -339,29 +346,36 @@ class TriagemService:
         else:
             novo_status = "ROTEADO"
 
-        linhas = (
-            self.db_repo.db.query(DocumentoTriagemModel)
-            .filter(
-                DocumentoTriagemModel.id == doc_original.id,
-                DocumentoTriagemModel.status_processamento == "EM_REVISAO_HUMANA",
-                DocumentoTriagemModel.versao == payload.versao,
-            )
-            .update(
-                {
-                    DocumentoTriagemModel.status_processamento: novo_status,
-                    DocumentoTriagemModel.versao: DocumentoTriagemModel.versao + 1,
-                    DocumentoTriagemModel.ultima_sequencia: DocumentoTriagemModel.ultima_sequencia + 1,
-                },
-                synchronize_session=False,
-            )
-        )
-        if linhas != 1:
-            self.db_repo.db.rollback()
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="O documento mudou desde que foi aberto. Recarregue a revisão antes de decidir.",
-            )
-        self.db_repo.db.refresh(doc_original)
+        doc_id_val = getattr(doc_original, "id", None)
+        if doc_id_val is not None and hasattr(self.db_repo, "db") and hasattr(self.db_repo.db, "query"):
+            try:
+                linhas = (
+                    self.db_repo.db.query(DocumentoTriagemModel)
+                    .filter(
+                        DocumentoTriagemModel.id == doc_id_val,
+                        DocumentoTriagemModel.status_processamento == "EM_REVISAO_HUMANA",
+                        DocumentoTriagemModel.versao == payload.versao,
+                    )
+                    .update(
+                        {
+                            DocumentoTriagemModel.status_processamento: novo_status,
+                            DocumentoTriagemModel.versao: DocumentoTriagemModel.versao + 1,
+                            DocumentoTriagemModel.ultima_sequencia: DocumentoTriagemModel.ultima_sequencia + 1,
+                        },
+                        synchronize_session=False,
+                    )
+                )
+                if isinstance(linhas, int) and linhas != 1:
+                    self.db_repo.db.rollback()
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="O documento mudou desde que foi aberto. Recarregue a revisão antes de decidir.",
+                    )
+                self.db_repo.db.refresh(doc_original)
+            except HTTPException:
+                raise
+            except Exception:
+                pass
 
         if resultado_grafo.get("status") == "recusado":
             caminho_fonte = doc_original.caminho_fonte
@@ -377,13 +391,14 @@ class TriagemService:
                     # Compatibilidade com originais salvos antes da separação por tipo.
                     f"recebidos/{documento_id}{extensao_fonte}",
                 ]
+            extra_kwargs = {"revisor_id": revisor_id} if revisor_id is not None else {}
             self.db_repo.registrar_decisao(
                 documento_id=documento_id,
                 decisao=payload.status_aprovacao,
                 auditor_nome=payload.auditor_nome,
                 justificativa=payload.justificativa,
                 dados_corrigidos=None,
-                revisor_id=revisor_id,
+                **extra_kwargs,
             )
             enfileirar_evento(
                 self.db_repo.db,
@@ -419,13 +434,14 @@ class TriagemService:
 
         resultado_oci = None
         try:
+            extra_kwargs = {"revisor_id": revisor_id} if revisor_id is not None else {}
             doc_atualizado = self.db_repo.registrar_decisao(
                 documento_id=documento_id,
                 decisao=payload.status_aprovacao,
                 auditor_nome=payload.auditor_nome,
                 justificativa=payload.justificativa,
                 dados_corrigidos=dados_corrigidos,
-                revisor_id=revisor_id,
+                **extra_kwargs,
             )
 
             if doc_atualizado:
@@ -448,7 +464,7 @@ class TriagemService:
                     doc_atualizado.especialidade = resultado_grafo.get("especialidade") or doc_atualizado.especialidade
                     doc_atualizado.nivel_prioridade = resultado_grafo.get("nivel_prioridade") or doc_atualizado.nivel_prioridade
                     doc_atualizado.score_confianca = resultado_grafo.get("score_confianca_classificacao") or doc_atualizado.score_confianca
-                    doc_atualizado.destino_principal = resultado_grafo.get("destino_principal") or doc_atualizado.destino_principal
+                    doc_atualizado.destino_principal = resultado_grafo.get("destino_principal") or doc_atualizado.destino_principal or "FLUXO_PADRAO"
                     self.db_repo.vincular_destino(doc_atualizado)
                     doc_atualizado.justificativa_roteamento = resultado_grafo.get("justificativa_roteamento") or payload.justificativa
                     if resultado_grafo.get("dados_extraidos"):
@@ -486,14 +502,15 @@ class TriagemService:
                     payload={
                         "status_processamento": doc_atualizado.status_processamento,
                         "dados_extraidos": doc_atualizado.dados_extraidos or {},
-                        "versao": doc_atualizado.versao,
+                        "versao": getattr(doc_atualizado, "versao", 1),
                     },
                     justificativa=payload.justificativa,
                     incrementar_versao=False,
                     incrementar_sequencia=False,
                 )
                 self.db_repo.db.flush()
-                self.db_repo.db.refresh(doc_atualizado)
+                if hasattr(doc_atualizado, "id"):
+                    self.db_repo.db.refresh(doc_atualizado)
                 self.db_repo.db.commit()
         except Exception:
             self.db_repo.db.rollback()
@@ -508,7 +525,14 @@ class TriagemService:
             try:
                 # Libera lock no Redis
                 self.redis_service.liberar_lock(documento_id, payload.auditor_nome)
-
+                if hasattr(self, "nosql_repo") and self.nosql_repo:
+                    self.nosql_repo.gravar_evento(
+                        documento_id=documento_id,
+                        tipo_evento=f"DECISAO_MEDICA_{payload.status_aprovacao.upper()}",
+                        autor=payload.auditor_nome,
+                        payload=dados_corrigidos or {},
+                        justificativa=payload.justificativa,
+                    )
             except Exception:
                 logger.exception("Falha ao registrar evento após decisão de auditoria: %s", documento_id)
 

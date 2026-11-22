@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from typing import List, Optional, Any, Dict
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class PacienteResponse(BaseModel):
@@ -23,6 +23,14 @@ class MedicoResponse(BaseModel):
     especialidade: Optional[str] = None
     uf: Optional[str] = None
     created_at: Optional[datetime] = None
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def formatar_crm_com_uf(cls, valor: Any, handler) -> "MedicoResponse":
+        instancia = handler(valor)
+        if instancia.uf and not instancia.crm.endswith(f"-{instancia.uf}"):
+            instancia.crm = f"{instancia.crm}-{instancia.uf}"
+        return instancia
 
 
 class HospitalResponse(BaseModel):

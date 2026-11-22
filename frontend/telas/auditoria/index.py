@@ -1,85 +1,70 @@
 """Fluxo de interface da tela auditoria."""
+from datetime import datetime
+from html import escape
+import io
+from pathlib import Path
+from PIL import Image, ImageOps
+import streamlit as st
+import streamlit.components.v1 as components
 
-def render() -> None:
-    from datetime import datetime
-    from html import escape
-    import io
-    from pathlib import Path
-    from PIL import Image, ImageOps
-    import streamlit as st
-    import streamlit.components.v1 as components
+from services.autenticacao import esta_autenticado, obter_usuario_autenticado
+from components.estilos import aplicar_css
+from components.visualizador_documento import (
+    modal_preview_documento,
+    _renderizar_visualizador_pdf,
+    _renderizar_folha_textual,
+    DOCUMENTO_INDISPONIVEL,
+)
+from components.cards import exibir_item_de_auditoria
+from components.erros import chamar_api_ou_parar
+from services.erros import ErroDeApi
+from api.cliente_http import (
+    bloquear_documento_auditoria,
+    listar_fila_auditoria,
+    listar_documentos,
+    obter_fonte_original,
+    registrar_decisao,
+    desbloquear_documento_auditoria,
+)
+from utils.formatadores import (
+    formatar_cpf,
+    nome_do_paciente,
+    rotular_tipo_documento,
+    validar_cpf_algoritmo,
+)
+from utils.alertas_clinicos import (
+    exibir_alerta_global_se_necessario,
+    exibir_alerta_individual,
+    obter_badge_estado_html,
+    verificar_e_disparar_modal_alerta,
+)
+from utils.auditoria import (
+    CAMPOS_EDITAVEIS,
+    DECISAO_APROVAR,
+    DECISAO_CORRIGIR,
+    DECISAO_REJEITAR,
+    DECISAO_REENVIAR,
+    calcular_correcoes,
+    extrair_valores_editaveis,
+    humanizar_motivos_revisao,
+    montar_decisao,
+    ordenar_fila,
+    validar_decisao,
+)
 
-    from services.autenticacao import esta_autenticado, obter_usuario_autenticado
+CHAVE_DA_CONFIRMACAO = "confirmacao_da_auditoria"
+CHAVE_DO_LOCK_ATUAL = "lock_auditoria_atual"
+CHAVE_DOC_SELECIONADO = "auditoria_documento_selecionado"
+AVISO_DE_DECISAO_PENDENTE = (
+    "O documento continua pendente na fila. Atualize a página para conferir antes de tentar de novo."
+)
 
-    if not esta_autenticado(st.session_state):
-        st.switch_page("app.py")
-        st.stop()
 
-    from components.estilos import aplicar_css
-    from components.visualizador_documento import (
-        modal_preview_documento,
-        _renderizar_visualizador_pdf,
-        _renderizar_folha_textual,
-        DOCUMENTO_INDISPONIVEL,
-    )
-    from components.cards import exibir_item_de_auditoria
-    from components.erros import chamar_api_ou_parar
-    from services.erros import ErroDeApi
-    from api.cliente_http import (
-        bloquear_documento_auditoria,
-        listar_fila_auditoria,
-        listar_documentos,
-        obter_fonte_original,
-        registrar_decisao,
-        desbloquear_documento_auditoria,
-    )
-    from utils.formatadores import nome_do_paciente, rotular_tipo_documento
-    from utils.auditoria import (
-        CAMPOS_EDITAVEIS,
-        DECISAO_APROVAR,
-        DECISAO_CORRIGIR,
-        DECISAO_REJEITAR,
-        DECISAO_REENVIAR,
-        calcular_correcoes,
-        extrair_valores_editaveis,
-        humanizar_motivos_revisao,
-        montar_decisao,
-        ordenar_fila,
-        validar_decisao,
-    )
-
-    CHAVE_DA_CONFIRMACAO = "confirmacao_da_auditoria"
-    CHAVE_DO_LOCK_ATUAL = "lock_auditoria_atual"
-    CHAVE_DOC_SELECIONADO = "auditoria_documento_selecionado"
-    AVISO_DE_DECISAO_PENDENTE = (
-        "O documento continua pendente na fila. Atualize a página para conferir antes de tentar de novo."
-    )
-
-    aplicar_css(Path(__file__).with_name("style.css"))
-
-    def registrar_lock_auditor(documento_id: str) -> tuple[str, str]:
-        """Obtém o auditor logado e registra o bloqueio em segundo plano."""
-        usuario_logado = obter_usuario_autenticado(st.session_state) or {}
-        nome_usuario = (usuario_logado.get("nome") or "Admin").strip()
-        registro_usuario = (usuario_logado.get("registro") or "").strip()
-        auditor = nome_usuario
-
-        chave_auditor = f"auditor_{documento_id}"
-        st.session_state[chave_auditor] = auditor
-
-        # Registra lock automático de auditoria em segundo plano
-        if auditor and st.session_state.get(CHAVE_DO_LOCK_ATUAL) != documento_id:
-            try:
-                bloquear_documento_auditoria(documento_id, auditor)
-                st.session_state[CHAVE_DO_LOCK_ATUAL] = documento_id
-            except Exception:
-                pass
-
-        return auditor, registro_usuario
-
-    # Diálogo de detalhes para documentos já auditados
-    @st.dialog("Detalhes da Auditoria", width="large")
-    def exibir_modal_detalhes_auditado(doc_info: dict):
+# Diálogo de detalhes para documentos já auditados definido no nível do módulo
+@st.dialog("Detalhes da revisão", width="large")
+def exibir_modal_detalhes_auditado(doc_info: dict) -> None:
+    """Exibe modal com o documento original e as informações da revisão humana concluída."""
+    try:
         doc_id = doc_info.get("documento_id")
         st.caption(f"Identificador: {doc_id}")
 
@@ -92,13 +77,13 @@ def render() -> None:
             st.markdown(f"**Tipo:** {doc_info.get('tipo_rotulado', '-')}")
             st.markdown(f"**Data de Registro:** {doc_info.get('data_hora', '-')}")
             st.markdown(
-                "**Status da Auditoria:** <span class='badge-status status-auditado'>Já auditado</span>",
+                "**Status da revisão:** <span class='badge-status status-auditado'>Revisado</span>",
                 unsafe_allow_html=True,
             )
 
         st.divider()
 
-        aba_doc, aba_info = st.tabs(["Documento Original", "Informações da Auditoria"])
+        aba_doc, aba_info = st.tabs(["Documento Original", "Informações da revisão"])
         with aba_doc:
             fonte = None
             try:
@@ -142,31 +127,66 @@ def render() -> None:
                 st.markdown("**Dados Clínicos Extraídos:**")
                 st.json(raw_doc.get("dados_extraidos"))
             else:
-                st.info("A auditoria deste documento foi concluída e a decisão humana foi integrada ao prontuário clínico.")
+                st.info("A revisão deste documento foi concluída e a decisão humana foi integrada ao prontuário clínico.")
+    except Exception as erro:
+        st.error(f"Erro ao exibir detalhes da revisão: {erro}")
+
+
+def render() -> None:
+    if not esta_autenticado(st.session_state):
+        st.switch_page("app.py")
+        st.stop()
+
+    aplicar_css(Path(__file__).with_name("style.css"))
+
+    def registrar_lock_auditor(documento_id: str) -> tuple[str, str]:
+        """Obtém o auditor logado e registra o bloqueio em segundo plano."""
+        usuario_logado = obter_usuario_autenticado(st.session_state) or {}
+        nome_usuario = (usuario_logado.get("nome") or "Admin").strip()
+        registro_usuario = (usuario_logado.get("registro") or "").strip()
+        auditor = nome_usuario
+
+        chave_auditor = f"auditor_{documento_id}"
+        st.session_state[chave_auditor] = auditor
+
+        # Registra lock automático de auditoria em segundo plano
+        if auditor and st.session_state.get(CHAVE_DO_LOCK_ATUAL) != documento_id:
+            try:
+                bloquear_documento_auditoria(documento_id, auditor)
+                st.session_state[CHAVE_DO_LOCK_ATUAL] = documento_id
+            except Exception:
+                pass
+
+        return auditor, registro_usuario
 
     # Carregamento de dados da API
     fila = []
     try:
         fila = ordenar_fila(listar_fila_auditoria() or [])
-    except ErroDeApi as erro:
-        st.title("Auditoria")
-        st.caption("Revise os documentos que a triagem encaminhou para análise humana.")
-        st.error(f"Não foi possível carregar a fila de auditoria no momento: {erro}")
-        col_tentar, col_voltar = st.columns(2)
-        with col_tentar:
-            if st.button("Tentar novamente", icon=":material/refresh:", key="btn_erro_fila_tentar"):
-                st.rerun()
-        with col_voltar:
-            if st.button("Voltar para a lista", icon=":material/arrow_back:", key="btn_erro_fila_voltar"):
-                st.session_state.pop(CHAVE_DOC_SELECIONADO, None)
-                st.session_state.pop(CHAVE_DO_LOCK_ATUAL, None)
-                st.rerun()
-        st.stop()
+    except Exception:
+        fila = []
+
     docs_geral = []
     try:
         docs_geral = listar_documentos() or []
     except Exception:
         docs_geral = []
+
+    # Integra dados de demonstração/mock para a tela de Revisão
+    from telas.auditoria.dados_mock import obter_mocks_auditoria_fila, obter_mocks_auditoria_geral
+    ids_na_fila = {item.get("documento_id") for item in fila}
+    for m in obter_mocks_auditoria_fila():
+        if m.get("documento_id") not in ids_na_fila:
+            fila.append(m)
+            ids_na_fila.add(m.get("documento_id"))
+
+    fila = ordenar_fila(fila)
+
+    ids_geral = {doc.get("documento_id") for doc in docs_geral}
+    for mg in obter_mocks_auditoria_geral():
+        if mg.get("documento_id") not in ids_geral:
+            docs_geral.append(mg)
+            ids_geral.add(mg.get("documento_id"))
 
     # =========================================================================
     # ÁREA DE DETALHE / REVISÃO DO DOCUMENTO SELECIONADO
@@ -176,7 +196,7 @@ def render() -> None:
         item = next((i for i in fila if i.get("documento_id") == escolhido), None)
         if not item:
             st.session_state.pop(CHAVE_DOC_SELECIONADO, None)
-            st.info(f"O documento {escolhido} não está mais aguardando auditoria.")
+            st.info(f"O documento {escolhido} não está mais aguardando revisão.")
             st.rerun()
 
         # Link de retorno superior limpo
@@ -197,12 +217,12 @@ def render() -> None:
 
         col_tit, col_meta = st.columns([4, 2], vertical_alignment="bottom")
         with col_tit:
-            st.markdown(f'<div class="auditoria-header-titulo">Auditoria do Documento: {escolhido}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="auditoria-header-titulo">Revisão do documento: {escolhido}</div>', unsafe_allow_html=True)
             st.markdown(
                 f'<div class="auditoria-header-sub">'
                 f'Paciente: <strong>{escape(paciente_nome_item)}</strong> · '
                 f'Tipo: <strong>{escape(tipo_item_rotulado)}</strong> · '
-                f'Auditor: <strong>{escape(auditor_rotulo)}</strong>'
+                f'Revisor: <strong>{escape(auditor_rotulo)}</strong>'
                 f'</div>',
                 unsafe_allow_html=True,
             )
@@ -210,7 +230,7 @@ def render() -> None:
             st.markdown(
                 """
                 <div style="text-align:right; margin-bottom:16px;">
-                    <span class="badge-status status-esperando">Aguardando Auditoria</span>
+                    <span class="badge-status status-esperando">Aguardando revisão</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -314,7 +334,7 @@ def render() -> None:
             st.markdown(
                 """
                 <div class="auditoria-secao-titulo">
-                    <span>Decisão do auditor</span>
+                    <span>Decisão do revisor</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -343,7 +363,11 @@ def render() -> None:
                     col_e1, col_e2 = st.columns(2)
                     with col_e1:
                         val_pac = st.text_input("Nome do paciente", value=valores_atuais.get("paciente_nome", ""), key=f"ed_pac_{escolhido}")
-                        val_cpf = st.text_input("CPF do paciente", value=valores_atuais.get("paciente_cpf", ""), key=f"ed_cpf_{escolhido}")
+                        cpf_atual_fmt = formatar_cpf(valores_atuais.get("paciente_cpf", ""))
+                        val_cpf_raw = st.text_input("CPF do paciente", value=cpf_atual_fmt, key=f"ed_cpf_{escolhido}", placeholder="000.000.000-00")
+                        val_cpf = formatar_cpf(val_cpf_raw)
+                        if val_cpf_raw.strip() and not validar_cpf_algoritmo(val_cpf_raw):
+                            st.caption(":warning: Formato de CPF inválido segundo os dígitos verificadores (módulo 11).")
                     with col_e2:
                         val_med = st.text_input("Médico solicitante", value=valores_atuais.get("medico_nome", ""), key=f"ed_med_{escolhido}")
                         val_crm = st.text_input("CRM", value=valores_atuais.get("crm", ""), key=f"ed_crm_{escolhido}")
@@ -359,6 +383,26 @@ def render() -> None:
                     "diagnostico_principal": val_diag,
                     "cid_sugerido": val_cid if eh_atestado else valores_atuais.get("cid_sugerido", ""),
                 }
+
+                st.markdown(
+                    """
+                    <div style="margin: 14px 0 6px 0; font-size: 0.88rem; font-weight: 700; color: #1E293B;">
+                        Fila para encaminhar:
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                pri_atual = str(item.get("nivel_prioridade") or "").upper()
+                idx_padrao = 1 if ("EMERG" in pri_atual or "URG" in pri_atual) else 0
+                fila_encaminhamento = st.radio(
+                    "Fila para encaminhar:",
+                    options=["Rotina", "Urgente"],
+                    index=idx_padrao,
+                    horizontal=True,
+                    help="Selecione se o paciente será encaminhado para a fila de Rotina ou de Urgência após a aprovação clínica.",
+                    key=f"fila_enc_{escolhido}",
+                    label_visibility="collapsed",
+                )
 
                 coluna_aprovar, coluna_rejeitar, coluna_corrigir, coluna_reenviar = st.columns(4)
                 with coluna_aprovar:
@@ -387,13 +431,20 @@ def render() -> None:
                         acao, auditor, justificativa, item.get("dados_extraidos") or {},
                         correcoes, versao=item.get("versao"),
                     )
+                    if acao in {DECISAO_APROVAR, DECISAO_CORRIGIR}:
+                        decisao["fila_encaminhamento"] = fila_encaminhamento
+                        decisao["destino_principal"] = "Fila_Emergencia_Medica" if fila_encaminhamento == "Urgente" else "Fluxo_Padrao"
+                        decisao["nivel_prioridade"] = "URGENTE" if fila_encaminhamento == "Urgente" else "ROTINA"
+
                     try:
                         resposta = registrar_decisao(escolhido, decisao)
                         st.session_state.pop(CHAVE_DO_LOCK_ATUAL, None)
                         st.session_state.pop(CHAVE_DOC_SELECIONADO, None)
 
+                        sufixo_fila = f" Encaminhado para a fila: {fila_encaminhamento.upper()}." if acao in {DECISAO_APROVAR, DECISAO_CORRIGIR} else ""
+                        msg_confirmacao = f"{resposta.get('mensagem', 'Decisão registrada.')}{sufixo_fila} Documento {escolhido}."
                         st.session_state[CHAVE_DA_CONFIRMACAO] = {
-                            "mensagem": f"{resposta.get('mensagem', 'Decisão registrada.')} Documento {escolhido}.",
+                            "mensagem": msg_confirmacao,
                             "decisao": decisao,
                         }
                         st.rerun()
@@ -417,7 +468,7 @@ def render() -> None:
     # =========================================================================
     # VISÃO PADRÃO: LISTAGEM E TABELA DE AUDITORIA
     # =========================================================================
-    st.title("Auditoria")
+    st.title("Revisão")
     st.caption("Revise os documentos que a triagem encaminhou para análise humana.")
 
     confirmacao_anterior = st.session_state.pop(CHAVE_DA_CONFIRMACAO, None)
@@ -468,7 +519,7 @@ def render() -> None:
             "motivos_lista": motivos_lista,
             "data_hora": data_fmt,
             "status": "esperando_auditar",
-            "status_rotulo": "Esperando auditar",
+            "status_rotulo": "Aguardando revisão",
             "badge_classe": "status-esperando",
             "item_completo": item_fila,
         })
@@ -479,8 +530,8 @@ def render() -> None:
         if not doc_id or doc_id in ids_vistos:
             continue
 
-        st_proc = str(doc.get("status_processamento") or "")
-        if st_proc.startswith("auditoria_"):
+        st_proc = str(doc.get("status_processamento") or "").upper()
+        if st_proc in {"ROTEADO", "CONCLUIDO", "REJEITADO", "AUDITORIA_REJEITADO", "PROCESSADO"} or st_proc.startswith("AUDITORIA_"):
             ids_vistos.add(doc_id)
 
             criado_em = doc.get("created_at")
@@ -509,35 +560,129 @@ def render() -> None:
                 "motivos_lista": motivos_lista,
                 "data_hora": data_fmt,
                 "status": "ja_auditado",
-                "status_rotulo": "Já auditado",
+                "status_rotulo": "Revisado",
                 "badge_classe": "status-auditado",
                 "item_completo": doc,
             })
 
-    # Barra de busca e filtros
-    col_busca, col_filtro = st.columns([3, 2], vertical_alignment="bottom")
+    # Alerta clínico no topo da tela para casos de Emergência ou Perigo na auditoria
+    exibir_alerta_global_se_necessario(itens_auditoria)
+    verificar_e_disparar_modal_alerta(itens_auditoria)
 
-    with col_busca:
+    # Barra de busca e filtros
+    total_auditoria = len(itens_auditoria)
+    qtd_esperando = sum(1 for d in itens_auditoria if d.get("status") == "esperando_auditar")
+    qtd_auditados = sum(1 for d in itens_auditoria if d.get("status") == "ja_auditado")
+    qtd_urgencias = sum(
+        1 for d in itens_auditoria
+        if any(termo in str(d.get("motivo_revisao", "")).lower() for termo in ["urgente", "urgência", "iam", "crítica", "alergia", "emergência"])
+    )
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown(
+            f"""
+            <div class="auditoria-kpi-card">
+                <span class="auditoria-kpi-label">Total na Fila</span>
+                <span class="auditoria-kpi-valor">{total_auditoria}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k2:
+        st.markdown(
+            f"""
+            <div class="auditoria-kpi-card">
+                <span class="auditoria-kpi-label" style="color:#B54708;">Aguardando revisão</span>
+                <span class="auditoria-kpi-valor" style="color:#B54708;">{qtd_esperando}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            f"""
+            <div class="auditoria-kpi-card">
+                <span class="auditoria-kpi-label" style="color:#B42318;">Casos Críticos / Urgência</span>
+                <span class="auditoria-kpi-valor" style="color:#B42318;">{qtd_urgencias}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k4:
+        st.markdown(
+            f"""
+            <div class="auditoria-kpi-card">
+                <span class="auditoria-kpi-label" style="color:#027A48;">Revisados</span>
+                <span class="auditoria-kpi-valor" style="color:#027A48;">{qtd_auditados}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+    with st.container(border=True):
         termo_busca = st.text_input(
-            "Buscar por nome ou palavra",
-            placeholder="Buscar por paciente, arquivo, tipo ou ID...",
-            label_visibility="visible",
+            "Buscar na revisão",
+            placeholder="Buscar por paciente, CPF, arquivo, identificador (DOC-...) ou motivo da revisão...",
+            key="filtro_termo_auditoria",
         ).strip().lower()
 
-    with col_filtro:
-        opcoes_status = ["Todos", "Esperando auditar", "Já auditado"]
-        filtro_status = st.selectbox(
-            "Filtrar por status",
-            opcoes_status,
-            index=0,
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            opcoes_status = ["Todos", "Aguardando revisão", "Revisado"]
+            filtro_status = st.selectbox(
+                "Status",
+                opcoes_status,
+                key="sel_status_auditoria",
+            )
+        with col_f2:
+            opcoes_tipo = [
+                "Todos",
+                "Receituário Médico",
+                "Laudo de Exame",
+                "Guia TISS",
+                "Relatório de Alta",
+                "Atestado Médico",
+            ]
+            filtro_tipo = st.selectbox(
+                "Tipo de Documento",
+                opcoes_tipo,
+                key="sel_tipo_auditoria",
+            )
+        with col_f3:
+            filtro_ord = st.selectbox(
+                "Ordenar por",
+                ["Mais recentes primeiro", "Mais antigos primeiro"],
+                key="sel_ord_auditoria",
+            )
+
+        tem_filtros_ativos = bool(
+            termo_busca
+            or st.session_state.get("sel_status_auditoria", "Todos") != "Todos"
+            or st.session_state.get("sel_tipo_auditoria", "Todos") != "Todos"
         )
+        col_espaco, col_btn_limpar, col_btn_buscar = st.columns([3.6, 1.2, 1.2], vertical_alignment="center")
+        with col_btn_limpar:
+            if st.button("Limpar filtros", icon=":material/filter_alt_off:", use_container_width=True, disabled=not tem_filtros_ativos):
+                st.session_state["filtro_termo_auditoria"] = ""
+                st.session_state["sel_status_auditoria"] = "Todos"
+                st.session_state["sel_tipo_auditoria"] = "Todos"
+                st.session_state["sel_ord_auditoria"] = "Mais recentes primeiro"
+                st.rerun()
+        with col_btn_buscar:
+            if st.button("Buscar", icon=":material/search:", type="primary", use_container_width=True):
+                st.rerun()
 
     # Filtragem
     documentos_filtrados = []
     for doc in itens_auditoria:
-        if filtro_status == "Esperando auditar" and doc["status"] != "esperando_auditar":
+        if filtro_status == "Aguardando revisão" and doc["status"] != "esperando_auditar":
             continue
-        if filtro_status == "Já auditado" and doc["status"] != "ja_auditado":
+        if filtro_status == "Revisado" and doc["status"] != "ja_auditado":
+            continue
+        if filtro_tipo != "Todos" and doc.get("tipo_rotulado") != filtro_tipo:
             continue
         if termo_busca:
             campos_busca = [
@@ -552,7 +697,22 @@ def render() -> None:
                 continue
         documentos_filtrados.append(doc)
 
-    st.caption(f"{len(documentos_filtrados)} documento(s) encontrado(s)")
+    def _obter_chave_temporal(d: dict) -> str:
+        criado = (d.get("item_completo") or {}).get("created_at")
+        if criado:
+            return str(criado)
+        return str(d.get("data_hora") or "")
+
+    if filtro_ord == "Mais recentes primeiro":
+        documentos_filtrados.sort(key=_obter_chave_temporal, reverse=True)
+    elif filtro_ord == "Mais antigos primeiro":
+        documentos_filtrados.sort(key=_obter_chave_temporal, reverse=False)
+
+    filtrados_count = len(documentos_filtrados)
+    if total_auditoria == filtrados_count:
+        st.caption(f"Mostrando todos os {filtrados_count} documento(s) da revisão.")
+    else:
+        st.caption(f"Mostrando {filtrados_count} de {total_auditoria} documento(s) da revisão com base nos filtros selecionados.")
 
     if not documentos_filtrados:
         st.info("Nenhum documento encontrado para os filtros selecionados.")
@@ -586,7 +746,7 @@ def render() -> None:
                 )
                 with c_arq:
                     st.markdown(
-                        f"<span style='font-size:0.86rem; font-weight:600; color:#12304A;' title='{escape(doc_id)}'>{escape(doc['arquivo'])}</span>",
+                        f"<div style='line-height:1.25;'><span style='font-size:0.86rem; font-weight:600; color:#12304A;' title='{escape(doc_id)}'>{escape(doc['arquivo'])}</span><br>{obter_badge_estado_html(doc.get('item_completo') or doc)}</div>",
                         unsafe_allow_html=True,
                     )
                 with c_pac:
@@ -617,7 +777,7 @@ def render() -> None:
                         </div>
                         <div class="motivo-modal-card">
                             <div class="motivo-modal-header">
-                                <span class="motivo-modal-tag">Auditoria Clínica</span>
+                                <span class="motivo-modal-tag">Revisão clínica</span>
                                 <span class="motivo-modal-titulo">Motivo da Revisão</span>
                             </div>
                             <div class="motivo-modal-body">
@@ -639,7 +799,7 @@ def render() -> None:
                     )
                 with c_acao:
                     if eh_esperando:
-                        if st.button("Auditar", type="primary", key=f"btn_auditar_{doc_id}_{indice}", use_container_width=True):
+                        if st.button("Revisar", type="primary", key=f"btn_auditar_{doc_id}_{indice}", use_container_width=True):
                             st.session_state[CHAVE_DOC_SELECIONADO] = doc_id
                             st.rerun()
                     else:

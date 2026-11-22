@@ -29,9 +29,9 @@ LISTA_UFS = [
 ]
 
 DESCRICOES_PERFIL = {
-    NIVEL_MEDICO: "Médico: envia documentos para triagem, confirma o roteamento e consulta o histórico. Sem acesso a usuários e auditoria.",
-    NIVEL_ENFERMEIRO: "Enfermeiro(a): envia documentos para triagem e consulta o histórico. Sem acesso a usuários e auditoria.",
-    NIVEL_DIRETOR: "Diretor Clínico: acesso completo a triagem, auditoria humana, histórico e gerenciamento de equipe médica.",
+    NIVEL_MEDICO: "Médico: envia documentos para triagem, confirma o roteamento e consulta o histórico. Sem acesso a usuários e revisão.",
+    NIVEL_ENFERMEIRO: "Enfermeiro(a): envia documentos para triagem e consulta o histórico. Sem acesso a usuários e revisão.",
+    NIVEL_DIRETOR: "Diretor Clínico: acesso completo a triagem, revisão humana, histórico e gerenciamento de equipe médica.",
     NIVEL_ADMIN_GERAL: "Administrador Geral: acesso irrestrito a todas as funcionalidades do sistema e governança.",
 }
 
@@ -95,14 +95,23 @@ def render() -> None:
 
     # Estado da sub-tela: "lista", "criar" ou "editar"
     modo_tela = st.session_state.get("usuario_modo_tela", "lista")
+    pode_gerenciar_contas = nivel_atual in {NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO}
 
-    # Validação de permissão para gerenciar contas
-    if nivel_atual not in {NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO}:
-        st.info("A administração de contas é restrita a Administradores Gerais, Diretores Clínicos e Médicos autorizados.")
+    # Validação de permissão para criação de novas contas
+    if modo_tela == "criar" and not pode_gerenciar_contas:
+        st.info("A criação de novas contas é restrita a Administradores Gerais, Diretores Clínicos e Médicos autorizados.")
         st.stop()
 
-    # Opções de perfil conforme nível hierárquico
-    if nivel_atual == NIVEL_MEDICO:
+    alvo_edicao = st.session_state.get("usuario_em_edicao") or {}
+    eh_autoedicao = str(alvo_edicao.get("id")) == str(usuario_atual.get("id"))
+    if modo_tela == "editar" and not eh_autoedicao and not pode_gerenciar_contas:
+        st.info("A administração de contas de outros profissionais é restrita a Administradores Gerais, Diretores Clínicos e Médicos autorizados.")
+        st.stop()
+
+    # Opções de perfil conforme nível hierárquico e contexto
+    if eh_autoedicao:
+        opcoes_papel = [alvo_edicao.get("nivel") or nivel_atual]
+    elif nivel_atual == NIVEL_MEDICO:
         opcoes_papel = [NIVEL_ENFERMEIRO]
     elif nivel_atual == NIVEL_ADMIN_GERAL:
         opcoes_papel = [NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO, NIVEL_ENFERMEIRO]
@@ -296,6 +305,7 @@ def render() -> None:
                         "nivel": papel,
                         "registro": registro_final,
                         "especialidade": especialidade.strip(),
+                        "trocar_senha_obrigatorio": bool(troca_obrigatoria),
                     })
                     st.success("Conta profissional criada com sucesso!")
                     st.session_state["usuario_modo_tela"] = "lista"
@@ -383,6 +393,10 @@ def render() -> None:
                 st.session_state["usuario_modo_tela"] = "editar"
                 st.session_state["usuario_em_edicao"] = usuario_atual
                 st.rerun()
+
+    if not pode_gerenciar_contas:
+        st.info("A administração e criação de contas de outros profissionais é restrita a Administradores Gerais, Diretores Clínicos e Médicos autorizados.")
+        st.stop()
 
     try:
         usuarios = listar_usuarios() or []

@@ -68,8 +68,8 @@ async def processar_upload_triagem(
         description="Arquivo clínico nos formatos PDF (.pdf) ou Imagem (.png, .jpg, .jpeg, .webp, .heic)",
     ),
     canal_origem: Optional[str] = Form(
-        "Pronto_Socorro",
-        description="Canal de entrada hospitalar (ex: Pronto_Socorro, Ambulatorio, Telemedicina)",
+        "Interno",
+        description="Canal de entrada hospitalar (ex: Interno, Ambulatorio, Telemedicina)",
     ),
     documento_id: Optional[str] = Form(
         None,
@@ -148,7 +148,7 @@ async def processar_upload_triagem(
         requisicao = RequisicaoTriagem(
             documento_id=doc_id,
             tipo_arquivo=tipo_arquivo,
-            canal_origem=canal_origem or "Pronto_Socorro",
+            canal_origem=canal_origem or "Interno",
             documento_texto=texto_extraido,
         )
         service = TriagemService(db)
