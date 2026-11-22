@@ -121,14 +121,14 @@ def test_linha_da_tabela_traduz_codigos_e_formata_confianca_e_data():
         "Tipo": "Receituário Médico",
         "Prioridade": "Rotina",
         "Confiança": "96%",
-        "Data": "27/10/2026 09:30",
+        "Data": "27/10/2026 06:30",
     }
 
 
 def test_data_com_microssegundos_e_formatada():
     linha = montar_linhas_da_tabela([{"created_at": "2026-10-27T09:30:15.123456"}])[0]
 
-    assert linha["Data"] == "27/10/2026 09:30"
+    assert linha["Data"] == "27/10/2026 06:30"
 
 
 def test_data_invalida_e_mostrada_como_veio():

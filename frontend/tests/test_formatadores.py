@@ -120,3 +120,24 @@ def test_falha_de_backup_nao_vaza_o_erro_interno():
 @pytest.mark.parametrize("armazenamento", [None, {}])
 def test_sem_informacao_de_armazenamento_nao_mostra_nada(armazenamento):
     assert descrever_armazenamento(armazenamento) is None
+
+
+def test_formatar_data_hora_brasil():
+    from utils.formatadores import formatar_data_hora_brasil
+    from datetime import datetime, timezone
+
+    # UTC com Z
+    assert formatar_data_hora_brasil("2026-11-22T15:30:00Z") == "22/11/2026 12:30"
+    # UTC naive
+    assert formatar_data_hora_brasil("2026-11-22T15:30:00") == "22/11/2026 12:30"
+    # Já em horário de Brasília (-03:00)
+    assert formatar_data_hora_brasil("2026-11-22T12:30:00-03:00") == "22/11/2026 12:30"
+    # Datetime object UTC
+    dt_utc = datetime(2026, 11, 22, 15, 30, tzinfo=timezone.utc)
+    assert formatar_data_hora_brasil(dt_utc) == "22/11/2026 12:30"
+    # Vazio ou nulo
+    assert formatar_data_hora_brasil(None) == "-"
+    assert formatar_data_hora_brasil("") == "-"
+    # String não datada
+    assert formatar_data_hora_brasil("ontem") == "ontem"
+

@@ -25,6 +25,7 @@ from components.visualizador_documento import (
 from services.autenticacao import esta_autenticado
 from services.triagem_event_stream import escutar_eventos_triagem, obter_url_stream_triagem
 from telas.analise.dados import corresponde_filtro
+from utils.formatadores import formatar_data_hora_brasil
 from utils.alertas_clinicos import (
     exibir_alerta_global_se_necessario,
     exibir_alerta_individual,
@@ -355,12 +356,7 @@ def render() -> None:
         elif doc_id:
             ids_vistos.add(doc_id)
             criado_em = doc.get("created_at")
-            data_formatada = "-"
-            if criado_em:
-                try:
-                    data_formatada = datetime.fromisoformat(criado_em).strftime("%d/%m/%Y %H:%M")
-                except Exception:
-                    data_formatada = str(criado_em)[:16]
+            data_formatada = formatar_data_hora_brasil(criado_em)
 
             status_original = (doc.get("status_processamento") or "concluido").lower()
             status_normalizado = "concluido"

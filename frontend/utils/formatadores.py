@@ -1,4 +1,28 @@
+from datetime import datetime, timezone, timedelta
 import unicodedata
+
+FUSO_BRASILIA = timezone(timedelta(hours=-3))
+
+
+def formatar_data_hora_brasil(valor: str | datetime | None) -> str:
+    """Converte timestamp UTC vindo do servidor/banco para Horário de Brasília (UTC-3)."""
+    if not valor:
+        return "-"
+    try:
+        if isinstance(valor, str):
+            val_limpo = valor.strip().replace("Z", "+00:00")
+            dt = datetime.fromisoformat(val_limpo)
+        elif isinstance(valor, datetime):
+            dt = valor
+        else:
+            return str(valor)[:16]
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(FUSO_BRASILIA).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return str(valor)[:16]
+
 
 NIVEL_SUCESSO = "sucesso"
 NIVEL_AVISO = "aviso"

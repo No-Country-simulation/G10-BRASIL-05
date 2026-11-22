@@ -23,6 +23,7 @@ from components.visualizador_documento import (
 from services.autenticacao import esta_autenticado
 from utils.aparencia import cor_da_confianca
 from utils.formatadores import (
+    formatar_data_hora_brasil,
     normalizar_prioridade,
     rotular_prioridade,
     rotular_tipo_documento,
@@ -76,12 +77,7 @@ def _obter_badge_prioridade_html(prioridade_bruta: str | None) -> str:
 
 
 def _formatar_data_hora(valor: str | None) -> str:
-    if not valor:
-        return "-"
-    try:
-        return datetime.fromisoformat(valor).strftime("%d/%m/%Y %H:%M")
-    except Exception:
-        return str(valor)[:16]
+    return formatar_data_hora_brasil(valor)
 
 
 @st.dialog("Detalhes do Documento", width="large")

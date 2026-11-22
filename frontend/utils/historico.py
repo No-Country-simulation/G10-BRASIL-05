@@ -5,6 +5,7 @@ import pandas as pd
 
 from utils.aparencia import cor_da_confianca, cor_da_prioridade
 from utils.formatadores import (
+    formatar_data_hora_brasil,
     normalizar_prioridade,
     rotular_prioridade,
     rotular_tipo_documento,
@@ -261,12 +262,7 @@ def _montar_linha(documento: dict) -> dict:
 
 
 def _formatar_data(valor: str | None) -> str:
-    if not valor:
-        return SEM_VALOR
-    try:
-        return datetime.fromisoformat(valor).strftime("%d/%m/%Y %H:%M")
-    except ValueError:
-        return valor
+    return formatar_data_hora_brasil(valor)
 
 
 def _montar_estilos_da_linha(documento: dict, colunas: list[str]) -> list[str]:
