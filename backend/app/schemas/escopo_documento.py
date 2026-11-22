@@ -1,8 +1,8 @@
 """Contrato da decisão pré-clínica do Harness."""
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class EvidenciaEscopo(BaseModel):
@@ -30,4 +30,17 @@ class ResultadoEscopoDocumento(BaseModel):
     legibilidade: Literal["legivel", "ilegivel", "indeterminada"]
     evidencias: list[EvidenciaEscopo] = Field(default_factory=list)
     justificativa: str = Field(min_length=1)
+
+    @field_validator("legibilidade", mode="before")
+    @classmethod
+    def normalizar_legibilidade(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            v_limpo = v.strip().lower()
+            if v_limpo in {"legível", "legivel"}:
+                return "legivel"
+            if v_limpo in {"ilegível", "ilegivel"}:
+                return "ilegivel"
+            if v_limpo in {"indeterminada", "indeterminado"}:
+                return "indeterminada"
+        return v
 
