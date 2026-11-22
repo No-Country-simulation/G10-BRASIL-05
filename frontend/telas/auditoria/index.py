@@ -28,6 +28,7 @@ from api.cliente_http import (
 )
 from utils.formatadores import (
     formatar_cpf,
+    formatar_data_hora_brasil,
     nome_do_paciente,
     rotular_tipo_documento,
     validar_cpf_algoritmo,
@@ -458,8 +459,6 @@ def render() -> None:
     confirmacao_anterior = st.session_state.pop(CHAVE_DA_CONFIRMACAO, None)
     if confirmacao_anterior:
         st.success(confirmacao_anterior["mensagem"], icon=":material/check_circle:")
-        with st.expander("Ver decisão enviada (JSON)"):
-            st.json(confirmacao_anterior["decisao"])
 
     # Consolidação dos itens em lista unificada
     itens_auditoria = []
@@ -486,12 +485,7 @@ def render() -> None:
         motivo_resumo = " · ".join(motivos_lista)
 
         criado_em = item_fila.get("created_at")
-        data_fmt = "-"
-        if criado_em:
-            try:
-                data_fmt = datetime.fromisoformat(str(criado_em)).strftime("%d/%m/%Y %H:%M")
-            except Exception:
-                data_fmt = str(criado_em)[:16]
+        data_fmt = formatar_data_hora_brasil(criado_em)
 
         itens_auditoria.append({
             "documento_id": doc_id,
@@ -519,12 +513,7 @@ def render() -> None:
             ids_vistos.add(doc_id)
 
             criado_em = doc.get("created_at")
-            data_fmt = "-"
-            if criado_em:
-                try:
-                    data_fmt = datetime.fromisoformat(str(criado_em)).strftime("%d/%m/%Y %H:%M")
-                except Exception:
-                    data_fmt = str(criado_em)[:16]
+            data_fmt = formatar_data_hora_brasil(criado_em)
 
             tipo_bruto = doc.get("tipo_documento") or "DOCUMENTO"
             tipo_fmt = rotular_tipo_documento(tipo_bruto) or tipo_bruto

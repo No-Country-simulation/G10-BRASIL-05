@@ -43,8 +43,82 @@ def _extrair_info_paciente(doc: Any) -> Tuple[Optional[str], Optional[str]]:
     return nome, cpf
 
 
-def _formatar_doc_historico(doc: Any) -> dict:
+def _extrair_revisao_doc(doc: Any, db: Optional[Session] = None) -> Optional[dict]:
+    """Extrai informações da última revisão realizada por auditor humano."""
+    revisao_info = None
+    revisoes = getattr(doc, "revisoes", None)
+
+    if not revisoes and hasattr(doc, "id"):
+        sessao = db
+        if not sessao:
+            try:
+                from sqlalchemy.orm import object_session
+                sessao = object_session(doc)
+            except Exception:
+                sessao = None
+        if sessao:
+            try:
+                from app.models.triagem import RevisaoModel
+                revisoes = (
+                    sessao.query(RevisaoModel)
+                    .filter(RevisaoModel.documento_id == doc.id)
+                    .order_by(RevisaoModel.id.asc())
+                    .all()
+                )
+            except Exception:
+                pass
+
+    if revisoes:
+        ult = None
+        if isinstance(revisoes, list) and revisoes:
+            decisoes_auditoria = [
+                r for r in revisoes if getattr(r, "decisao", "").upper() != "INICIADA"
+            ]
+            ult = decisoes_auditoria[-1] if decisoes_auditoria else revisoes[-1]
+        elif hasattr(revisoes, "__iter__"):
+            lista = list(revisoes)
+            if lista:
+                decisoes_auditoria = [
+                    r for r in lista if getattr(r, "decisao", "").upper() != "INICIADA"
+                ]
+                ult = decisoes_auditoria[-1] if decisoes_auditoria else lista[-1]
+
+        if ult:
+            revisor = getattr(ult, "revisor", None)
+            if not revisor and getattr(ult, "revisor_id", None):
+                sessao = db
+                if not sessao:
+                    try:
+                        from sqlalchemy.orm import object_session
+                        sessao = object_session(ult)
+                    except Exception:
+                        sessao = None
+                if sessao:
+                    try:
+                        from app.models.users import UsuarioSistemaModel
+                        revisor = sessao.query(UsuarioSistemaModel).filter_by(id=ult.revisor_id).first()
+                    except Exception:
+                        pass
+
+            revisao_info = {
+                "decisao": ult.decisao,
+                "justificativa": ult.observacao or "",
+                "revisado_em": (
+                    ult.revisado_em.isoformat()
+                    if hasattr(ult.revisado_em, "isoformat")
+                    else str(ult.revisado_em)
+                ),
+                "revisor_nome": revisor.nome if revisor else "Auditor Clínico",
+                "revisor_papel": revisor.papel if revisor else "",
+                "revisor_registro": revisor.registro if revisor else "",
+            }
+
+    return revisao_info
+
+
+def _formatar_doc_historico(doc: Any, db: Optional[Session] = None) -> dict:
     nome_paciente, cpf_paciente = _extrair_info_paciente(doc)
+    revisao_info = _extrair_revisao_doc(doc, db=db)
     created_at = (
         doc.created_at.isoformat()
         if hasattr(doc.created_at, "isoformat")
@@ -62,6 +136,7 @@ def _formatar_doc_historico(doc: Any) -> dict:
         "paciente_cpf": cpf_paciente,
         "canal_origem": getattr(doc, "canal_origem", None),
         "created_at": created_at,
+        "revisao": revisao_info,
     }
 
 
@@ -76,7 +151,7 @@ def listar_documentos(
     documentos_formatados = []
     for doc in docs:
         try:
-            documentos_formatados.append(_formatar_doc_historico(doc))
+            documentos_formatados.append(_formatar_doc_historico(doc, db=db))
         except Exception as exc:
             logger.warning(
                 "Falha ao formatar documento %s para o historico: %s",
@@ -96,7 +171,10 @@ def obter_documento(
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado.")
     from app.controllers.triagem_jobs import _resultado_persistido
-    return _resultado_persistido(doc)
+    res = _resultado_persistido(doc)
+    if not res.get("revisao"):
+        res["revisao"] = _extrair_revisao_doc(doc, db=db)
+    return res
 
 
 def desativar_alerta_documento(

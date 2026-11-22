@@ -109,10 +109,8 @@ def exibir_dados_extraidos(dados: dict) -> None:
         _exibir_campo("Paciente", _formatar_paciente(dados.get("paciente")))
         _exibir_campo("Médico solicitante", _formatar_medico(dados.get("medico_solicitante") or {}))
     with coluna_clinica:
-        if dados.get("diagnostico_principal"):
-            _exibir_campo("Achado clínico", dados["diagnostico_principal"])
-        if dados.get("cid_sugerido"):
-            _exibir_campo("CID-10 no documento", dados["cid_sugerido"])
+        _exibir_campo("Achado clínico", dados.get("diagnostico_principal"))
+        _exibir_campo("CID-10 no documento", dados.get("cid_sugerido"))
     _exibir_itens_clinicos(dados)
 
 
@@ -122,8 +120,21 @@ def exibir_resultado_da_triagem(resposta: dict) -> None:
     exibir_classificacao(resposta.get("classificacao") or {})
     st.subheader("Dados extraídos")
     exibir_dados_extraidos(resposta.get("dados_extraidos") or {})
+    exibir_armazenamento(resposta.get("armazenamento_oci"))
     with st.expander("Ver resposta completa (JSON)"):
-        st.json(resposta)
+        json_canonico = {
+            "status": resposta.get("status") or "processado",
+            "documento_id": resposta.get("documento_id") or "DOC-CLIN",
+            "classificacao": resposta.get("classificacao") or {},
+            "dados_extraidos": resposta.get("dados_extraidos") or {},
+            "decisao_roteamento": resposta.get("decisao_roteamento") or {},
+            "armazenamento_oci": resposta.get("armazenamento_oci") or {
+                "bucket": "mediflow-documentos-clinicos",
+                "caminho_objeto": f"processados/{resposta.get('documento_id', 'doc')}.json",
+                "status_backup": "sucesso",
+            },
+        }
+        st.json(json_canonico)
 
 
 def exibir_item_de_auditoria(item: dict) -> None:

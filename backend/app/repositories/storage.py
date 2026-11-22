@@ -251,9 +251,6 @@ class StorageRepository:
                 "status_backup": "sucesso",
             },
         }
-        for k, v in dados_resultado.items():
-            if k not in payload_canonico:
-                payload_canonico[k] = v
 
         payload_bytes = json.dumps(
             payload_canonico, default=str, ensure_ascii=False, indent=2

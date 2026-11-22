@@ -77,3 +77,64 @@ def test_listar_documentos_resiliente(monkeypatch):
     assert resultado[2]["paciente_nome"] == "João"
     assert resultado[2]["paciente_cpf"] == "111"
     assert resultado[3]["paciente_nome"] is None
+
+
+def test_formatar_doc_historico_com_revisao():
+    class MockRevisor:
+        nome = "Dr. Roberto"
+        papel = "MEDICO"
+        registro = "CRM/SP 12345"
+
+    class MockRevisao:
+        decisao = "REJEITADO"
+        observacao = "Documento ilegível e fora de escopo"
+        revisado_em = datetime(2026, 11, 22, 10, 0, 0)
+        revisor = MockRevisor()
+
+    doc = MockDocumento(documento_id="DOC-REV-1")
+    doc.revisoes = [MockRevisao()]
+
+    formatado = _formatar_doc_historico(doc)
+    assert formatado["revisao"] is not None
+    assert formatado["revisao"]["decisao"] == "REJEITADO"
+    assert formatado["revisao"]["revisor_nome"] == "Dr. Roberto"
+    assert formatado["revisao"]["revisor_registro"] == "CRM/SP 12345"
+    assert formatado["revisao"]["justificativa"] == "Documento ilegível e fora de escopo"
+
+
+def test_resultado_persistido_com_revisao():
+    from app.controllers.triagem_jobs import _resultado_persistido
+
+    class MockRevisor:
+        nome = "Dra. Paula"
+        papel = "MEDICO"
+        registro = "CRM/RJ 67890"
+
+    class MockRevisao:
+        decisao = "APROVADO"
+        observacao = "Parecer favorável"
+        revisado_em = datetime(2026, 11, 22, 11, 30, 0)
+        revisor = MockRevisor()
+
+    doc = MockDocumento(documento_id="DOC-REV-2")
+    doc.tipo_arquivo = "application/pdf"
+    doc.documento_texto = "Texto teste"
+    doc.metadados_documento = {}
+    doc.campos_rotulados = {}
+    doc.escopo_documento = "DENTRO_DO_ESCOPO"
+    doc.legibilidade_documento = "LEGIVEL"
+    doc.evidencias_escopo = []
+    doc.justificativa_escopo = ""
+    doc.especialidade = "Cardiologia"
+    doc.justificativa_roteamento = "Roteado"
+    doc.bucket_oci = "mediflow"
+    doc.caminho_objeto_oci = "path/test.pdf"
+    doc.evidencias_campos = {}
+    doc.motivo_revisao = None
+    doc.revisoes = [MockRevisao()]
+
+    res = _resultado_persistido(doc)
+    assert "revisao" in res
+    assert res["revisao"]["decisao"] == "APROVADO"
+    assert res["revisao"]["revisor_nome"] == "Dra. Paula"
+

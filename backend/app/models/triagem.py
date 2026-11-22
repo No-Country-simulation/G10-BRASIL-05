@@ -141,6 +141,7 @@ class DocumentoTriagemModel(Base):
     destino = relationship("DestinoRoteamentoModel")
     especialidades = relationship("EspecialidadeModel", secondary="documento_especialidades")
     arquivos = relationship("DocumentoArquivoModel", back_populates="documento")
+    revisoes = relationship("RevisaoModel", back_populates="documento", order_by="RevisaoModel.id")
 
     _payload_fields = {
         "documento_texto", "justificativa_roteamento", "dados_extraidos", "evidencias_campos",
@@ -289,6 +290,9 @@ class RevisaoModel(Base):
     decisao = Column(String(30), nullable=False)
     observacao = Column(Text)
     revisado_em = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    documento = relationship("DocumentoTriagemModel", back_populates="revisoes")
+    revisor = relationship("UsuarioSistemaModel")
 
 
 class ContatoWhatsAppModel(Base):

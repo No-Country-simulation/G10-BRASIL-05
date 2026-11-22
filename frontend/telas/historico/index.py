@@ -23,6 +23,7 @@ from components.visualizador_documento import (
 from services.autenticacao import esta_autenticado
 from utils.aparencia import cor_da_confianca
 from utils.formatadores import (
+    formatar_data_hora_brasil,
     normalizar_prioridade,
     rotular_prioridade,
     rotular_tipo_documento,
@@ -76,12 +77,7 @@ def _obter_badge_prioridade_html(prioridade_bruta: str | None) -> str:
 
 
 def _formatar_data_hora(valor: str | None) -> str:
-    if not valor:
-        return "-"
-    try:
-        return datetime.fromisoformat(valor).strftime("%d/%m/%Y %H:%M")
-    except Exception:
-        return str(valor)[:16]
+    return formatar_data_hora_brasil(valor)
 
 
 @st.dialog("Detalhes do Documento", width="large")
@@ -136,6 +132,80 @@ def exibir_modal_detalhes_historico(doc_resumo: dict):
             detalhe_completo = buscar_documento(doc_id)
         except Exception:
             detalhe_completo = None
+
+        # Exibir card de auditoria médica caso o documento tenha sido auditado
+        revisao_dados = None
+        if detalhe_completo and isinstance(detalhe_completo, dict):
+            revisao_dados = detalhe_completo.get("revisao")
+        if not revisao_dados and isinstance(doc_resumo, dict):
+            revisao_dados = doc_resumo.get("revisao")
+
+        status_proc = str(doc_resumo.get("status_processamento") or "").lower()
+        houve_auditoria = bool(
+            revisao_dados
+            or status == STATUS_REJEITADO
+            or "rejeit" in status_proc
+            or "auditoria" in status_proc
+            or doc_resumo.get("motivo_revisao")
+        )
+
+        if revisao_dados:
+            revisor_nome = revisao_dados.get("revisor_nome") or "Auditor Clínico"
+            revisor_reg = revisao_dados.get("revisor_registro") or ""
+            revisor_papel = revisao_dados.get("revisor_papel") or ""
+            detalhe_rev = (
+                f"{revisor_reg} · {revisor_papel}"
+                if (revisor_reg and revisor_papel)
+                else (revisor_reg or revisor_papel or "Auditor")
+            )
+            decisao_val = (revisao_dados.get("decisao") or status).capitalize()
+            rev_em = _formatar_data_hora(revisao_dados.get("revisado_em"))
+            justificativa_val = (
+                revisao_dados.get("justificativa")
+                or revisao_dados.get("observacao")
+                or doc_resumo.get("motivo_revisao")
+                or "Sem observações adicionais."
+            )
+
+            cor_borda = "#B42318" if "rejeit" in decisao_val.lower() else "#0284C7"
+            st.markdown(
+                f"""
+                <div style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid {cor_borda}; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;">
+                    <div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;">
+                        🩺 Auditoria Médica Realizada
+                    </div>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 0.88rem; color: #334155; line-height: 1.6;">
+                        <li><strong>Revisor:</strong> {escape(revisor_nome)} ({escape(detalhe_rev)})</li>
+                        <li><strong>Decisão:</strong> <span style="font-weight: 600;">{escape(decisao_val)}</span></li>
+                        <li><strong>Data/Hora:</strong> {escape(rev_em)}</li>
+                        <li><strong>Parecer / Justificativa:</strong> "{escape(justificativa_val)}"</li>
+                    </ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        elif houve_auditoria and (status == STATUS_REJEITADO or "rejeit" in status_proc):
+            motivo_val = (
+                doc_resumo.get("motivo_revisao")
+                or doc_resumo.get("justificativa_roteamento")
+                or "Rejeição confirmada pela equipe de auditoria médica."
+            )
+            st.markdown(
+                f"""
+                <div style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #B42318; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;">
+                    <div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;">
+                        🩺 Auditoria Médica Realizada
+                    </div>
+                    <ul style="margin: 0; padding-left: 20px; font-size: 0.88rem; color: #334155; line-height: 1.6;">
+                        <li><strong>Revisor:</strong> Auditor Clínico (Equipe Médica)</li>
+                        <li><strong>Decisão:</strong> <span style="font-weight: 600;">{escape(status)}</span></li>
+                        <li><strong>Data/Hora:</strong> {escape(data_formatada)}</li>
+                        <li><strong>Parecer / Justificativa:</strong> "{escape(motivo_val)}"</li>
+                    </ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         if detalhe_completo:
             exibir_resultado_da_triagem(detalhe_completo)
@@ -225,6 +295,27 @@ def exibir_modal_detalhes_historico(doc_resumo: dict):
             st.markdown(f"**Score de Confiança:** `{doc_resumo['score_confianca']:.2%}`")
         if doc_resumo.get("canal_origem"):
             st.markdown(f"**Canal de Entrada:** `{doc_resumo.get('canal_origem')}`")
+
+        revisao_meta = (
+            detalhe_completo.get("revisao")
+            if (detalhe_completo and isinstance(detalhe_completo, dict))
+            else None
+        ) or doc_resumo.get("revisao")
+        if revisao_meta:
+            st.markdown("---")
+            st.markdown("##### 🩺 Dados da Auditoria Médica")
+            r_nome = revisao_meta.get("revisor_nome", "Auditor Clínico")
+            r_reg = revisao_meta.get("revisor_registro", "")
+            r_papel = revisao_meta.get("revisor_papel", "")
+            r_det = (
+                f" ({r_reg} · {r_papel})"
+                if (r_reg and r_papel)
+                else (f" ({r_reg or r_papel})" if (r_reg or r_papel) else "")
+            )
+            st.markdown(f"- **Revisor:** {r_nome}{r_det}")
+            st.markdown(f"- **Decisão:** {revisao_meta.get('decisao', '-')}")
+            st.markdown(f"- **Data/Hora:** {_formatar_data_hora(revisao_meta.get('revisado_em'))}")
+            st.markdown(f"- **Parecer / Justificativa:** \"{revisao_meta.get('justificativa', '-')}\"")
 
 
 def render() -> None:

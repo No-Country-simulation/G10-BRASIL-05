@@ -86,6 +86,7 @@ def test_storage_salvar_triagem_json_chaves_canonicas(tmp_path):
     dados = {
         "classificacao": {"tipo_documento": "RECEITA", "especialidade": "Clínica Geral", "nivel_prioridade": "ROTINA", "score_confianca_classificacao": 0.95},
         "dados_extraidos": {"paciente": {"nome": "João", "idade": 50}},
+        "metadados_documento": {"origem": "debug_teste"},
     }
     resultado = repo.salvar_triagem_json(documento_id="DOC-TESTE-CANONICO", dados_resultado=dados, is_urgente=False)
     assert resultado["status_backup"] == "sucesso"
@@ -93,6 +94,7 @@ def test_storage_salvar_triagem_json_chaves_canonicas(tmp_path):
     with open(caminho, "r", encoding="utf-8") as f:
         conteudo = json.load(f)
     chaves_esperadas = {"status", "documento_id", "classificacao", "dados_extraidos", "decisao_roteamento", "armazenamento_oci"}
-    assert chaves_esperadas.issubset(set(conteudo.keys()))
+    assert set(conteudo.keys()) == chaves_esperadas
+    assert "metadados_documento" not in conteudo
     assert conteudo["status"] == "processado"
     assert conteudo["armazenamento_oci"]["status_backup"] == "sucesso"
