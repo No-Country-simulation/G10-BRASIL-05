@@ -179,7 +179,7 @@ def node_avaliacao(state: GraphState) -> GraphState:
     )
 
     destino_principal = state.get("destino_principal")
-    if pri_classificada == "ROTINA" and (score_total >= 85.0 or faixa == "CONFIAVEL_DIRETO"):
+    if not is_urgente and pri_classificada == "ROTINA" and (score_total >= 85.0 or faixa == "CONFIAVEL_DIRETO"):
         requer_auditoria = False
         motivo_revisao = None
         inconsistencias = []
