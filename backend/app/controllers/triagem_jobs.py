@@ -127,8 +127,8 @@ async def enfileirar_upload_triagem(
     usuario: UsuarioSistemaModel = Depends(exigir_usuario_atual),
     db: Session = Depends(get_db),
 ):
-    # Trava de cooldown / idempotencia de 30 segundos por usuario
-    if not adquirir_lock_upload_lote(usuario.id, ttl_segundos=30):
+    # Trava leve de cooldown / debounce de 2 segundos por usuario
+    if not adquirir_lock_upload_lote(usuario.id, ttl_segundos=2):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Um lote de documentos já foi enviado recentemente. Por favor, aguarde 30 segundos antes de enviar um novo lote.",
