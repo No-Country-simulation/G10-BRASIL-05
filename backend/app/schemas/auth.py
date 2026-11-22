@@ -63,7 +63,7 @@ class UsuarioAtualizarRequest(BaseModel):
     nome: str | None = Field(default=None, min_length=2, max_length=150)
     email: str | None = None
     senha: str | None = Field(default=None, min_length=12, max_length=256)
-    nivel: Literal["DIRETOR", "MEDICO", "ENFERMEIRO"] | None = None
+    nivel: Literal["ADMIN_GERAL", "DIRETOR", "MEDICO", "ENFERMEIRO"] | None = None
     registro: str | None = Field(default=None, max_length=100)
     especialidade: str | None = Field(default=None, max_length=150)
     ativo: bool | None = None

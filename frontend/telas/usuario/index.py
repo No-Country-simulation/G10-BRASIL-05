@@ -332,7 +332,12 @@ def render() -> None:
 
                 try:
                     id_num = extrair_id_numerico(alvo["id"])
-                    atualizar_usuario(id_num, dados_atualizacao)
+                    usuario_salvo = atualizar_usuario(id_num, dados_atualizacao)
+                    if isinstance(usuario_salvo, dict) and (eh_autoedicao or str(alvo.get("id")) == str(usuario_atual.get("id"))):
+                        usuario_atualizado = {**usuario_atual, **usuario_salvo}
+                        st.session_state["mediflow_usuario_logado"] = usuario_atualizado
+                        st.session_state["usuario_ativo_id"] = usuario_atualizado.get("id", "")
+                        st.session_state["usuario_autenticado_email"] = usuario_atualizado.get("email", "")
                     st.success("Conta profissional atualizada com sucesso!")
                     st.session_state["usuario_modo_tela"] = "lista"
                     st.session_state.pop("usuario_em_edicao", None)

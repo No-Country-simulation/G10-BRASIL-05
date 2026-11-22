@@ -45,13 +45,8 @@ def render() -> None:
         if acao in ("analisar_arquivos", "analisar_texto"):
             agora_ts = time.time()
             ultimo_envio = st.session_state.get("ultimo_envio_triagem_ts")
-            intervalo_cooldown = 30.0
-
-            if ultimo_envio is not None and (agora_ts - ultimo_envio) < intervalo_cooldown:
-                segundos_restantes = int(intervalo_cooldown - (agora_ts - ultimo_envio))
-                st.warning(
-                    f"Envio recente em processamento. Por favor, aguarde {segundos_restantes} segundo(s) antes de realizar um novo envio."
-                )
+            # Debounce simples (0.5s) para evitar submissões duplicadas acidentais por clique duplo
+            if ultimo_envio is not None and (agora_ts - ultimo_envio) < 0.5:
                 return
 
             st.session_state["ultimo_envio_triagem_ts"] = agora_ts
