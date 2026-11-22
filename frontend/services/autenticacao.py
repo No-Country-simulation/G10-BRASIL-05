@@ -217,6 +217,9 @@ def deslogar(session_state: Any = None) -> None:
         "usuario_autenticado_email",
         "rbac_lista_usuarios",
         "mediflow_senha_trocada",
+        "_token_browser_salvo",
+        "cookie_sessao_migracao_pendente",
+        "logout_cookie_tentativa",
     ):
         session_state.pop(chave, None)
 
