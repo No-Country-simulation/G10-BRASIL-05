@@ -87,81 +87,88 @@ if st.session_state.get("logout_efetuado"):
 if esta_autenticado(st.session_state) and not validar_sessao_api(st.session_state):
     st.info("Sua sessão expirou ou não pôde ser validada. Entre novamente.")
 
-if not esta_autenticado(st.session_state):
-    pagina_login = st.Page(
-        "pages/0_Login.py",
-        title="Login",
-        icon=":material/login:",
-        default=True,
-    )
-    st.navigation([pagina_login], position="hidden").run()
-elif precisa_trocar_senha(st.session_state):
-    pagina_trocar_senha = st.Page(
-        "pages/6_Trocar_Senha.py",
-        title="Troca obrigatória de senha",
-        icon=":material/key:",
-        default=True,
-    )
-    st.navigation([pagina_trocar_senha], position="hidden").run()
+pagina_login = st.Page(
+    "pages/0_Login.py",
+    title="Login",
+    icon=":material/login:",
+)
+pagina_trocar_senha = st.Page(
+    "pages/6_Trocar_Senha.py",
+    title="Troca obrigatória de senha",
+    icon=":material/key:",
+)
+
+usuario = obter_usuario_autenticado(st.session_state) or {}
+nivel = usuario.get("nivel", "")
+
+if nivel == "INSTITUCIONAL_WHATSAPP" and eh_conta_institucional_whatsapp(st.session_state):
+    paginas = [
+        st.Page(
+            "pages/4_WhatsApp_Evolution.py",
+            title="Conectar",
+            icon=":material/chat:",
+            default=True,
+        )
+    ]
 else:
-    usuario = obter_usuario_autenticado(st.session_state) or {}
-    nivel = usuario.get("nivel", "")
-    if nivel == "INSTITUCIONAL_WHATSAPP" and eh_conta_institucional_whatsapp(st.session_state):
-        paginas = [
+    paginas = [
+        st.Page(
+            "pages/1_Triagem_Clinica.py",
+            title="Triagem Clínica",
+            icon=":material/stethoscope:",
+            default=True,
+        ),
+        st.Page(
+            "pages/analise.py",
+            title="Análise",
+            icon=":material/analytics:",
+            url_path="analise",
+        ),
+    ]
+    if not nivel or nivel in {NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO, NIVEL_ENFERMEIRO}:
+        paginas.append(
+            st.Page(
+                "pages/2_Auditoria_Humana.py",
+                title="Revisão",
+                icon=":material/verified_user:",
+            ),
+        )
+    paginas.append(
+        st.Page(
+            "pages/3_Historico.py",
+            title="Histórico",
+            icon=":material/history:",
+        )
+    )
+    paginas.append(
+        st.Page(
+            "pages/5_Usuario.py",
+            title="Usuário",
+            icon=":material/person:",
+        )
+    )
+    if not nivel or nivel == NIVEL_ADMIN_GERAL:
+        paginas.append(
             st.Page(
                 "pages/4_WhatsApp_Evolution.py",
-                title="Conectar",
+                title="Conectar WhatsApp",
                 icon=":material/chat:",
-                default=True,
-            )
-        ]
-    else:
-        paginas = [
-            st.Page(
-                "pages/1_Triagem_Clinica.py",
-                title="Triagem Clínica",
-                icon=":material/stethoscope:",
-                default=True,
-            ),
-        ]
-        paginas.append(
-            st.Page(
-                "pages/analise.py",
-                title="Análise",
-                icon=":material/analytics:",
-                url_path="analise",
             )
         )
-        if nivel in {NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO, NIVEL_ENFERMEIRO}:
-            paginas.append(
-                st.Page(
-                    "pages/2_Auditoria_Humana.py",
-                    title="Revisão",
-                    icon=":material/verified_user:",
-                ),
-            )
-        paginas.append(
-            st.Page(
-                "pages/3_Historico.py",
-                title="Histórico",
-                icon=":material/history:",
-            )
-        )
-        paginas.append(
-            st.Page(
-                "pages/5_Usuario.py",
-                title="Usuário",
-                icon=":material/person:",
-            )
-        )
-        if nivel == NIVEL_ADMIN_GERAL:
-            paginas.append(
-                st.Page(
-                    "pages/4_WhatsApp_Evolution.py",
-                    title="Conectar WhatsApp",
-                    icon=":material/chat:",
-                )
-            )
 
+# Registra todas as rotas válidas no roteador do Streamlit para evitar "Page not found" durante recarregamento
+paginas.append(pagina_login)
+paginas.append(pagina_trocar_senha)
+
+pagina_selecionada = st.navigation(
+    paginas,
+    position="sidebar" if esta_autenticado(st.session_state) else "hidden",
+)
+
+if not esta_autenticado(st.session_state):
+    pagina_login.run()
+elif precisa_trocar_senha(st.session_state):
+    pagina_trocar_senha.run()
+else:
     exibir_barra_lateral()
-    st.navigation(paginas).run()
+    pagina_selecionada.run()
