@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Any, Optional, Tuple
-from fastapi import Depends, Query, status
+from fastapi import Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.repositories.database import DatabaseRepository, get_db
@@ -60,6 +60,7 @@ def _formatar_doc_historico(doc: Any) -> dict:
         "requer_auditoria_humana": doc.requer_auditoria_humana,
         "paciente_nome": nome_paciente,
         "paciente_cpf": cpf_paciente,
+        "canal_origem": getattr(doc, "canal_origem", None),
         "created_at": created_at,
     }
 
@@ -83,4 +84,18 @@ def listar_documentos(
                 exc,
             )
     return documentos_formatados
+
+
+def obter_documento(
+    documento_id: str,
+    db: Session = Depends(get_db),
+):
+    """Retorna os detalhes completos de um documento do histórico."""
+    repo = DatabaseRepository(db)
+    doc = repo.buscar_por_documento_id(documento_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado.")
+    from app.controllers.triagem_jobs import _resultado_persistido
+    return _resultado_persistido(doc)
+
 

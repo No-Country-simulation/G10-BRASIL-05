@@ -38,7 +38,7 @@ from app.controllers.evolution import (
     enviar_mensagem_teste,
 )
 from app.controllers.evolution_webhook import receber_webhook_evolution, verificar_status_webhook
-from app.controllers.historico import listar_documentos
+from app.controllers.historico import listar_documentos, obter_documento
 from app.controllers.triagem import processar_triagem
 from app.controllers.triagem_eventos import stream_eventos_triagem
 from app.controllers.triagem_upload import inspecionar_extracao_documento, processar_upload_triagem
@@ -118,6 +118,15 @@ _register_route(
 _register_route(
     "/triagem/documentos", listar_documentos, methods=["GET"], tags=["Histórico de Triagem"],
     status_code=status.HTTP_200_OK, dependencies=_triagem_access,
+)
+_register_route(
+    "/triagem/documentos/{documento_id}", obter_documento, methods=["GET"], tags=["Histórico de Triagem"],
+    status_code=status.HTTP_200_OK, dependencies=_triagem_access,
+)
+_register_route(
+    "/triagem/documentos/{documento_id}/fonte", baixar_fonte_original,
+    methods=["GET"], tags=["Histórico de Triagem"], status_code=status.HTTP_200_OK,
+    dependencies=_triagem_access,
 )
 _register_route(
     "/triagem/auditoria", listar_fila_auditoria, methods=["GET"], tags=["Auditoria Clínica"],

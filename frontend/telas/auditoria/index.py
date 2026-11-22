@@ -34,6 +34,12 @@ def render() -> None:
         desbloquear_documento_auditoria,
     )
     from utils.formatadores import nome_do_paciente, rotular_tipo_documento
+    from utils.alertas_clinicos import (
+        exibir_alerta_global_se_necessario,
+        exibir_alerta_individual,
+        obter_badge_estado_html,
+        verificar_e_disparar_modal_alerta,
+    )
     from utils.auditoria import (
         CAMPOS_EDITAVEIS,
         DECISAO_APROVAR,
@@ -226,6 +232,9 @@ def render() -> None:
             )
         else:
             corpo_motivo_banner = f"<div class='auditoria-motivo-item'>{escape(itens_humanizados[0])}</div>"
+
+        # Alerta clínico específico para o documento selecionado
+        exibir_alerta_individual(item)
 
         st.markdown(
             f"""
@@ -514,23 +523,115 @@ def render() -> None:
                 "item_completo": doc,
             })
 
-    # Barra de busca e filtros
-    col_busca, col_filtro = st.columns([3, 2], vertical_alignment="bottom")
+    # Alerta clínico no topo da tela para casos de Emergência ou Perigo na auditoria
+    exibir_alerta_global_se_necessario(itens_auditoria)
+    verificar_e_disparar_modal_alerta(itens_auditoria)
 
-    with col_busca:
+    # Barra de busca e filtros
+    total_auditoria = len(itens_auditoria)
+    qtd_esperando = sum(1 for d in itens_auditoria if d.get("status") == "esperando_auditar")
+    qtd_auditados = sum(1 for d in itens_auditoria if d.get("status") == "ja_auditado")
+    qtd_urgencias = sum(
+        1 for d in itens_auditoria
+        if any(termo in str(d.get("motivo_revisao", "")).lower() for termo in ["urgente", "urgência", "iam", "crítica", "alergia", "emergência"])
+    )
+
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown(
+            f"""
+            <div class="auditoria-kpi-card">
+                <span class="auditoria-kpi-label">Total na Fila</span>
+                <span class="auditoria-kpi-valor">{total_auditoria}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k2:
+        st.markdown(
+            f"""
+            <div class="auditoria-kpi-card">
+                <span class="auditoria-kpi-label" style="color:#B54708;">Esperando Auditoria</span>
+                <span class="auditoria-kpi-valor" style="color:#B54708;">{qtd_esperando}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            f"""
+            <div class="auditoria-kpi-card">
+                <span class="auditoria-kpi-label" style="color:#B42318;">Casos Críticos / Urgência</span>
+                <span class="auditoria-kpi-valor" style="color:#B42318;">{qtd_urgencias}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k4:
+        st.markdown(
+            f"""
+            <div class="auditoria-kpi-card">
+                <span class="auditoria-kpi-label" style="color:#027A48;">Já Auditados</span>
+                <span class="auditoria-kpi-valor" style="color:#027A48;">{qtd_auditados}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+    with st.container(border=True):
         termo_busca = st.text_input(
-            "Buscar por nome ou palavra",
-            placeholder="Buscar por paciente, arquivo, tipo ou ID...",
-            label_visibility="visible",
+            "Buscar na auditoria",
+            placeholder="Buscar por paciente, CPF, arquivo, identificador (DOC-...) ou motivo da revisão...",
+            key="filtro_termo_auditoria",
         ).strip().lower()
 
-    with col_filtro:
-        opcoes_status = ["Todos", "Esperando auditar", "Já auditado"]
-        filtro_status = st.selectbox(
-            "Filtrar por status",
-            opcoes_status,
-            index=0,
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            opcoes_status = ["Todos", "Esperando auditar", "Já auditado"]
+            filtro_status = st.selectbox(
+                "Status",
+                opcoes_status,
+                key="sel_status_auditoria",
+            )
+        with col_f2:
+            opcoes_tipo = [
+                "Todos",
+                "Receituário Médico",
+                "Laudo de Exame",
+                "Guia TISS",
+                "Relatório de Alta",
+                "Atestado Médico",
+            ]
+            filtro_tipo = st.selectbox(
+                "Tipo de Documento",
+                opcoes_tipo,
+                key="sel_tipo_auditoria",
+            )
+        with col_f3:
+            filtro_ord = st.selectbox(
+                "Ordenar por",
+                ["Mais recentes primeiro", "Mais antigos primeiro"],
+                key="sel_ord_auditoria",
+            )
+
+        tem_filtros_ativos = bool(
+            termo_busca
+            or st.session_state.get("sel_status_auditoria", "Todos") != "Todos"
+            or st.session_state.get("sel_tipo_auditoria", "Todos") != "Todos"
         )
+        col_espaco, col_btn_limpar, col_btn_buscar = st.columns([3.6, 1.2, 1.2], vertical_alignment="center")
+        with col_btn_limpar:
+            if st.button("Limpar filtros", icon=":material/filter_alt_off:", use_container_width=True, disabled=not tem_filtros_ativos):
+                st.session_state["filtro_termo_auditoria"] = ""
+                st.session_state["sel_status_auditoria"] = "Todos"
+                st.session_state["sel_tipo_auditoria"] = "Todos"
+                st.session_state["sel_ord_auditoria"] = "Mais recentes primeiro"
+                st.rerun()
+        with col_btn_buscar:
+            if st.button("Buscar", icon=":material/search:", type="primary", use_container_width=True):
+                st.rerun()
 
     # Filtragem
     documentos_filtrados = []
@@ -538,6 +639,8 @@ def render() -> None:
         if filtro_status == "Esperando auditar" and doc["status"] != "esperando_auditar":
             continue
         if filtro_status == "Já auditado" and doc["status"] != "ja_auditado":
+            continue
+        if filtro_tipo != "Todos" and doc.get("tipo_rotulado") != filtro_tipo:
             continue
         if termo_busca:
             campos_busca = [
@@ -552,7 +655,14 @@ def render() -> None:
                 continue
         documentos_filtrados.append(doc)
 
-    st.caption(f"{len(documentos_filtrados)} documento(s) encontrado(s)")
+    if filtro_ord == "Mais recentes primeiro":
+        documentos_filtrados.reverse()
+
+    filtrados_count = len(documentos_filtrados)
+    if total_auditoria == filtrados_count:
+        st.caption(f"Mostrando todos os {filtrados_count} documento(s) da auditoria.")
+    else:
+        st.caption(f"Mostrando {filtrados_count} de {total_auditoria} documento(s) com base nos filtros selecionados.")
 
     if not documentos_filtrados:
         st.info("Nenhum documento encontrado para os filtros selecionados.")
@@ -586,7 +696,7 @@ def render() -> None:
                 )
                 with c_arq:
                     st.markdown(
-                        f"<span style='font-size:0.86rem; font-weight:600; color:#12304A;' title='{escape(doc_id)}'>{escape(doc['arquivo'])}</span>",
+                        f"<div style='line-height:1.25;'><span style='font-size:0.86rem; font-weight:600; color:#12304A;' title='{escape(doc_id)}'>{escape(doc['arquivo'])}</span><br>{obter_badge_estado_html(doc.get('item_completo') or doc)}</div>",
                         unsafe_allow_html=True,
                     )
                 with c_pac:

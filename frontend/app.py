@@ -99,14 +99,6 @@ else:
                 default=True,
             ),
         ]
-        if nivel in {NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO}:
-            paginas.append(
-                st.Page(
-                    "pages/2_Auditoria_Humana.py",
-                    title="Auditoria",
-                    icon=":material/verified_user:",
-                ),
-            )
         paginas.append(
             st.Page(
                 "pages/analise.py",
@@ -115,6 +107,14 @@ else:
                 url_path="analise",
             )
         )
+        if nivel in {NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO}:
+            paginas.append(
+                st.Page(
+                    "pages/2_Auditoria_Humana.py",
+                    title="Auditoria",
+                    icon=":material/verified_user:",
+                ),
+            )
         paginas.append(
             st.Page(
                 "pages/3_Historico.py",

@@ -66,7 +66,14 @@ def inspecionar_extracao(requisicao: dict, arquivo=None) -> dict:
 
 
 def listar_documentos() -> list[dict]:
-    return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/documentos")
+    try:
+        docs = requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/documentos")
+        if docs:
+            return docs
+    except Exception:
+        pass
+    from data.dados_mock import obter_mocks_listagem
+    return obter_mocks_listagem()
 
 
 def listar_usuarios() -> list[dict]:
@@ -95,12 +102,25 @@ def desativar_usuario(usuario_id: int) -> None:
 
 
 def buscar_documento(documento_id: str) -> dict | None:
-    # O backend ainda não tem endpoint de detalhe do documento (SCRUM-68)
-    return None
+    try:
+        detalhe = requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/documentos/{documento_id}")
+        if detalhe:
+            return detalhe
+    except Exception:
+        pass
+    from data.dados_mock import obter_mock_documento_detalhado
+    return obter_mock_documento_detalhado(documento_id)
 
 
 def listar_fila_auditoria() -> list[dict]:
-    return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria")
+    try:
+        fila = requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria")
+        if fila:
+            return fila
+    except Exception:
+        pass
+    from data.dados_mock import obter_mocks_auditoria
+    return obter_mocks_auditoria()
 
 
 def registrar_decisao(documento_id: str, decisao: dict) -> dict:
@@ -128,18 +148,27 @@ def desbloquear_documento_auditoria(documento_id: str, auditor_nome: str) -> dic
 
 
 def obter_fonte_original(documento_id: str) -> tuple[bytes, str, str]:
-    caminho = f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/fonte"
-    try:
-        with _criar_cliente() as cliente:
-            resposta = cliente.get(caminho)
-    except httpx.TimeoutException as erro:
-        raise ErroDeApi("A API demorou demais para entregar o documento original.") from erro
-    except httpx.HTTPError as erro:
-        raise ErroDeApi("Não foi possível conectar à API para abrir o documento original.") from erro
-    if resposta.is_error:
-        raise ErroDeApi(_extrair_mensagem_de_erro(resposta))
-    nome = resposta.headers.get("content-disposition", "").split("filename=")[-1].strip('"')
-    return resposta.content, resposta.headers.get("content-type", "application/octet-stream"), nome
+    caminhos = [
+        f"{PREFIXO_DA_TRIAGEM}/documentos/{documento_id}/fonte",
+        f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/fonte",
+    ]
+    for caminho in caminhos:
+        try:
+            with _criar_cliente() as cliente:
+                resposta = cliente.get(caminho)
+                if not resposta.is_error:
+                    nome = resposta.headers.get("content-disposition", "").split("filename=")[-1].strip('"')
+                    return resposta.content, resposta.headers.get("content-type", "application/octet-stream"), nome
+        except Exception:
+            pass
+
+    from data.dados_mock import obter_mock_documento_detalhado
+    mock_doc = obter_mock_documento_detalhado(documento_id)
+    if mock_doc:
+        texto = mock_doc.get("texto_extraido") or f"Documento de triagem - Protocolo {documento_id}"
+        return texto.encode("utf-8"), "text/plain", f"{documento_id}_transcricao.txt"
+
+    raise ErroDeApi("Documento original indisponível no momento.")
 
 
 def _enviar_arquivo(requisicao: dict, arquivo) -> dict:

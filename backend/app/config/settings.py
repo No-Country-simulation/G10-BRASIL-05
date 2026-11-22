@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     # LLM fixo: OpenRouter Free Models Router
     OPENROUTER_API_KEY: str
     OPENROUTER_API_KEY_2: str = ""
+    OPENROUTER_API_KEY_3: str = ""
+    OPENROUTER_API_KEY_4: str = ""
     OPENROUTER_MODEL: str
     CONFIDENCE_THRESHOLD: float
 
@@ -63,6 +65,10 @@ class Settings(BaseSettings):
             chaves.append(self.OPENROUTER_API_KEY.strip())
         if self.OPENROUTER_API_KEY_2 and self.OPENROUTER_API_KEY_2.strip():
             chaves.append(self.OPENROUTER_API_KEY_2.strip())
+        if self.OPENROUTER_API_KEY_3 and self.OPENROUTER_API_KEY_3.strip():
+            chaves.append(self.OPENROUTER_API_KEY_3.strip())
+        if self.OPENROUTER_API_KEY_4 and self.OPENROUTER_API_KEY_4.strip():
+            chaves.append(self.OPENROUTER_API_KEY_4.strip())
         return chaves
 
     # OCI Object Storage Always Free

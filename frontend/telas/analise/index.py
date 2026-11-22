@@ -1,31 +1,65 @@
-"""Fluxo de interface da tela analise."""
+"""Fluxo de interface da tela de análise de documentos."""
+import base64
+from datetime import datetime
+from html import escape
+import io
+from pathlib import Path
+from PIL import Image, ImageOps
+import streamlit as st
+import streamlit.components.v1 as components
+
+from api.cliente_http import (
+    buscar_documento,
+    listar_documentos,
+    obter_fonte_original,
+    obter_status_triagem,
+)
+from components.cards import exibir_resultado_da_triagem
+from components.erros import chamar_api_ou_parar
+from components.estilos import aplicar_css
+from components.visualizador_documento import (
+    DOCUMENTO_INDISPONIVEL,
+    _renderizar_folha_textual,
+    _renderizar_visualizador_pdf,
+)
+from services.autenticacao import esta_autenticado
+from services.triagem_event_stream import escutar_eventos_triagem, obter_url_stream_triagem
+from telas.analise.dados import corresponde_filtro
+from utils.alertas_clinicos import (
+    exibir_alerta_global_se_necessario,
+    exibir_alerta_individual,
+    obter_badge_estado_html,
+    verificar_e_disparar_modal_alerta,
+)
+
+
+def _formatar_badge_status(status_chave: str) -> tuple[str, str]:
+    mapa = {
+        "na_fila": ("status-na-fila", "Na fila"),
+        "processando": ("status-processando", "Processando"),
+        "concluido": ("status-concluido", "Concluído"),
+        "falhou": ("status-falhou", "Falhou"),
+    }
+    return mapa.get(status_chave, ("status-na-fila", status_chave.capitalize()))
+
+
+def _formatar_badge_canal(canal: str | None) -> str:
+    canal_str = (canal or "Pronto Socorro").strip()
+    if "whatsapp" in canal_str.lower():
+        return '<span class="badge-canal badge-canal-wpp">WhatsApp</span>'
+    return f'<span class="badge-canal badge-canal-ps">{escape(canal_str.replace("_", " "))}</span>'
+
 
 def render() -> None:
-    import streamlit as st
-    from services.autenticacao import esta_autenticado
-
     if not esta_autenticado(st.session_state):
         st.switch_page("app.py")
         st.stop()
 
-    from pathlib import Path
-    from components.estilos import aplicar_css
-    import base64
-    from datetime import datetime
-    from html import escape
-    import io
-    from PIL import Image, ImageOps
-    import streamlit as st
-    import streamlit.components.v1 as components
+    aplicar_css(Path(__file__).with_name("style.css"))
 
-    from components.cards import exibir_resultado_da_triagem
-    from components.erros import chamar_api_ou_parar
-    from api.cliente_http import listar_documentos, obter_fonte_original, obter_status_triagem
-    from telas.analise.dados import corresponde_filtro
-    from services.triagem_event_stream import escutar_eventos_triagem, obter_url_stream_triagem
-
+    # Cabeçalho da Página
     st.title("Análise de Documentos")
-    st.caption("Acompanhamento do processamento e extração clínica dos documentos.")
+    st.caption("Acompanhamento do processamento, extração clínica e status em tempo real da esteira inteligente.")
 
     # Chave de estado para itens enviados nesta sessão ou recentes
     if "trabalhos_triagem" not in st.session_state:
@@ -48,10 +82,9 @@ def render() -> None:
                 if st.session_state.get(chave_ultimo_evento) != evento["id"]:
                     st.session_state[chave_ultimo_evento] = evento["id"]
         except Exception:
-            # O acompanhamento por consulta autenticada continua disponível se SSE falhar.
             pass
 
-    # Atualiza o estado ao abrir a página e quando um evento SSE provoca nova renderização.
+    # Atualiza o estado ao abrir a página
     for item in trabalhos_sessao:
         if item.get("status") in {"na_fila", "processando"}:
             try:
@@ -61,8 +94,7 @@ def render() -> None:
                     item["status"] = novo_status
                     if status_api.get("etapa_atual"):
                         item["etapa_atual"] = status_api["etapa_atual"]
-                
-                    # Se obteve resultado parcial de identificação cadastral
+
                     resultado_parcial = status_api.get("resultado_parcial") or {}
                     paciente_parcial = resultado_parcial.get("Paciente", {}).get("dados_documento", {})
                     if paciente_parcial.get("nome"):
@@ -70,7 +102,6 @@ def render() -> None:
                     if paciente_parcial.get("cpf"):
                         item["paciente_cpf"] = paciente_parcial["cpf"]
 
-                    # Se concluiu
                     if novo_status == "concluido" and status_api.get("resultado"):
                         resultado = status_api["resultado"]
                         item["resultado"] = resultado
@@ -84,7 +115,6 @@ def render() -> None:
                         elif isinstance(paciente, str) and paciente.strip():
                             item["paciente_nome"] = paciente
 
-                    # Se falhou
                     if novo_status == "falhou":
                         item["erro"] = status_api.get("erro", "Falha no processamento.")
             except Exception:
@@ -97,7 +127,6 @@ def render() -> None:
     except Exception:
         docs_api = []
 
-    # Mapeamento unificado
     ids_vistos = set()
     todos_documentos = []
 
@@ -112,17 +141,18 @@ def render() -> None:
                 "paciente_nome": item.get("paciente_nome") or "Aguardando identificação",
                 "paciente_cpf": item.get("paciente_cpf") or "-",
                 "data_hora": item.get("data_envio") or "-",
+                "data_iso": item.get("data_envio") or "",
                 "status": item.get("status") or "na_fila",
                 "canal_origem": item.get("canal_origem") or "Pronto Socorro",
                 "resultado": item.get("resultado"),
                 "erro": item.get("erro"),
+                "etapa_atual": item.get("etapa_atual"),
             })
 
     for doc in docs_api:
         doc_id = doc.get("documento_id")
         if doc_id and doc_id not in ids_vistos:
             ids_vistos.add(doc_id)
-            # Formata data
             criado_em = doc.get("created_at")
             data_formatada = "-"
             if criado_em:
@@ -131,7 +161,7 @@ def render() -> None:
                 except Exception:
                     data_formatada = str(criado_em)[:16]
 
-            status_original = doc.get("status_processamento") or "concluido"
+            status_original = (doc.get("status_processamento") or "concluido").lower()
             status_normalizado = "concluido"
             if status_original in {"na_fila", "pendente"}:
                 status_normalizado = "na_fila"
@@ -147,65 +177,220 @@ def render() -> None:
                 "paciente_nome": doc.get("paciente_nome") or "Identificado",
                 "paciente_cpf": doc.get("paciente_cpf") or "-",
                 "data_hora": data_formatada,
+                "data_iso": criado_em or "",
                 "status": status_normalizado,
                 "canal_origem": doc.get("canal_origem") or "Pronto Socorro",
                 "resultado": None,
                 "erro": None,
+                "etapa_atual": None,
             })
 
-    # Barra de filtros
-    aplicar_css(Path(__file__).with_name("style.css"))
+    # Adiciona mocks de demonstração para garantir conferência completa de todos os fluxos
+    from data.dados_mock import obter_mocks_listagem
+    for mock_item in obter_mocks_listagem():
+        m_id = mock_item["documento_id"]
+        if m_id not in ids_vistos:
+            ids_vistos.add(m_id)
+            criado_em = mock_item.get("created_at")
+            data_formatada = "-"
+            if criado_em:
+                try:
+                    data_formatada = datetime.fromisoformat(criado_em).strftime("%d/%m/%Y %H:%M")
+                except Exception:
+                    data_formatada = str(criado_em)[:16]
+            todos_documentos.append({
+                "documento_id": m_id,
+                "arquivo": mock_item.get("arquivo") or m_id,
+                "nome_original": mock_item.get("arquivo") or m_id,
+                "paciente_nome": mock_item.get("paciente_nome") or "Não identificado",
+                "paciente_cpf": mock_item.get("paciente_cpf") or "-",
+                "data_hora": data_formatada,
+                "data_iso": criado_em or "",
+                "status": mock_item.get("status", "concluido"),
+                "canal_origem": mock_item.get("canal_origem") or "Pronto Socorro",
+                "tipo_documento": mock_item.get("tipo_documento"),
+                "nivel_prioridade": mock_item.get("nivel_prioridade"),
+                "score_confianca": mock_item.get("score_confianca"),
+                "destino_principal": mock_item.get("destino_principal"),
+                "motivo_revisao": mock_item.get("motivo_revisao"),
+                "justificativa_roteamento": mock_item.get("justificativa_roteamento"),
+                "resultado": None,
+                "erro": mock_item.get("erro"),
+                "etapa_atual": mock_item.get("etapa_atual"),
+            })
 
-    col_busca, col_filtro = st.columns([3, 2], vertical_alignment="bottom")
+    # Alerta clínico no topo da tela para casos de Emergência ou Perigo
+    exibir_alerta_global_se_necessario(todos_documentos)
+    verificar_e_disparar_modal_alerta(todos_documentos)
 
-    with col_busca:
-        termo_busca = st.text_input(
-            "Buscar por nome ou palavra",
-            placeholder="Buscar por paciente, arquivo, CPF ou ID...",
-            label_visibility="visible",
-        ).strip().lower()
+    # KPI Summary Cards
+    total_docs = len(todos_documentos)
+    qtd_concluidos = sum(1 for d in todos_documentos if d.get("status") == "concluido")
+    qtd_processando = sum(1 for d in todos_documentos if d.get("status") == "processando")
+    qtd_na_fila = sum(1 for d in todos_documentos if d.get("status") == "na_fila")
+    qtd_falhas = sum(1 for d in todos_documentos if d.get("status") == "falhou")
 
-    with col_filtro:
-        opcoes_status = ["Todos", "Na fila", "Processando", "Concluído", "Falhou"]
-        filtro_status = st.selectbox(
-            "Filtrar por status",
-            opcoes_status,
-            index=0,
+    k1, k2, k3, k4, k5 = st.columns(5)
+    with k1:
+        st.markdown(
+            f"""
+            <div class="analise-kpi-card">
+                <span class="analise-kpi-label">Total de Documentos</span>
+                <span class="analise-kpi-valor">{total_docs}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k2:
+        st.markdown(
+            f"""
+            <div class="analise-kpi-card">
+                <span class="analise-kpi-label" style="color:#027A48;">Concluídos</span>
+                <span class="analise-kpi-valor" style="color:#027A48;">{qtd_concluidos}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            f"""
+            <div class="analise-kpi-card">
+                <span class="analise-kpi-label" style="color:#175CD3;">Processando</span>
+                <span class="analise-kpi-valor" style="color:#175CD3;">{qtd_processando}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k4:
+        st.markdown(
+            f"""
+            <div class="analise-kpi-card">
+                <span class="analise-kpi-label" style="color:#475467;">Na Fila</span>
+                <span class="analise-kpi-valor" style="color:#475467;">{qtd_na_fila}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k5:
+        st.markdown(
+            f"""
+            <div class="analise-kpi-card">
+                <span class="analise-kpi-label" style="color:#B42318;">Falhas</span>
+                <span class="analise-kpi-valor" style="color:#B42318;">{qtd_falhas}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
+    st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
+    # Painel de Filtros e Busca em Container Nativo
+    with st.container(border=True):
+        termo_busca = st.text_input(
+            "Buscar na análise",
+            placeholder="Buscar por paciente, arquivo, CPF, identificador (DOC-...) ou canal...",
+            key="filtro_termo_analise",
+        ).strip().lower()
+
+        f_status, f_canal, f_ord = st.columns(3)
+
+        with f_status:
+            opcoes_status = ["Todos", "Concluído", "Processando", "Na fila", "Falhou"]
+            filtro_status = st.selectbox(
+                "Status",
+                opcoes_status,
+                key="sel_status_analise",
+            )
+
+        with f_canal:
+            opcoes_canal = ["Todos", "Pronto Socorro", "WhatsApp"]
+            filtro_canal = st.selectbox(
+                "Canal de Origem",
+                opcoes_canal,
+                key="sel_canal_analise",
+            )
+
+        with f_ord:
+            filtro_ord = st.selectbox(
+                "Ordenar por",
+                ["Mais recentes primeiro", "Mais antigos primeiro"],
+                key="sel_ord_analise",
+            )
+
+        tem_filtros_ativos = bool(
+            termo_busca
+            or st.session_state.get("sel_status_analise", "Todos") != "Todos"
+            or st.session_state.get("sel_canal_analise", "Todos") != "Todos"
+        )
+        col_espaco, col_btn_limpar, col_btn_buscar = st.columns([3.6, 1.2, 1.2], vertical_alignment="center")
+        with col_btn_limpar:
+            if st.button("Limpar filtros", icon=":material/filter_alt_off:", use_container_width=True, disabled=not tem_filtros_ativos):
+                st.session_state["filtro_termo_analise"] = ""
+                st.session_state["sel_status_analise"] = "Todos"
+                st.session_state["sel_canal_analise"] = "Todos"
+                st.session_state["sel_ord_analise"] = "Mais recentes primeiro"
+                st.rerun()
+        with col_btn_buscar:
+            if st.button("Buscar", icon=":material/search:", type="primary", use_container_width=True):
+                st.rerun()
+
+    # Aplica os filtros
     documentos_filtrados = [
         documento
         for documento in todos_documentos
-        if corresponde_filtro(documento, filtro_status, termo_busca)
+        if corresponde_filtro(documento, filtro_status, termo_busca, filtro_canal)
     ]
+
+    # Ordenação
+    def chave_data(d: dict):
+        val = d.get("data_iso") or ""
+        try:
+            return datetime.fromisoformat(val)
+        except Exception:
+            return datetime.min
+
+    if filtro_ord == "Mais recentes primeiro":
+        documentos_filtrados.sort(key=chave_data, reverse=True)
+    else:
+        documentos_filtrados.sort(key=chave_data)
 
     # Modal para visualização de detalhes
     @st.dialog("Detalhes do Documento", width="large")
     def exibir_modal_detalhes(doc_info: dict):
         doc_id = doc_info.get("documento_id")
-        st.caption(f"Identificador: {doc_id}")
-    
-        col_d1, col_d2 = st.columns(2)
-        with col_d1:
-            st.markdown(f"**ID do Documento:** `{doc_info.get('documento_id', '-')}`")
-            nome_orig = doc_info.get("nome_original")
-            if nome_orig and nome_orig != doc_info.get("documento_id"):
-                st.markdown(f"**Arquivo Original:** {nome_orig}")
-            st.markdown(f"**Paciente:** {doc_info.get('paciente_nome', '-')}")
-            st.markdown(f"**CPF:** {doc_info.get('paciente_cpf', '-')}")
-        with col_d2:
-            st.markdown(f"**Data de Envio:** {doc_info.get('data_hora', '-')}")
-            st.markdown(f"**Canal de Origem:** {doc_info.get('canal_origem', '-')}")
-            st.markdown(f"**Status:** {doc_info.get('status', '-').upper()}")
+        classe_badge, rotulo_status = _formatar_badge_status(doc_info.get("status", "na_fila"))
 
-        st.divider()
+        st.markdown(
+            f"""
+            <div class="modal-header-card">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <div>
+                        <span style="font-size:0.75rem; color:#64748B; font-weight:700; text-transform:uppercase;">Protocolo</span>
+                        <h3 style="margin:2px 0 0 0; color:#0F172A; font-size:1.15rem; font-weight:700;">{escape(doc_id)}</h3>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        {obter_badge_estado_html(doc_info)}
+                        {_formatar_badge_canal(doc_info.get('canal_origem'))}
+                        <span class="badge-status {classe_badge}">{rotulo_status}</span>
+                    </div>
+                </div>
+                <div style="margin-top:12px; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; font-size:0.84rem;">
+                    <div><span style="color:#64748B;">Paciente:</span> <strong>{escape(doc_info.get('paciente_nome', '-'))}</strong></div>
+                    <div><span style="color:#64748B;">CPF:</span> <strong>{escape(doc_info.get('paciente_cpf', '-'))}</strong></div>
+                    <div><span style="color:#64748B;">Data de Envio:</span> <strong>{escape(doc_info.get('data_hora', '-'))}</strong></div>
+                    <div><span style="color:#64748B;">Canal:</span> <strong>{escape(doc_info.get('canal_origem', '-'))}</strong></div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         aba_clinica, aba_documento = st.tabs(["Resultado Clínico", "Documento Original"])
 
         with aba_clinica:
             resultado = doc_info.get("resultado")
-            if not resultado and doc_info.get("status") == "concluido":
-                # Tenta obter direto da API
+            if not resultado:
+                # 1. Tenta obter pelo status da fila em memória
                 try:
                     status_api = obter_status_triagem(doc_id)
                     if status_api and status_api.get("resultado"):
@@ -213,15 +398,25 @@ def render() -> None:
                 except Exception:
                     pass
 
+                # 2. Se não estiver no Redis, busca os detalhes persistidos do documento
+                if not resultado:
+                    try:
+                        resultado = buscar_documento(doc_id)
+                    except Exception:
+                        pass
+
+            exibir_alerta_individual(resultado or doc_info)
+
             if resultado:
                 exibir_resultado_da_triagem(resultado)
             elif doc_info.get("status") == "falhou":
                 erro_msg = doc_info.get("erro") or "Ocorreu um erro no processamento deste documento."
                 st.error(f"Motivo da falha: {erro_msg}")
             elif doc_info.get("status") == "processando":
-                st.info("O documento ainda está sendo processado pela inteligência clínica.")
+                etapa = doc_info.get("etapa_atual", "Extração e classificação")
+                st.info(f"O documento está sendo processado pela inteligência clínica. Etapa atual: **{etapa}**.")
             else:
-                st.info("Documento aguardando na fila de processamento.")
+                st.info("Documento aguardando na fila de processamento da esteira.")
 
         with aba_documento:
             fonte = None
@@ -281,10 +476,14 @@ def render() -> None:
                     except Exception:
                         st.info("Formato binário disponível para visualização via download.")
             else:
-                st.info("Documento original não disponível ou ainda em processamento pelo servidor.")
+                st.info("Documento original não disponível ou arquivado apenas como transcrição.")
 
     # Renderização da Tabela
-    st.caption(f"{len(documentos_filtrados)} documento(s) encontrado(s)")
+    filtrados_count = len(documentos_filtrados)
+    if total_docs == filtrados_count:
+        st.caption(f"Mostrando todos os {filtrados_count} documento(s) encontrados.")
+    else:
+        st.caption(f"Mostrando {filtrados_count} de {total_docs} documento(s) com base nos filtros selecionados.")
 
     if not documentos_filtrados:
         st.info("Nenhum documento encontrado para os filtros selecionados.")
@@ -294,9 +493,10 @@ def render() -> None:
             """
             <div class="tabela-container">
                 <div class="tabela-cabecalho">
-                    <div>Arquivo</div>
+                    <div>Arquivo / Protocolo</div>
                     <div>Paciente</div>
-                    <div>CPF</div>
+                    <div>Estado Clínico</div>
+                    <div>Canal de Entrada</div>
                     <div>Data/Hora</div>
                     <div>Status</div>
                     <div style="text-align: right;">Ações</div>
@@ -306,40 +506,33 @@ def render() -> None:
             unsafe_allow_html=True,
         )
 
-        mapa_rotulos_status = {
-            "na_fila": ("status-na-fila", "Na fila"),
-            "processando": ("status-processando", "Processando"),
-            "concluido": ("status-concluido", "Concluído"),
-            "falhou": ("status-falhou", "Falhou"),
-        }
-
         for indice, doc in enumerate(documentos_filtrados):
             doc_id = doc["documento_id"]
             status_chave = doc.get("status", "na_fila")
-            classe_badge, rotulo_status = mapa_rotulos_status.get(
-                status_chave, ("status-na-fila", status_chave.capitalize())
-            )
+            classe_badge, rotulo_status = _formatar_badge_status(status_chave)
+            canal = doc.get("canal_origem", "Pronto Socorro")
+            cpf_txt = doc.get("paciente_cpf", "-")
+            cpf_html = f"<br><span style='font-size:0.75rem; color:#64748B;'>CPF: {escape(cpf_txt)}</span>" if cpf_txt and cpf_txt != "-" else ""
 
             with st.container():
-                c_arq, c_pac, c_cpf, c_data, c_status, c_acao = st.columns(
-                    [2.5, 2.5, 1.5, 1.5, 1.4, 1],
+                c_arq, c_pac, c_estado, c_canal, c_data, c_status, c_acao = st.columns(
+                    [2.1, 2.1, 1.4, 1.4, 1.3, 1.2, 1.0],
                     vertical_alignment="center",
                 )
                 with c_arq:
                     st.markdown(
-                        f"<span style='font-size:0.86rem; font-weight:600; color:#12304A;' title='{escape(doc_id)}'>{escape(doc['arquivo'])}</span>",
+                        f"<span style='font-size:0.86rem; font-weight:700; color:#0F172A; font-family:monospace;' title='{escape(doc_id)}'>{escape(doc['arquivo'])}</span>",
                         unsafe_allow_html=True,
                     )
                 with c_pac:
                     st.markdown(
-                        f"<span style='font-size:0.84rem; color:#344054;'>{escape(doc['paciente_nome'])}</span>",
+                        f"<div style='line-height:1.25;'><span style='font-size:0.86rem; font-weight:600; color:#1E293B;'>{escape(doc['paciente_nome'])}</span>{cpf_html}</div>",
                         unsafe_allow_html=True,
                     )
-                with c_cpf:
-                    st.markdown(
-                        f"<span style='font-size:0.82rem; color:#475467;'>{escape(doc['paciente_cpf'])}</span>",
-                        unsafe_allow_html=True,
-                    )
+                with c_estado:
+                    st.markdown(obter_badge_estado_html(doc), unsafe_allow_html=True)
+                with c_canal:
+                    st.markdown(_formatar_badge_canal(canal), unsafe_allow_html=True)
                 with c_data:
                     st.markdown(
                         f"<span style='font-size:0.80rem; color:#475467;'>{escape(doc['data_hora'])}</span>",
@@ -353,7 +546,7 @@ def render() -> None:
                 with c_acao:
                     if st.button("Detalhes", key=f"btn_det_{doc_id}_{indice}", use_container_width=True):
                         exibir_modal_detalhes(doc)
-            
+
                 st.markdown(
                     '<div style="height:1px; background:#F2F4F7; margin:4px 0 6px 0;"></div>',
                     unsafe_allow_html=True,
