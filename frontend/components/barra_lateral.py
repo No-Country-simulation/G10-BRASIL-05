@@ -12,7 +12,7 @@ DESCRICAO = "Triagem inteligente de documentos clínicos."
 PASSOS = (
     "Envie o documento na **Triagem Clínica**.",
     "Veja a classificação, os dados extraídos e o destino.",
-    "Casos duvidosos seguem para a **Auditoria**.",
+    "Casos que precisam de intervenção humana seguem para **Revisão**.",
 )
 
 AVISO = "O MediFlow apoia a triagem e não substitui a decisão do médico."
@@ -38,7 +38,7 @@ def exibir_barra_lateral() -> None:
                 for num, passo in (
                     ("1", "Envie o documento na <strong>Triagem Clínica</strong>."),
                     ("2", "Confira a classificação, dados extraídos e destino."),
-                    ("3", "Casos com alertas ou inconsistências seguem para a <strong>Auditoria</strong>."),
+                    ("3", "Casos com alertas ou inconsistências seguem para <strong>Revisão</strong>."),
                 )
             )
             st.markdown(passos_html, unsafe_allow_html=True)

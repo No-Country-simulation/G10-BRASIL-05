@@ -78,3 +78,52 @@ def test_verificar_e_disparar_modal_alerta():
          patch("utils.alertas_clinicos.modal_alerta_clinico_popup") as mock_modal:
         verificar_e_disparar_modal_alerta([doc_emergencia])
         assert not mock_modal.called
+
+
+def test_redirecionar_para_atendimento_auditoria():
+    from utils.alertas_clinicos import redirecionar_para_atendimento_paciente
+    mock_session = {CHAVE_ALERTAS_CIENTES: set()}
+    doc_auditoria = {
+        "documento_id": "DOC-AUD-1",
+        "status": "esperando_auditar",
+        "requer_auditoria_humana": True,
+    }
+
+    with patch("streamlit.session_state", mock_session), \
+         patch("streamlit.switch_page") as mock_switch:
+        redirecionar_para_atendimento_paciente(doc_auditoria)
+        assert "DOC-AUD-1" in mock_session[CHAVE_ALERTAS_CIENTES]
+        assert mock_session.get("auditoria_documento_selecionado") == "DOC-AUD-1"
+        mock_switch.assert_called_once_with("pages/2_Auditoria_Humana.py")
+
+
+def test_redirecionar_para_atendimento_analise():
+    from utils.alertas_clinicos import redirecionar_para_atendimento_paciente
+    mock_session = {CHAVE_ALERTAS_CIENTES: set()}
+    doc_analise = {
+        "documento_id": "DOC-ANALISE-1",
+        "status": "concluido",
+        "requer_auditoria_humana": False,
+    }
+
+    with patch("streamlit.session_state", mock_session), \
+         patch("streamlit.switch_page") as mock_switch:
+        redirecionar_para_atendimento_paciente(doc_analise)
+        assert "DOC-ANALISE-1" in mock_session[CHAVE_ALERTAS_CIENTES]
+        assert mock_session.get("documento_selecionado_analise") == "DOC-ANALISE-1"
+        mock_switch.assert_called_once_with("pages/analise.py")
+
+
+def test_verificar_e_disparar_suprime_quando_ha_botao_clicado():
+    mock_session = {
+        CHAVE_ALERTAS_CIENTES: set(),
+        "btn_det_DOC-123_0": True,
+    }
+    doc_emergencia = {
+        "documento_id": "DOC-EMERG",
+        "nivel_prioridade": "EMERGENCIA",
+    }
+    with patch("streamlit.session_state", mock_session), \
+         patch("utils.alertas_clinicos.modal_alerta_clinico_popup") as mock_modal:
+        verificar_e_disparar_modal_alerta([doc_emergencia])
+        assert not mock_modal.called

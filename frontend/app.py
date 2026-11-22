@@ -9,12 +9,18 @@ from components.barra_lateral import (
     exibir_barra_lateral,
 )
 from services.autenticacao import (
+    deslogar,
     esta_autenticado,
     obter_token_jwt,
     obter_usuario_autenticado,
     precisa_trocar_senha,
     restaurar_sessao_por_token,
     validar_sessao_api,
+)
+from services.browser_session import (
+    limpar_token_persistido,
+    obter_token_persistido,
+    salvar_token_persistido,
 )
 from services.cookie_sessao import sincronizar_cookie_sessao
 from utils.usuarios import NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO, eh_conta_institucional_whatsapp
@@ -24,13 +30,27 @@ aplicar_css(Path(__file__).resolve().parent / "assets" / "app.css")
 if esta_autenticado(st.session_state):
     st.logo(CAMINHO_DA_LOGO, size="large", icon_image=CAMINHO_DO_ICONE)
 
-# Tenta restaurar a sessão a partir do cookie do navegador se não estiver na memória
+# Tenta restaurar a sessão a partir do cookie ou browser storage se não estiver na memória
 if not esta_autenticado(st.session_state) and not st.session_state.get("logout_efetuado"):
+    token_recuperado = None
     cookies = getattr(st.context, "cookies", {}) or {}
     token_cookie = cookies.get("mediflow_access_token")
     if token_cookie:
-        if restaurar_sessao_por_token(token_cookie, st.session_state):
+        token_recuperado = token_cookie
+    else:
+        token_browser = obter_token_persistido()
+        if token_browser:
+            token_recuperado = token_browser
+
+    if token_recuperado:
+        if restaurar_sessao_por_token(token_recuperado, st.session_state):
             st.session_state["cookie_sessao_migracao_pendente"] = True
+            salvar_token_persistido(token_recuperado)
+
+if esta_autenticado(st.session_state):
+    token_ativo = obter_token_jwt(st.session_state)
+    if token_ativo:
+        salvar_token_persistido(token_ativo)
 
 # Converte cookies legados criados pelo frontend em cookie HttpOnly emitido pela API.
 if st.session_state.get("cookie_sessao_migracao_pendente"):
@@ -107,11 +127,11 @@ else:
                 url_path="analise",
             )
         )
-        if nivel in {NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO}:
+        if nivel in {NIVEL_ADMIN_GERAL, NIVEL_DIRETOR, NIVEL_MEDICO, NIVEL_ENFERMEIRO}:
             paginas.append(
                 st.Page(
                     "pages/2_Auditoria_Humana.py",
-                    title="Auditoria",
+                    title="Revisão",
                     icon=":material/verified_user:",
                 ),
             )

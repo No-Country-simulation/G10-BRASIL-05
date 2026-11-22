@@ -1,1 +1,0 @@
-quando um usuario é cadastrado direto no sistema nao é pedido para ele mudar a senha no primeiro acesso. 

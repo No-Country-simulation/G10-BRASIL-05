@@ -8,7 +8,7 @@ REQUISICAO = {
     "documento_id": "DOC-1",
     "tipo_arquivo": "TEXTO",
     "documento_texto": "suspeita de TEP",
-    "canal_origem": "Pronto_Socorro",
+    "canal_origem": "Interno",
 }
 
 
@@ -43,7 +43,7 @@ def test_envia_pdf_e_imagem_por_upload_multipart(simular_api, tipo_arquivo):
     requisicao = requisicoes[0]
     assert requisicao.url.path == "/api/v1/triagem/upload"
     assert requisicao.headers["content-type"].startswith("multipart/form-data")
-    for trecho in (b"laudo.pdf", b"%PDF-1.4", b"Pronto_Socorro", b"DOC-1"):
+    for trecho in (b"laudo.pdf", b"%PDF-1.4", b"Interno", b"DOC-1"):
         assert trecho in requisicao.content
 
 

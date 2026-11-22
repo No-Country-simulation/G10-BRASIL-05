@@ -27,7 +27,7 @@ def test_race_condition_lock_storm_20_threads():
         json={
             "documento_id": doc_id,
             "tipo_arquivo": "TEXTO",
-            "canal_origem": "Pronto_Socorro",
+            "canal_origem": "Interno",
             "documento_texto": "Paciente em parada cardiorrespiratória. Requer desfibrilação imediata.",
         },
     )
@@ -115,7 +115,7 @@ def test_upload_pdf_corrompido_header_invalido():
     response = client.post(
         "/triagem/upload",
         files={"file": ("laudo_danificado.pdf", bytes_lixo, "application/pdf")},
-        data={"canal_origem": "Pronto_Socorro", "documento_id": "PDF-LIXO-001"},
+        data={"canal_origem": "Interno", "documento_id": "PDF-LIXO-001"},
     )
     assert response.status_code in [400, 422]
     assert response.status_code != 500
@@ -159,7 +159,7 @@ def test_payload_text_bomb_gigante_100kb():
         json={
             "documento_id": "DOC-BOMB-001",
             "tipo_arquivo": "TEXTO",
-            "canal_origem": "Pronto_Socorro",
+            "canal_origem": "Interno",
             "documento_texto": texto_gigante,
         },
     )
@@ -222,7 +222,7 @@ def test_caos_clinico_achados_conflitantes_extremos():
         json={
             "documento_id": "DOC-CHAOS-CLIN-001",
             "tipo_arquivo": "TEXTO",
-            "canal_origem": "Pronto_Socorro",
+            "canal_origem": "Interno",
             "documento_texto": texto_conflitante,
         },
     )

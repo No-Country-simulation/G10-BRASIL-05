@@ -31,9 +31,15 @@ def _evidenciar(valor: Any, texto: str, *, campo_cpf: bool = False) -> dict[str,
 def node_validador(state: GraphState) -> GraphState:
     """Bloqueia valores sem suporte; evidência OCR não confirma a imagem fonte."""
     if state.get("cpf_validacao_falhou"):
-        motivo = (
-            "CPF ausente, ilegível ou inválido. Confirme os 11 dígitos no documento."
-        )
+        tentativas = state.get("cpf_tentativas_releitura")
+        if tentativas:
+            motivo = (
+                f"Não foi possível confirmar um CPF válido após {tentativas} tentativas de releitura visual."
+            )
+        else:
+            motivo = (
+                "CPF ausente, ilegível ou inválido. Confirme os 11 dígitos no documento."
+            )
         return {
             **state,
             "status": "revisao_necessaria",
@@ -127,6 +133,10 @@ def node_validador(state: GraphState) -> GraphState:
         erros_schema or erros_clinicos or bloqueados or not fonte_verificada
     )
     motivos = erros_schema + erros_clinicos
+    contem_manuscrito = bool(state.get("contem_manuscrito") or bruto.get("contem_manuscrito"))
+    if contem_manuscrito and not fonte_verificada_visualmente:
+        precisa_revisao = True
+        motivos.append("Documento contém dados manuscritos; requer validação e conferência humana.")
     if bloqueados:
         motivos.append("Há valores extraídos sem correspondência literal no texto de origem.")
     if not fonte_original_disponivel:

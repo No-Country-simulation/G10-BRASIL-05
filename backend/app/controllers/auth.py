@@ -127,7 +127,7 @@ def provisionar_usuario(
 def atualizar_usuario(
     usuario_id: int,
     payload: UsuarioAtualizarRequest,
-    ator: UsuarioSistemaModel = Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO")),
+    ator: UsuarioSistemaModel = Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO", "ENFERMEIRO")),
     db: Session = Depends(get_db),
 ):
     users_repo = UsersRepository(db)

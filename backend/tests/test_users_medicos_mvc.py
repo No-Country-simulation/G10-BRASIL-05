@@ -225,3 +225,20 @@ def test_users_service_regras_negocio():
             ator=diretor,
         )
         assert atualizado["nome"] == "Alvo Atualizado"
+
+        # Auto-edição de médico e enfermeiro permitida
+        atualizado_med = service.atualizar_usuario(
+            usuario_id=medico.id,
+            dados=UsuarioAtualizarRequest(nome="Médico Nome Novo"),
+            ator=medico,
+        )
+        assert atualizado_med["nome"] == "Médico Nome Novo"
+
+        # Diretor não pode gerenciar outro diretor
+        with pytest.raises(HTTPException) as exc_dir_dir:
+            service.atualizar_usuario(
+                usuario_id=u_dir.id,
+                dados=UsuarioAtualizarRequest(nome="Tentativa Inválida"),
+                ator=diretor,
+            )
+        assert exc_dir_dir.value.status_code == 403

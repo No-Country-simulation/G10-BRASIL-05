@@ -46,6 +46,7 @@ class UsuarioProvisionarRequest(BaseModel):
     nivel: Literal["DIRETOR", "MEDICO", "ENFERMEIRO"]
     registro: str = Field(default="", max_length=100)
     especialidade: str = Field(default="", max_length=150)
+    trocar_senha_obrigatorio: bool = True
 
     @field_validator("email")
     @classmethod

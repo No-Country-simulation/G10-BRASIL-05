@@ -46,7 +46,7 @@ def test_enfileirar_documento_falha_rq_lanca_excecao(monkeypatch):
             caminho_objeto_fonte="oci://bucket/arquivo.pdf",
             nome_arquivo="arquivo.pdf",
             extensao=".pdf",
-            canal_origem="Pronto_Socorro",
+            canal_origem="Interno",
             usuario_id=1,
         )
 
@@ -65,7 +65,7 @@ def test_enfileirar_texto_falha_rq_lanca_excecao(monkeypatch):
             documento_id="DOC-FAIL-03",
             documento_texto="Texto clínico de teste",
             tipo_arquivo="texto",
-            canal_origem="Pronto_Socorro",
+            canal_origem="Interno",
             usuario_id=1,
         )
 
@@ -134,7 +134,7 @@ def test_endpoint_upload_enfileirar_falha_rq_marca_falhou(monkeypatch):
     response = client.post(
         "/api/v1/triagem/upload/enfileirar",
         files=[("files", ("receita.pdf", pdf_bytes, "application/pdf"))],
-        data={"canal_origem": "Pronto_Socorro"},
+        data={"canal_origem": "Interno"},
     )
     assert response.status_code == 200 or response.status_code == 202
     dados = response.json()

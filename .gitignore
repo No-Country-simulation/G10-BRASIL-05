@@ -27,7 +27,29 @@ build/
 *.log
 *.pem
 
-# Diretório Local de Armazenamento de Arquivos Clínicos
-Storage/*
-!Storage/.gitkeep
+# Armazenamento e Caches Locais
+Storage/
+.pytest_cache/
+
+# Documentação Interna e Planejamento da Equipe
+DOCUMENTOS/
+DECISIONS/
+AGENTS/
+.agents/
+.codex/
+.aws/
+.streamlit/
+.github/
+bugs.md
+PLANO_*.md
+ARQUITETURA_*.md
+*.pdf
+
+# Scripts e Configurações de Deploy / Infraestrutura Local do Servidor OCI
+deploy.sh
+scripts/
+docker-compose.yml
+docker-compose.local-test.yml
+.env.example
+
 

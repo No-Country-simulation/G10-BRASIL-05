@@ -13,7 +13,7 @@ from utils.formatadores import (
 FILTRO_TODOS = "Todos"
 STATUS_APROVADO = "Aprovado"
 STATUS_URGENCIA = "Urgência"
-STATUS_EM_AUDITORIA = "Em Auditoria"
+STATUS_EM_AUDITORIA = "Aguardando revisão"
 STATUS_REJEITADO = "Rejeitado"
 STATUS_DESCONHECIDO = "Não classificado"
 SEM_VALOR = "-"

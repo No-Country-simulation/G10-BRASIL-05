@@ -69,9 +69,24 @@ class AuditoriaDatabaseRepository:
             "rejeitado": "REJEITADO",
             "solicitar_reenvio": "AGUARDANDO_REENVIO",
         }
-        documento.status_processamento = status_por_decisao.get(decisao.lower(), "EM_REVISAO_HUMANA")
+        novo_status = status_por_decisao.get(decisao.lower(), "EM_REVISAO_HUMANA")
+        documento.status_processamento = novo_status
         if dados_corrigidos:
             documento.dados_extraidos = dados_corrigidos
+
+        # Se o novo status for ROTEADO ou CONCLUIDO, a constraint ck_documento_destino_final
+        # exige que destino_id não seja nulo antes do flush no banco.
+        if novo_status in {"ROTEADO", "CONCLUIDO"} and documento.destino_id is None:
+            if not documento.destino_principal:
+                documento.destino_principal = "FLUXO_PADRAO"
+            self.documentos._vincular_destino(documento)
+            if documento.destino_id is None:
+                destino = self.db.query(DestinoRoteamentoModel).filter_by(codigo=documento.destino_principal).first()
+                if not destino:
+                    destino = DestinoRoteamentoModel(codigo=documento.destino_principal, tipo="FILA")
+                    self.db.add(destino)
+                    self.db.flush()
+                documento.destino_id = destino.id
 
         self.db.flush()
         return documento

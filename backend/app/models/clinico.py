@@ -139,6 +139,7 @@ class PacienteModel(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     cpf = Column(String(20), unique=True, nullable=True)
+    cns = Column(String(15), nullable=True, index=True)
     nome = Column(String(150), nullable=False)
     data_nascimento = Column(Date, nullable=True)
     cadastro_provisorio = Column(Boolean, nullable=False, default=False, server_default=text("false"))

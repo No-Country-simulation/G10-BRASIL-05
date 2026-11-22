@@ -47,7 +47,7 @@ def _abrir(pagina: str) -> AppTest:
     return AppTest.from_file(str(PASTA_DAS_PAGINAS / pagina), default_timeout=30).run()
 
 
-def _analisar_texto(at: AppTest, texto: str, canal: str = "Pronto_Socorro") -> AppTest:
+def _analisar_texto(at: AppTest, texto: str, canal: str = "Interno") -> AppTest:
     at.radio[0].set_value("Colar texto").run()
     at.text_area[0].set_value(texto)
     at.selectbox[0].select(canal)
@@ -123,7 +123,7 @@ def test_triagem_repassa_o_arquivo_pdf_para_o_upload(monkeypatch):
     monkeypatch.setattr(cliente_mock, "enviar_documento", enviar_falso)
     at = _abrir(TRIAGEM)
     at.file_uploader[0].set_value(("laudo.pdf", b"%PDF-1.4", "application/pdf")).run()
-    at.selectbox[0].select("Pronto_Socorro")
+    at.selectbox[0].select("Interno")
 
     at.button[0].click().run()
 
@@ -206,7 +206,7 @@ def test_triagem_real_envia_pdf_por_upload_multipart(simular_rotas):
     requisicoes = simular_rotas({("POST", f"{PREFIXO}/upload"): (200, RESPOSTA_DA_TRIAGEM)})
     at = _abrir(TRIAGEM)
     at.file_uploader[0].set_value(("laudo.pdf", b"%PDF-1.4", "application/pdf")).run()
-    at.selectbox[0].select("Pronto_Socorro")
+    at.selectbox[0].select("Interno")
 
     at.button[0].click().run()
 

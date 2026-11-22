@@ -64,6 +64,8 @@ class MedicosService:
     ) -> dict:
         if ator.papel == "MEDICO" and payload.nivel != "ENFERMEIRO":
             raise HTTPException(status_code=403, detail="Médicos podem provisionar somente enfermeiros.")
+        if ator.papel == "DIRETOR" and payload.nivel not in {"MEDICO", "ENFERMEIRO"}:
+            raise HTTPException(status_code=403, detail="Diretores podem provisionar somente médicos e enfermeiros.")
 
         if self.users_repo.buscar_por_email(payload.email):
             raise HTTPException(status_code=409, detail="Já existe uma conta com esse e-mail.")
@@ -104,7 +106,7 @@ class MedicosService:
             nome=payload.nome.strip(),
             senha_hash=gerar_hash_senha(payload.senha),
             papel=payload.nivel,
-            trocar_senha_obrigatorio=False,
+            trocar_senha_obrigatorio=bool(payload.trocar_senha_obrigatorio),
             registro=payload.registro.strip() if payload.registro else None,
             especialidade=payload.especialidade.strip() if payload.especialidade else None,
             medico_id=medico_id,
@@ -112,4 +114,25 @@ class MedicosService:
             ativo=True,
             pode_gerenciar_whatsapp=False,
         )
+
+        if ator.papel == "DIRETOR":
+            from app.models.clinico import (
+                EstabelecimentoEnfermeiroModel,
+                EstabelecimentoProfissionalModel,
+                HospitalDiretorModel,
+            )
+            vinculo = (
+                self.users_repo.db.query(HospitalDiretorModel.hospital_id)
+                .filter(HospitalDiretorModel.usuario_id == ator.id, HospitalDiretorModel.fim_vinculo.is_(None))
+                .first()
+            )
+            if vinculo and vinculo[0]:
+                hosp_id = vinculo[0]
+                if medico_id:
+                    self.users_repo.db.add(EstabelecimentoProfissionalModel(estabelecimento_id=hosp_id, medico_id=medico_id))
+                    self.users_repo.db.commit()
+                elif enfermeiro_id:
+                    self.users_repo.db.add(EstabelecimentoEnfermeiroModel(estabelecimento_id=hosp_id, enfermeiro_id=enfermeiro_id))
+                    self.users_repo.db.commit()
+
         return usuario_publico(novo)

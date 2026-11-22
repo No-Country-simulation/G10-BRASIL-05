@@ -35,6 +35,7 @@ Contexto de identificação já encontrado:
 Campos obrigatórios no JSON:
 - paciente_nome: str ou null (nome completo do paciente)
 - paciente_cpf: str ou null (CPF explícito do paciente, preservando os dígitos)
+- paciente_cns: str ou null (número do Cartão Nacional de Saúde - CNS com 15 dígitos numéricos, se presente no documento)
 - paciente_idade: int ou null (idade em anos somente se estiver escrita no documento; não calcule)
 - paciente_data_nascimento: str ISO YYYY-MM-DD ou null (somente quando explicitamente informada para o paciente; nunca calcule pela idade)
 - medico_nome: str ou null (médico solicitante, atendente ou profissional de saúde responsável)
@@ -44,6 +45,7 @@ Campos obrigatórios no JSON:
 - diagnostico_principal: str ou null
 - cid_sugerido: str ou null (código CID-10 somente se estiver escrito explicitamente, senão null)
 - achados_criticos: lista de strings (achados clínicos de urgência ou alerta)
+- contem_manuscrito: bool (true se houver texto escrito à mão no documento, false caso contrário)
 
 Documento:
 \"\"\"

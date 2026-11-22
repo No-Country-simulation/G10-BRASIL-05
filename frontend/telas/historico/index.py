@@ -134,8 +134,6 @@ def exibir_modal_detalhes_historico(doc_resumo: dict):
         except Exception:
             detalhe_completo = None
 
-        exibir_alerta_individual(detalhe_completo or doc_resumo)
-
         if detalhe_completo:
             exibir_resultado_da_triagem(detalhe_completo)
         else:
@@ -271,7 +269,7 @@ def render() -> None:
         st.markdown(
             f"""
             <div class="historico-kpi-card">
-                <span class="historico-kpi-label" style="color:#B54708;">Em Auditoria</span>
+                <span class="historico-kpi-label" style="color:#B54708;">Aguardando revisão</span>
                 <span class="historico-kpi-valor" style="color:#B54708;">{metricas['em_auditoria']}</span>
             </div>
             """,
@@ -369,6 +367,13 @@ def render() -> None:
         filtro_tipo=filtro_tipo,
         ordenacao=ordenacao,
     )
+
+    # Se veio de redirecionamento para verificar paciente, abre automaticamente os detalhes
+    doc_selecionado_hist = st.session_state.pop("documento_selecionado_historico", None)
+    if doc_selecionado_hist:
+        doc_alvo = next((d for d in documentos if d.get("documento_id") == doc_selecionado_hist), None)
+        if doc_alvo:
+            exibir_modal_detalhes_historico(doc_alvo)
 
     # Subtítulo com contagem
     total_docs = len(documentos)

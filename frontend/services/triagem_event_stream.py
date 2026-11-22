@@ -29,9 +29,15 @@ def obter_url_stream_triagem() -> str:
 
 def obter_url_api_browser() -> str:
     """Retorna a base pública da API para chamadas executadas dentro do navegador."""
+    base = os.getenv("API_BROWSER_URL", "").strip().rstrip("/")
+    if base:
+        return base
     if obter_ambiente() == "production":
-        return ""
-    base = os.getenv("API_BROWSER_URL_LOCAL", "").strip().rstrip("/")
-    if not base:
-        base = obter_url_do_backend().rstrip("/")
-    return base
+        base_prod = os.getenv("API_BROWSER_URL_PRODUCTION", "").strip().rstrip("/")
+        if base_prod:
+            return base_prod
+        return obter_url_do_backend().rstrip("/")
+    base_local = os.getenv("API_BROWSER_URL_LOCAL", "").strip().rstrip("/")
+    if base_local:
+        return base_local
+    return obter_url_do_backend().rstrip("/")

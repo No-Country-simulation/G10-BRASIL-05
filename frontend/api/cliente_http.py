@@ -26,7 +26,7 @@ def enfileirar_documento(requisicao: dict, arquivo) -> dict:
     return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/upload/enfileirar", files=arquivos, data=dados)
 
 
-def enfileirar_documentos(arquivos_carregados: list, canal_origem: str = "Pronto_Socorro") -> dict:
+def enfileirar_documentos(arquivos_carregados: list, canal_origem: str = "Interno") -> dict:
     """Envia vários arquivos na mesma requisição multipart; a API devolve um ID por arquivo."""
     arquivos = [
         (
@@ -66,14 +66,7 @@ def inspecionar_extracao(requisicao: dict, arquivo=None) -> dict:
 
 
 def listar_documentos() -> list[dict]:
-    try:
-        docs = requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/documentos")
-        if docs:
-            return docs
-    except Exception:
-        pass
-    from data.dados_mock import obter_mocks_listagem
-    return obter_mocks_listagem()
+    return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/documentos")
 
 
 def listar_usuarios() -> list[dict]:
@@ -108,43 +101,59 @@ def buscar_documento(documento_id: str) -> dict | None:
             return detalhe
     except Exception:
         pass
-    from data.dados_mock import obter_mock_documento_detalhado
-    return obter_mock_documento_detalhado(documento_id)
+    if str(documento_id).startswith("REV-"):
+        from telas.auditoria.dados_mock import obter_mock_documento_por_id
+        return obter_mock_documento_por_id(documento_id)
+    return None
 
 
 def listar_fila_auditoria() -> list[dict]:
-    try:
-        fila = requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria")
-        if fila:
-            return fila
-    except Exception:
-        pass
-    from data.dados_mock import obter_mocks_auditoria
-    return obter_mocks_auditoria()
+    return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria")
 
 
 def registrar_decisao(documento_id: str, decisao: dict) -> dict:
-    return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/decisao", json=decisao)
+    try:
+        return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/decisao", json=decisao)
+    except Exception:
+        if str(documento_id).startswith("REV-"):
+            from telas.auditoria.dados_mock import registrar_decisao_mock
+            return registrar_decisao_mock(documento_id, decisao)
+        raise
 
 
 def obter_status_lock_auditoria(documento_id: str) -> dict:
-    return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/status-lock")
+    try:
+        return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/status-lock")
+    except Exception:
+        if str(documento_id).startswith("REV-"):
+            return {"bloqueado": False}
+        raise
 
 
 def bloquear_documento_auditoria(documento_id: str, auditor_nome: str, ttl_segundos: int = 300) -> dict:
-    return requisitar(
-        "POST",
-        f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/bloquear",
-        json={"auditor_nome": auditor_nome, "ttl_segundos": ttl_segundos},
-    )
+    try:
+        return requisitar(
+            "POST",
+            f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/bloquear",
+            json={"auditor_nome": auditor_nome, "ttl_segundos": ttl_segundos},
+        )
+    except Exception:
+        if str(documento_id).startswith("REV-"):
+            return {"status": "bloqueado", "auditor_nome": auditor_nome}
+        raise
 
 
 def desbloquear_documento_auditoria(documento_id: str, auditor_nome: str) -> dict:
-    return requisitar(
-        "POST",
-        f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/desbloquear",
-        json={"auditor_nome": auditor_nome},
-    )
+    try:
+        return requisitar(
+            "POST",
+            f"{PREFIXO_DA_TRIAGEM}/auditoria/{documento_id}/desbloquear",
+            json={"auditor_nome": auditor_nome},
+        )
+    except Exception:
+        if str(documento_id).startswith("REV-"):
+            return {"status": "desbloqueado"}
+        raise
 
 
 def obter_fonte_original(documento_id: str) -> tuple[bytes, str, str]:
@@ -162,11 +171,11 @@ def obter_fonte_original(documento_id: str) -> tuple[bytes, str, str]:
         except Exception:
             pass
 
-    from data.dados_mock import obter_mock_documento_detalhado
-    mock_doc = obter_mock_documento_detalhado(documento_id)
-    if mock_doc:
-        texto = mock_doc.get("texto_extraido") or f"Documento de triagem - Protocolo {documento_id}"
-        return texto.encode("utf-8"), "text/plain", f"{documento_id}_transcricao.txt"
+    # Disponibiliza a imagem anexada pelo usuário para conferência de detalhes
+    from pathlib import Path
+    caminho_demo = Path(__file__).resolve().parent.parent / "assets" / "documentos_demo" / "IMG_2147_1.jpeg"
+    if caminho_demo.exists():
+        return caminho_demo.read_bytes(), "image/jpeg", "IMG_2147.jpeg"
 
     raise ErroDeApi("Documento original indisponível no momento.")
 
@@ -224,9 +233,10 @@ def _extrair_mensagem_de_erro(resposta: httpx.Response) -> str:
         payload = resposta.json()
     except ValueError:
         return mensagem_padrao
-    detalhe = payload.get("detail") if isinstance(payload, dict) else None
-    if isinstance(detalhe, str) and detalhe.strip():
-        return detalhe
+    if isinstance(payload, dict) and resposta.status_code != 500:
+        detalhe = payload.get("detail")
+        if isinstance(detalhe, str) and detalhe.strip():
+            return detalhe
     try:
         erro = payload["erro"]
         mensagem = erro["mensagem"]
