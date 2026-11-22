@@ -114,6 +114,8 @@ class RespostaTriagem(BaseModel):
     armazenamento_oci: ArmazenamentoOCI
     evidencias_campos: Optional[dict[str, Any]] = None
     motivo_revisao: Optional[str] = None
+    faixa_motor_regras: Optional[str] = None
+    score_detalhes: Optional[dict[str, Any]] = None
 
 
 class DecisaoAuditoriaRequest(BaseModel):

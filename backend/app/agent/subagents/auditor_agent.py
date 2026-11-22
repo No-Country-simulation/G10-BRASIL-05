@@ -22,7 +22,9 @@ def executar_agente_auditor(state: GraphState) -> GraphState:
         "agente": "Agente_Auditor_Risco",
         "status_validacao": estado.get("status"),
         "is_urgente": estado.get("is_urgente", False),
-        "score_confianca": estado.get("score_confianca"),
+        "score_total": estado.get("score_total"),
+        "faixa_motor_regras": estado.get("faixa_motor_regras"),
+        "score_confianca": estado.get("score_confianca_classificacao"),
         "requer_auditoria_humana": estado.get("requer_auditoria_humana", False),
     })
     
