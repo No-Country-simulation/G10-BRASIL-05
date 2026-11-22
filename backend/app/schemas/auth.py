@@ -31,6 +31,10 @@ class UsuarioAutenticado(BaseModel):
     trocar_senha_obrigatorio: bool
     registro: str = ""
     especialidade: str = ""
+    departamento: str = ""
+    cargo: str = ""
+    telefone: str = ""
+    endereco: dict = Field(default_factory=dict)
 
 
 class LoginResponse(BaseModel):
@@ -46,6 +50,10 @@ class UsuarioProvisionarRequest(BaseModel):
     nivel: Literal["DIRETOR", "MEDICO", "ENFERMEIRO"]
     registro: str = Field(default="", max_length=100)
     especialidade: str = Field(default="", max_length=150)
+    departamento: str = Field(default="", max_length=100)
+    cargo: str = Field(default="", max_length=100)
+    telefone: str = Field(default="", max_length=50)
+    endereco: dict = Field(default_factory=dict)
     trocar_senha_obrigatorio: bool = True
 
     @field_validator("email")
@@ -66,6 +74,10 @@ class UsuarioAtualizarRequest(BaseModel):
     nivel: Literal["ADMIN_GERAL", "DIRETOR", "MEDICO", "ENFERMEIRO"] | None = None
     registro: str | None = Field(default=None, max_length=100)
     especialidade: str | None = Field(default=None, max_length=150)
+    departamento: str | None = Field(default=None, max_length=100)
+    cargo: str | None = Field(default=None, max_length=100)
+    telefone: str | None = Field(default=None, max_length=50)
+    endereco: dict | None = None
     ativo: bool | None = None
 
     @field_validator("email")

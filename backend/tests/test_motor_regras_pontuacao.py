@@ -88,3 +88,31 @@ def test_motor_regras_faixa_pede_novo_documento():
     assert resultado["score_total"] < 60.0
     assert resultado["faixa_motor_regras"] == "PEDE_NOVO_DOCUMENTO"
     assert resultado["requer_auditoria_humana"] is True
+
+
+def test_rotina_com_score_alto_nao_requer_auditoria():
+    """Valida que nível ROTINA com pontuação >= 85 não exige revisão humana."""
+    estado: GraphState = {
+        "documento_texto": (
+            "Receituário Médico de Rotina\n"
+            "Paciente: José Ferreira, 50 anos, CPF: 111.222.333-44\n"
+            "Médico: Dr. Carlos Santos, CRM: 12345-SP\n"
+            "Prescrição: Dipirona 500mg uso oral se dor."
+        ),
+        "qualidade_documento": {"status": "adequada"},
+        "legibilidade_documento": "legivel",
+        "paciente": {"nome": "José Ferreira", "idade": 50, "cpf": "11122233344"},
+        "medico_solicitante": {"nome": "Dr. Carlos Santos", "crm": "12345", "crm_uf": "SP"},
+        "tipo_documento": "RECEITA",
+        "nivel_prioridade": "ROTINA",
+        "diagnostico_principal": "Hipertensão arterial",
+        "cid_sugerido": "I10",
+        "medicamentos": [{"medicamento": "Dipirona", "dosagem": "500mg"}],
+    }
+
+    resultado = node_avaliacao(estado)
+    assert resultado["score_total"] >= 85.0
+    assert resultado["requer_auditoria_humana"] is False
+    assert resultado["motivo_revisao"] is None
+    assert resultado["inconsistencias"] == []
+    assert resultado["destino_principal"] == "Fluxo_Padrao"

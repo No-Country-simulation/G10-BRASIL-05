@@ -144,6 +144,19 @@ def render() -> None:
         idx_papel = opcoes_papel.index(nivel_init) if nivel_init in opcoes_papel else 0
         cons_init, num_reg_init, uf_reg_init = decompor_registro(alvo.get("registro"))
         esp_init = alvo.get("especialidade", "")
+        dep_init = alvo.get("departamento", "")
+        cargo_init = alvo.get("cargo", "")
+        end_init = alvo.get("endereco") or {}
+        if not isinstance(end_init, dict):
+            end_init = {}
+        cep_init = end_init.get("cep", "")
+        logr_init = end_init.get("logradouro", "")
+        num_init = end_init.get("numero", "")
+        comp_init = end_init.get("complemento", "")
+        bairro_init = end_init.get("bairro", "")
+        cid_init = end_init.get("cidade", "")
+        uf_end_init = end_init.get("uf", "SP")
+        idx_uf_end = LISTA_UFS.index(uf_end_init) if uf_end_init in LISTA_UFS else 0
 
         with st.form("form_subtela_conta_profissional"):
             # 1. Card Dados pessoais
@@ -205,9 +218,9 @@ def render() -> None:
 
             col_dp_dep, col_dp_cargo = st.columns(2)
             with col_dp_dep:
-                departamento = st.text_input("Departamento ou setor", placeholder="Pronto atendimento")
+                departamento = st.text_input("Departamento ou setor", value=dep_init, placeholder="Pronto atendimento")
             with col_dp_cargo:
-                cargo = st.text_input("Cargo ou função", placeholder="Médico plantonista")
+                cargo = st.text_input("Cargo ou função", value=cargo_init, placeholder="Médico plantonista")
 
             st.caption("Para médicos, o conselho é o CRM. Para enfermeiros, o COREN. Administradores não precisam preencher esta seção.")
             st.markdown("</div>", unsafe_allow_html=True)
@@ -222,21 +235,21 @@ def render() -> None:
             )
             col_end1, col_end2, col_end3 = st.columns([1.6, 3.4, 1.4])
             with col_end1:
-                cep = st.text_input("CEP", placeholder="00000-000")
+                cep = st.text_input("CEP", value=cep_init, placeholder="00000-000")
             with col_end2:
-                logradouro = st.text_input("Logradouro", placeholder="Avenida Paulista")
+                logradouro = st.text_input("Logradouro", value=logr_init, placeholder="Avenida Paulista")
             with col_end3:
-                numero = st.text_input("Número", placeholder="1000")
+                numero = st.text_input("Número", value=num_init, placeholder="1000")
 
             col_end4, col_end5, col_end6, col_end7 = st.columns([1.6, 2.0, 2.2, 1.0])
             with col_end4:
-                complemento = st.text_input("Complemento", placeholder="Apto 42")
+                complemento = st.text_input("Complemento", value=comp_init, placeholder="Apto 42")
             with col_end5:
-                bairro = st.text_input("Bairro", placeholder="Bela Vista")
+                bairro = st.text_input("Bairro", value=bairro_init, placeholder="Bela Vista")
             with col_end6:
-                cidade = st.text_input("Cidade", placeholder="São Paulo")
+                cidade = st.text_input("Cidade", value=cid_init, placeholder="São Paulo")
             with col_end7:
-                uf_end = st.selectbox("UF", LISTA_UFS, key="sb_uf_endereco")
+                uf_end = st.selectbox("UF", LISTA_UFS, index=idx_uf_end, key="sb_uf_endereco")
             st.markdown("</div>", unsafe_allow_html=True)
 
             # 5. Card Credenciais
@@ -285,6 +298,16 @@ def render() -> None:
             if num_registro.strip():
                 registro_final = f"{conselho} {num_registro.strip()}-{uf_conselho}"
 
+            endereco_payload = {
+                "cep": cep.strip(),
+                "logradouro": logradouro.strip(),
+                "numero": numero.strip(),
+                "complemento": complemento.strip(),
+                "bairro": bairro.strip(),
+                "cidade": cidade.strip(),
+                "uf": uf_end,
+            }
+
             if not eh_edicao:
                 # Criação
                 if not senha.strip():
@@ -305,6 +328,9 @@ def render() -> None:
                         "nivel": papel,
                         "registro": registro_final,
                         "especialidade": especialidade.strip(),
+                        "departamento": departamento.strip(),
+                        "cargo": cargo.strip(),
+                        "endereco": endereco_payload,
                         "trocar_senha_obrigatorio": bool(troca_obrigatoria),
                     })
                     st.success("Conta profissional criada com sucesso!")
@@ -320,6 +346,9 @@ def render() -> None:
                     "nivel": papel,
                     "registro": registro_final,
                     "especialidade": especialidade.strip(),
+                    "departamento": departamento.strip(),
+                    "cargo": cargo.strip(),
+                    "endereco": endereco_payload,
                 }
                 if senha.strip():
                     if len(senha) < 12:

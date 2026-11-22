@@ -148,6 +148,7 @@ class TriagemService:
             resultado_oci = self.storage_repo.salvar_triagem_json(
                 documento_id=requisicao.documento_id,
                 dados_resultado={
+                    "status": "processado" if not requer_auditoria else "em_auditoria",
                     "documento_id": requisicao.documento_id,
                     "classificacao": classificacao.model_dump(),
                     "dados_extraidos": dados_extraidos.model_dump(),
@@ -500,6 +501,7 @@ class TriagemService:
                         resultado_oci = self.storage_repo.salvar_triagem_json(
                             documento_id=documento_id,
                             dados_resultado={
+                                "status": "processado",
                                 "documento_id": documento_id,
                                 "classificacao": {
                                     "tipo_documento": doc_atualizado.tipo_documento,
@@ -508,8 +510,12 @@ class TriagemService:
                                     "score_confianca_classificacao": doc_atualizado.score_confianca,
                                 },
                                 "dados_extraidos": doc_atualizado.dados_extraidos,
-                                "destino_principal": doc_atualizado.destino_principal,
-                                "justificativa_roteamento": doc_atualizado.justificativa_roteamento,
+                                "decisao_roteamento": {
+                                    "destino_principal": doc_atualizado.destino_principal,
+                                    "requer_auditoria_humana": False,
+                                    "justificativa_roteamento": doc_atualizado.justificativa_roteamento,
+                                    "notificacao_gerada": None,
+                                },
                             },
                             is_urgente=eh_urgente_final,
                             requer_auditoria=False,

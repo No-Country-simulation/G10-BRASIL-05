@@ -26,9 +26,19 @@ def node_roteamento(state: GraphState) -> GraphState:
     if is_urgente:
         destino = DESTINO_EMERGENCIA
         justificativa = state.get("motivo_urgencia") or "Achado crítico de alta gravidade detectado em triagem."
+        paciente_d = state.get("paciente") or (state.get("dados_extraidos") or {}).get("paciente") or {}
+        if isinstance(paciente_d, dict):
+            nome_paciente = paciente_d.get("nome") or "Não identificado"
+        else:
+            nome_paciente = str(paciente_d) or "Não identificado"
+        diagnostico = (
+            state.get("diagnostico_principal")
+            or (state.get("dados_extraidos") or {}).get("diagnostico_principal")
+            or "quadro clínico crítico"
+        )
         notificacao = {
             "canal": "Alerta_Plantao_Medico",
-            "mensagem": f"ALERTA URGENTE: Documento {doc_id} encaminhado para Emergência Médica Imediata via {canal}.",
+            "mensagem": f"ALERTA URGENTE: Laudo critico de {diagnostico} para paciente {nome_paciente} no Pronto-Socorro.",
         }
     elif requer_auditoria:
         destino = DESTINO_AUDITORIA_HUMANA

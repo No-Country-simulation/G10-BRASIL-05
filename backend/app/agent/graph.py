@@ -61,7 +61,7 @@ def _apos_qualidade(state: GraphState) -> str:
 
 
 def _apos_validacao(state: GraphState) -> str:
-    return "avaliacao" if state.get("status") == "validado" else "revisao_humana"
+    return "avaliacao"
 
 
 def _apos_avaliacao(state: GraphState) -> str:
