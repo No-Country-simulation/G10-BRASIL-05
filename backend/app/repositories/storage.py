@@ -233,7 +233,9 @@ class StorageRepository:
             prefixo = "processados/rotina"
 
         caminho_objeto = f"{prefixo}/{documento_id}.json"
-        payload_bytes = json.dumps(dados_resultado, ensure_ascii=False, indent=2).encode("utf-8")
+        payload_bytes = json.dumps(
+            dados_resultado, default=str, ensure_ascii=False, indent=2
+        ).encode("utf-8")
 
         caminho_local = os.path.join(self.local_storage_dir, prefixo, f"{documento_id}.json")
         objeto_tentado = False

@@ -40,11 +40,11 @@ def publicar_evento_triagem(usuario_id: int, evento: str, dados: dict) -> None:
             redis.setex(
                 _chave_estado(usuario_id, documento_id),
                 TTL_PROPRIETARIO_SEGUNDOS,
-                json.dumps(payload, ensure_ascii=False),
+                json.dumps(payload, ensure_ascii=False, default=str),
             )
             redis.sadd(_chave_documentos(usuario_id), documento_id)
             redis.expire(_chave_documentos(usuario_id), TTL_PROPRIETARIO_SEGUNDOS)
-        redis.publish(_chave_canal(usuario_id), json.dumps(payload, ensure_ascii=False))
+        redis.publish(_chave_canal(usuario_id), json.dumps(payload, ensure_ascii=False, default=str))
     except Exception:
         logger.exception("Não foi possível publicar evento SSE da triagem para usuário %s", usuario_id)
     finally:

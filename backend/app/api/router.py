@@ -31,7 +31,7 @@ from app.controllers.ecossistema import (
     obter_paciente,
 )
 from app.whatsapp.controller import router as whatsapp_router
-from app.controllers.historico import listar_documentos, obter_documento
+from app.controllers.historico import desativar_alerta_documento, listar_documentos, obter_documento
 from app.controllers.triagem import processar_triagem
 from app.controllers.triagem_eventos import stream_eventos_triagem
 from app.controllers.triagem_upload import inspecionar_extracao_documento, processar_upload_triagem
@@ -114,6 +114,10 @@ _register_route(
 )
 _register_route(
     "/triagem/documentos/{documento_id}", obter_documento, methods=["GET"], tags=["Histórico de Triagem"],
+    status_code=status.HTTP_200_OK, dependencies=_triagem_access,
+)
+_register_route(
+    "/triagem/documentos/{documento_id}/desativar-alerta", desativar_alerta_documento, methods=["POST"], tags=["Histórico de Triagem"],
     status_code=status.HTTP_200_OK, dependencies=_triagem_access,
 )
 _register_route(

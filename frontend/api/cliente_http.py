@@ -104,6 +104,15 @@ def buscar_documento(documento_id: str) -> dict | None:
     return None
 
 
+def desativar_alerta_api(documento_id: str) -> dict | None:
+    """Dispara a desativação de alerta de emergência médica no backend."""
+    try:
+        return requisitar("POST", f"{PREFIXO_DA_TRIAGEM}/documentos/{documento_id}/desativar-alerta")
+    except Exception:
+        return None
+
+
+
 def listar_fila_auditoria() -> list[dict]:
     return requisitar("GET", f"{PREFIXO_DA_TRIAGEM}/auditoria")
 

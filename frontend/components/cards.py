@@ -60,6 +60,12 @@ def exibir_previa_do_arquivo(arquivo) -> None:
 
 
 def exibir_alerta_de_roteamento(decisao: dict) -> None:
+    doc_id = decisao.get("documento_id")
+    from utils.alertas_clinicos import alerta_esta_desativado
+    if alerta_esta_desativado(doc_id):
+        st.success("Rotina: alerta de emergência desativado pela equipe clínica.", icon=":material/check_circle:")
+        return
+
     destino = decisao.get("destino_principal")
     justificativa = decisao.get("justificativa_roteamento")
     mensagem_do_plantao = _formatar_notificacao(decisao.get("notificacao_gerada") or {})

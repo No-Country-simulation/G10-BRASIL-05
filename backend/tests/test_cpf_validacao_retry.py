@@ -68,38 +68,8 @@ def _criar_imagem(caminho):
     return caminho
 
 
-def test_cpf_invalido_e_reextraido_com_sucesso(monkeypatch, tmp_path):
-    imagem = _criar_imagem(tmp_path / "documento.jpg")
-
-    class Cliente:
-        chamadas = 0
-        imagem_retry = None
-
-        def invoke(self, mensagens, **_kwargs):
-            self.chamadas += 1
-            if self.chamadas == 1:
-                return Resposta(_resposta_extracao(CPF_INVALIDO))
-            self.imagem_retry = mensagens[0].content[1]["image_url"]["url"]
-            if self.chamadas == 2:
-                return Resposta(json.dumps({"paciente_cpf": CPF_INVALIDO}))
-            return Resposta(json.dumps({"paciente_cpf": CPF_VALIDO}))
-
-    cliente = Cliente()
-    monkeypatch.setattr(extrator, "obter_cliente_llm", lambda: cliente)
-
-    resultado = extrator.node_extracao(_estado(imagem))
-    validado = node_validador(resultado)
-
-    assert cliente.chamadas == 3
-    assert validado["dados_extraidos"]["paciente"]["cpf"] == CPF_VALIDO
-    assert validado["evidencias_campos"]["paciente.cpf"]["status"] == "releitura_visual"
-    imagem_retry = base64.b64decode(cliente.imagem_retry.split(",", 1)[1])
-    with Image.open(io.BytesIO(imagem_retry)) as imagem_preparada:
-        # Sem coordenadas confiáveis, o retry usa a página inteira ampliada.
-        assert imagem_preparada.size == (200, 100)
-
-
-def test_cpf_invalido_apos_tentativas_e_encaminhado_para_revisao(monkeypatch, tmp_path):
+def test_cpf_invalido_mantem_valor_e_nao_exige_revisao(monkeypatch, tmp_path):
+    """CPF presente (mesmo sem passar no dígito verificador) é mantido e não força revisão."""
     imagem = _criar_imagem(tmp_path / "documento.jpg")
 
     class Cliente:
@@ -107,25 +77,20 @@ def test_cpf_invalido_apos_tentativas_e_encaminhado_para_revisao(monkeypatch, tm
 
         def invoke(self, *_args, **_kwargs):
             self.chamadas += 1
-            conteudo = _resposta_extracao(CPF_INVALIDO) if self.chamadas == 1 else json.dumps(
-                {"paciente_cpf": CPF_INVALIDO}
-            )
-            return Resposta(conteudo)
+            return Resposta(_resposta_extracao(CPF_INVALIDO))
 
     cliente = Cliente()
     monkeypatch.setattr(extrator, "obter_cliente_llm", lambda: cliente)
     extraido = extrator.node_extracao(_estado(imagem))
     validado = node_validador(extraido)
 
-    assert cliente.chamadas == extrator.MAX_TENTATIVAS_RELEITURA_CPF + 1
-    assert extraido["dados_extraidos"]["paciente"]["cpf"] is None
-    assert validado["requer_auditoria_humana"] is True
-    assert validado["etapa_revisao"] == "validacao"
-    assert "CPF válido" in validado["motivo_revisao"]
-    assert "10 tentativas" in validado["motivo_revisao"]
+    assert extraido["dados_extraidos"]["paciente"]["cpf"] == CPF_INVALIDO
+    assert extraido["cpf_validacao_falhou"] is False
+    assert "CPF" not in (validado.get("motivo_revisao") or "")
 
 
-def test_cpf_ausente_nao_faz_retry(monkeypatch):
+def test_cpf_ausente_nao_exige_revisao(monkeypatch):
+    """CPF ausente não força falha de validação nem bloqueia triagem."""
     class Cliente:
         chamadas = 0
 
@@ -144,7 +109,7 @@ def test_cpf_ausente_nao_faz_retry(monkeypatch):
 
     assert cliente.chamadas == 1
     assert resultado["dados_extraidos"]["paciente"]["cpf"] is None
-    assert resultado["cpf_validacao_falhou"] is True
+    assert resultado["cpf_validacao_falhou"] is False
 
 
 def test_cpf_ausente_na_extracao_inicial_e_encontrado_no_retry(monkeypatch, tmp_path):
@@ -169,51 +134,4 @@ def test_cpf_ausente_na_extracao_inicial_e_encontrado_no_retry(monkeypatch, tmp_
     assert cliente.chamadas == 2
     assert resultado["dados_extraidos"]["paciente"]["cpf"] == CPF_VALIDO
     assert resultado["cpf_validacao_falhou"] is False
-
-
-@pytest.mark.parametrize("falha", ["imagem", "llm"])
-def test_falha_no_retry_exige_revisao_sem_repetir(monkeypatch, tmp_path, falha):
-    imagem = _criar_imagem(tmp_path / "documento.jpg")
-
-    class Cliente:
-        chamadas = 0
-
-        def invoke(self, *_args, **_kwargs):
-            self.chamadas += 1
-            if self.chamadas == 1:
-                return Resposta(_resposta_extracao(CPF_INVALIDO))
-            raise RuntimeError("falha simulada")
-
-    cliente = Cliente()
-    monkeypatch.setattr(extrator, "obter_cliente_llm", lambda: cliente)
-    if falha == "imagem":
-        monkeypatch.setattr(
-            extrator,
-            "preparar_imagem_para_releitura",
-            lambda _conteudo: (_ for _ in ()).throw(ValueError("imagem inválida")),
-        )
-
-    resultado = extrator.node_extracao(_estado(imagem))
-
-    chamadas_esperadas = 1 if falha == "imagem" else extrator.MAX_TENTATIVAS_RELEITURA_CPF + 1
-    assert cliente.chamadas == chamadas_esperadas
-    assert resultado["dados_extraidos"]["paciente"]["cpf"] is None
-    assert resultado["cpf_validacao_falhou"] is True
-
-
-def test_candidato_invalido_sem_imagem_disponivel_exige_revisao(monkeypatch):
-    class Cliente:
-        chamadas = 0
-
-        def invoke(self, *_args, **_kwargs):
-            self.chamadas += 1
-            return Resposta(_resposta_extracao(CPF_INVALIDO))
-
-    cliente = Cliente()
-    monkeypatch.setattr(extrator, "obter_cliente_llm", lambda: cliente)
-
-    resultado = extrator.node_extracao(_estado(""))
-
-    assert cliente.chamadas == 1
-    assert resultado["dados_extraidos"]["paciente"]["cpf"] is None
 

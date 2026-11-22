@@ -79,6 +79,12 @@ def remover_acentos(texto: str | None) -> str:
 
 
 def identificar_status(documento: dict) -> str:
+    try:
+        from utils.alertas_clinicos import alerta_esta_desativado
+        if alerta_esta_desativado(documento.get("documento_id")):
+            return STATUS_APROVADO
+    except Exception:
+        pass
     status_da_auditoria = STATUS_POR_DECISAO_DE_AUDITORIA.get(documento.get("status_processamento"))
     if status_da_auditoria:
         return status_da_auditoria
