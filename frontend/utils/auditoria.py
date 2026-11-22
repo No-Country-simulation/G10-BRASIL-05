@@ -63,11 +63,21 @@ def extrair_valores_editaveis(item: dict) -> dict:
 
 
 def calcular_correcoes(valores_atuais: dict, valores_editados: dict) -> dict:
-    return {
-        campo: novo_valor.strip()
-        for campo, novo_valor in valores_editados.items()
-        if novo_valor.strip() != valores_atuais.get(campo, "").strip()
-    }
+    correcoes = {}
+    for campo, novo_valor in valores_editados.items():
+        val_atual = valores_atuais.get(campo)
+        str_atual = "" if val_atual is None else str(val_atual).strip()
+        str_novo = "" if novo_valor is None else str(novo_valor).strip()
+
+        if campo == "paciente_cpf":
+            cpf_atual_num = re.sub(r"\D", "", str_atual)
+            cpf_novo_num = re.sub(r"\D", "", str_novo)
+            if cpf_atual_num != cpf_novo_num:
+                correcoes[campo] = str_novo
+        else:
+            if str_novo != str_atual:
+                correcoes[campo] = str_novo
+    return correcoes
 
 
 def aplicar_correcoes(dados_extraidos: dict, correcoes: dict) -> dict:
@@ -107,7 +117,14 @@ def validar_decisao(acao: str, auditor: str, justificativa: str, correcoes: dict
         return "Informe a identificação do auditor."
     if acao == DECISAO_CORRIGIR and not correcoes:
         return "Altere ao menos um campo para corrigir."
-    if acao != DECISAO_CORRIGIR and correcoes:
+
+    correcoes_reais = {
+        k: str(v).strip()
+        for k, v in (correcoes or {}).items()
+        if v is not None and str(v).strip() != ""
+    }
+
+    if acao != DECISAO_CORRIGIR and correcoes_reais:
         return "Você alterou campos. Use 'Corrigir' para enviar as correções ou desfaça as alterações."
     if acao in ACOES_QUE_EXIGEM_JUSTIFICATIVA and not justificativa.strip():
         return f"Informe a justificativa para {acao.lower()} o documento."

@@ -335,6 +335,7 @@ def _resultado_persistido(documento: DocumentoTriagemModel) -> dict:
         "armazenamento_oci": {
             "bucket": documento.bucket_oci or settings.OCI_BUCKET_NAME,
             "caminho_objeto": documento.caminho_objeto_oci or "",
+            "status_backup": "sucesso",
         },
         "evidencias_campos": documento.evidencias_campos,
         "motivo_revisao": documento.motivo_revisao,

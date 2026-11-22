@@ -192,13 +192,27 @@ class UsersService:
 
         if alteracoes.get("senha"):
             alvo.senha_hash = gerar_hash_senha(alteracoes.pop("senha"))
+            alvo.trocar_senha_obrigatorio = False
         if "nivel" in alteracoes:
             alteracoes["papel"] = alteracoes.pop("nivel")
-        for campo in ("nome", "email", "papel", "registro", "especialidade", "ativo"):
+        for campo in (
+            "nome",
+            "email",
+            "papel",
+            "registro",
+            "especialidade",
+            "departamento",
+            "cargo",
+            "telefone",
+            "endereco",
+            "ativo",
+        ):
             if campo in alteracoes:
                 setattr(alvo, campo, alteracoes[campo])
         if alvo.papel not in {"INSTITUCIONAL_WHATSAPP", "ADMIN_GERAL"}:
             alvo.pode_gerenciar_whatsapp = False
+
+        alvo.trocar_senha_obrigatorio = False
 
         salvo = self.users_repo.salvar(alvo)
         return usuario_publico(salvo)

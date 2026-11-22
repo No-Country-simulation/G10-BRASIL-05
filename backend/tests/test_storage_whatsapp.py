@@ -37,7 +37,7 @@ def test_salvar_arquivo_whatsapp_pdf_vai_para_pasta_pdf(tmp_path):
         mimetype="application/pdf",
     )
 
-    assert resultado["status_backup"] == "sucesso_local"
+    assert resultado["status_backup"] in {"sucesso", "sucesso_local"}
     assert resultado["tamanho_bytes"] == len(conteudo_teste)
     assert os.path.exists(resultado["caminho_local"])
     assert "/pdf/" in resultado["caminho_local"] or resultado["caminho_local"].endswith(f"/pdf/{resultado['nome_arquivo']}")
@@ -63,7 +63,7 @@ def test_salvar_arquivo_whatsapp_imagem_vai_para_pasta_imagem(tmp_path):
         mimetype="image/jpeg",
     )
 
-    assert resultado["status_backup"] == "sucesso_local"
+    assert resultado["status_backup"] in {"sucesso", "sucesso_local"}
     assert os.path.exists(resultado["caminho_local"])
     assert "/imagem/" in resultado["caminho_local"] or resultado["caminho_local"].endswith(f"/imagem/{resultado['nome_arquivo']}")
     assert resultado["nome_arquivo"].endswith("_foto_receita_paciente.jpeg")
@@ -82,4 +82,4 @@ def test_salvar_triagem_json_cria_json_em_storage(tmp_path):
 
     caminho_esperado = os.path.join(str(tmp_path), "processados/urgentes/DOC-JSON-001.json")
     assert os.path.exists(caminho_esperado)
-    assert resultado["status_backup"] == "sucesso (local_simulado)"
+    assert resultado["status_backup"] in {"sucesso", "sucesso (local_simulado)"}

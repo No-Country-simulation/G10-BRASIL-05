@@ -460,6 +460,12 @@ def render() -> None:
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 
     # Painel de Filtros e Busca em Container Nativo
+    def limpar_filtros_analise():
+        st.session_state["filtro_termo_analise"] = ""
+        st.session_state["sel_status_analise"] = "Todos"
+        st.session_state["sel_canal_analise"] = "Todos"
+        st.session_state["sel_ord_analise"] = "Mais recentes primeiro"
+
     with st.container(border=True):
         termo_busca = st.text_input(
             "Buscar na análise",
@@ -499,12 +505,13 @@ def render() -> None:
         )
         col_espaco, col_btn_limpar, col_btn_buscar = st.columns([3.6, 1.2, 1.2], vertical_alignment="center")
         with col_btn_limpar:
-            if st.button("Limpar filtros", icon=":material/filter_alt_off:", use_container_width=True, disabled=not tem_filtros_ativos):
-                st.session_state["filtro_termo_analise"] = ""
-                st.session_state["sel_status_analise"] = "Todos"
-                st.session_state["sel_canal_analise"] = "Todos"
-                st.session_state["sel_ord_analise"] = "Mais recentes primeiro"
-                st.rerun()
+            st.button(
+                "Limpar filtros",
+                icon=":material/filter_alt_off:",
+                use_container_width=True,
+                disabled=not tem_filtros_ativos,
+                on_click=limpar_filtros_analise,
+            )
         with col_btn_buscar:
             if st.button("Buscar", icon=":material/search:", type="primary", use_container_width=True):
                 st.rerun()

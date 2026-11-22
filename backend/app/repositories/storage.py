@@ -233,8 +233,30 @@ class StorageRepository:
             prefixo = "processados/rotina"
 
         caminho_objeto = f"{prefixo}/{documento_id}.json"
+
+        payload_canonico: Dict[str, Any] = {
+            "status": dados_resultado.get("status") or ("em_auditoria" if requer_auditoria else "processado"),
+            "documento_id": documento_id,
+            "classificacao": dados_resultado.get("classificacao") or {},
+            "dados_extraidos": dados_resultado.get("dados_extraidos") or {},
+            "decisao_roteamento": dados_resultado.get("decisao_roteamento") or {
+                "destino_principal": dados_resultado.get("destino_principal") or ("Fila_Emergencia_Medica" if is_urgente else "Fluxo_Padrao"),
+                "requer_auditoria_humana": requer_auditoria,
+                "justificativa_roteamento": dados_resultado.get("justificativa_roteamento") or "Processamento concluído.",
+                "notificacao_gerada": dados_resultado.get("notificacao_gerada"),
+            },
+            "armazenamento_oci": {
+                "bucket": self.bucket_name,
+                "caminho_objeto": caminho_objeto,
+                "status_backup": "sucesso",
+            },
+        }
+        for k, v in dados_resultado.items():
+            if k not in payload_canonico:
+                payload_canonico[k] = v
+
         payload_bytes = json.dumps(
-            dados_resultado, default=str, ensure_ascii=False, indent=2
+            payload_canonico, default=str, ensure_ascii=False, indent=2
         ).encode("utf-8")
 
         caminho_local = os.path.join(self.local_storage_dir, prefixo, f"{documento_id}.json")

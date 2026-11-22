@@ -178,6 +178,25 @@ def node_avaliacao(state: GraphState) -> GraphState:
         or len(inconsistencias) > 0
     )
 
+    destino_principal = state.get("destino_principal")
+    if pri_classificada == "ROTINA" and (score_total >= 85.0 or faixa == "CONFIAVEL_DIRETO"):
+        requer_auditoria = False
+        motivo_revisao = None
+        inconsistencias = []
+        destino_principal = "Fluxo_Padrao"
+    else:
+        motivo_revisao = (
+            motivo_urgencia
+            if is_urgente and requer_auditoria
+            else "; ".join(inconsistencias)
+            if inconsistencias
+            else "Pontuação do motor de regras exige revisão humana."
+            if faixa == "REVISAO_HUMANA" and requer_auditoria
+            else "Pontuação insuficiente no motor de regras (< 60 pts). Solicitar novo documento."
+            if faixa == "PEDE_NOVO_DOCUMENTO" and requer_auditoria
+            else None
+        )
+
     return {
         **state,
         "is_urgente": is_urgente,
@@ -192,17 +211,8 @@ def node_avaliacao(state: GraphState) -> GraphState:
         "score_detalhes": score_detalhes,
         "score_confianca_classificacao": score_final,
         "requer_auditoria_humana": requer_auditoria,
-        "motivo_revisao": (
-            motivo_urgencia
-            if is_urgente and requer_auditoria
-            else "; ".join(inconsistencias)
-            if inconsistencias
-            else "Pontuação do motor de regras exige revisão humana."
-            if faixa == "REVISAO_HUMANA"
-            else "Pontuação insuficiente no motor de regras (< 60 pts). Solicitar novo documento."
-            if faixa == "PEDE_NOVO_DOCUMENTO"
-            else None
-        ),
+        "motivo_revisao": motivo_revisao,
+        "destino_principal": destino_principal,
         "etapa_revisao": "risco" if requer_auditoria else None,
         "status": "avaliado",
     }

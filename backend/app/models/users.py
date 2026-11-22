@@ -1,7 +1,7 @@
 """Modelo de usuários do sistema."""
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Integer, String, func, text,
+    Boolean, Column, DateTime, ForeignKey, Integer, JSON, String, func, text,
 )
 from sqlalchemy.orm import relationship
 
@@ -20,6 +20,10 @@ class UsuarioSistemaModel(Base):
     # os registros normalizados em medicos/enfermeiros.
     registro = Column(String(80))
     especialidade = Column(String(150))
+    departamento = Column(String(100))
+    cargo = Column(String(100))
+    telefone = Column(String(50))
+    endereco = Column(JSON, default=dict)
     trocar_senha_obrigatorio = Column(Boolean, nullable=False, default=False, server_default=text("false"))
     medico_id = Column(Integer, ForeignKey("medicos.id", ondelete="RESTRICT", onupdate="RESTRICT"))
     enfermeiro_id = Column(Integer, ForeignKey("enfermeiros.id", ondelete="RESTRICT", onupdate="RESTRICT"))

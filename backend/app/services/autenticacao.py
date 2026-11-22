@@ -125,6 +125,10 @@ def usuario_publico(usuario: UsuarioSistemaModel) -> dict:
         "trocar_senha_obrigatorio": usuario.trocar_senha_obrigatorio,
         "registro": usuario.registro or "",
         "especialidade": usuario.especialidade or "",
+        "departamento": getattr(usuario, "departamento", "") or "",
+        "cargo": getattr(usuario, "cargo", "") or "",
+        "telefone": getattr(usuario, "telefone", "") or "",
+        "endereco": getattr(usuario, "endereco", {}) or {},
     }
 
 

@@ -58,3 +58,41 @@ def test_armazenamento_oci_campos_obrigatorios():
     """Valida que a ausência de caminho_objeto ou bucket gera ValidationError."""
     with pytest.raises(ValidationError):
         ArmazenamentoOCI(bucket="mediflow-documentos-clinicos")
+
+
+def test_node_roteamento_alerta_emergencia():
+    """Valida mensagem de emergência personalizada com diagnóstico e nome do paciente."""
+    from app.agent.nodes.roteador import node_roteamento
+    estado = {
+        "is_urgente": True,
+        "motivo_urgencia": "Achado crítico",
+        "documento_id": "DOC-99",
+        "paciente": {"nome": "Maria Santos"},
+        "diagnostico_principal": "Infarto Agudo do Miocárdio",
+    }
+    resultado = node_roteamento(estado)
+    assert resultado["destino_principal"] == "Fila_Emergencia_Medica"
+    alerta = resultado["notificacao_gerada"]
+    assert alerta is not None
+    assert alerta["canal"] == "Alerta_Plantao_Medico"
+    assert alerta["mensagem"] == "ALERTA URGENTE: Laudo critico de Infarto Agudo do Miocárdio para paciente Maria Santos no Pronto-Socorro."
+
+
+def test_storage_salvar_triagem_json_chaves_canonicas(tmp_path):
+    """Garante que o JSON salvo no storage e OCI tem a raiz canônica com as 6 chaves."""
+    import json
+    from app.repositories.storage import StorageRepository
+    repo = StorageRepository(local_storage_dir=str(tmp_path))
+    dados = {
+        "classificacao": {"tipo_documento": "RECEITA", "especialidade": "Clínica Geral", "nivel_prioridade": "ROTINA", "score_confianca_classificacao": 0.95},
+        "dados_extraidos": {"paciente": {"nome": "João", "idade": 50}},
+    }
+    resultado = repo.salvar_triagem_json(documento_id="DOC-TESTE-CANONICO", dados_resultado=dados, is_urgente=False)
+    assert resultado["status_backup"] == "sucesso"
+    caminho = resultado["caminho_local"]
+    with open(caminho, "r", encoding="utf-8") as f:
+        conteudo = json.load(f)
+    chaves_esperadas = {"status", "documento_id", "classificacao", "dados_extraidos", "decisao_roteamento", "armazenamento_oci"}
+    assert chaves_esperadas.issubset(set(conteudo.keys()))
+    assert conteudo["status"] == "processado"
+    assert conteudo["armazenamento_oci"]["status_backup"] == "sucesso"
