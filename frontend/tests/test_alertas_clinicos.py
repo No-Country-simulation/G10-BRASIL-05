@@ -4,13 +4,48 @@ import pytest
 
 from utils.alertas_clinicos import (
     CHAVE_ALERTAS_CIENTES,
+    ESTADO_EM_ANDAMENTO,
     ESTADO_EMERGENCIA,
     ESTADO_ESTAVEL,
+    ESTADO_NENHUM,
     ESTADO_PERIGO,
     classificar_estado_clinico,
     obter_badge_estado_html,
     verificar_e_disparar_modal_alerta,
 )
+
+
+def test_classificacao_estado_falhou():
+    doc_falhou = {"status": "falhou", "documento_id": "DOC-FALHA"}
+    chave, rotulo, _ = classificar_estado_clinico(doc_falhou)
+    assert chave == ESTADO_NENHUM
+    assert rotulo == "-"
+    html = obter_badge_estado_html(doc_falhou)
+    assert "ESTÁVEL" not in html
+    assert "-" in html
+
+
+def test_formatar_paciente_exibicao():
+    from telas.analise.index import _formatar_paciente_exibicao
+
+    doc_falha = {"status": "falhou", "paciente_nome": "Aguardando identificação"}
+    assert _formatar_paciente_exibicao(doc_falha) == "-"
+
+    doc_proc = {"status": "processando", "paciente_nome": "Aguardando identificação"}
+    assert _formatar_paciente_exibicao(doc_proc) == "Em andamento..."
+
+    doc_ok = {"status": "concluido", "paciente_nome": "Carlos Drummond"}
+    assert _formatar_paciente_exibicao(doc_ok) == "Carlos Drummond"
+
+
+def test_classificacao_estado_processando():
+    doc_proc = {"status": "processando", "documento_id": "DOC-PROC"}
+    chave, rotulo, _ = classificar_estado_clinico(doc_proc)
+    assert chave == ESTADO_EM_ANDAMENTO
+    assert rotulo == "Em andamento"
+    html = obter_badge_estado_html(doc_proc)
+    assert "ESTÁVEL" not in html
+    assert "Em andamento" in html
 
 
 def test_classificacao_estado_emergencia():

@@ -51,7 +51,6 @@ if not esta_autenticado(st.session_state) and not st.session_state.get("logout_e
     if token_recuperado:
         if restaurar_sessao_por_token(token_recuperado, st.session_state):
             st.session_state["cookie_sessao_migracao_pendente"] = True
-            salvar_token_persistido(token_recuperado)
 
 if esta_autenticado(st.session_state):
     token_ativo = obter_token_jwt(st.session_state)

@@ -16,7 +16,7 @@ from app.repositories.database import SessionLocal, engine
 from app.repositories.storage import StorageRepository
 from app.schemas.triagem import RequisicaoTriagem
 from app.services.document_parser import DocumentParserService
-from app.services.metadados_inspecao import extrair_campos_rotulados
+from app.services.metadados_inspecao import extrair_campos_rotulados, extrair_metadados_documento
 from app.services.triagem import TriagemService
 from app.services.triagem_queue import chave_trabalhos_usuario, obter_redis_fila
 from app.services.triagem_eventos import publicar_evento_triagem
@@ -114,7 +114,14 @@ def processar_documento_enfileirado(
         _registrar_etapa("leitura_documento", documento_id, usuario_id)
         # O RQ executa jobs em processos filhos; descarta qualquer pool herdado do worker.
         engine.dispose(close=False)
-        if caminho_arquivo:
+        if caminho_arquivo and extensao.lower() in {".txt", ".text"}:
+            texto = texto_documento or ""
+            if not texto and Path(caminho_arquivo).exists():
+                texto = Path(caminho_arquivo).read_text(encoding="utf-8", errors="replace")
+            tipo_arquivo = "texto"
+            avaliacao_visual = None
+            metadados_documento = extrair_metadados_documento(texto).model_dump(mode="json") if texto else {}
+        elif caminho_arquivo:
             conteudo = Path(caminho_arquivo).read_bytes()
             texto, tipo_arquivo, avaliacao_visual, metadados_documento = (
                 DocumentParserService.inspecionar_arquivo_com_metadados(
@@ -125,7 +132,7 @@ def processar_documento_enfileirado(
             texto = texto_documento or ""
             tipo_arquivo = extensao
             avaliacao_visual = None
-            metadados_documento = {}
+            metadados_documento = extrair_metadados_documento(texto).model_dump(mode="json") if texto else {}
         if not texto.strip():
             raise HTTPException(status_code=422, detail="O documento está vazio.")
         campos_rotulados = extrair_campos_rotulados(texto)

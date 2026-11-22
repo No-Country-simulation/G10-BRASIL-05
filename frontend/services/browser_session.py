@@ -15,7 +15,13 @@ def obter_token_persistido() -> str | None:
     return valor if isinstance(valor, str) and valor else None
 
 
+import streamlit as st
+
+
 def salvar_token_persistido(token: str) -> None:
+    if st.session_state.get("_token_browser_salvo") == token:
+        return
+    st.session_state["_token_browser_salvo"] = token
     _browser_session_storage(
         action="write",
         token=token,
@@ -25,4 +31,5 @@ def salvar_token_persistido(token: str) -> None:
 
 
 def limpar_token_persistido() -> None:
+    st.session_state.pop("_token_browser_salvo", None)
     _browser_session_storage(action="clear", default=None, key="mediflow-token-clear")

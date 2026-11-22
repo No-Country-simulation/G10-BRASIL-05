@@ -51,6 +51,26 @@ def _formatar_badge_canal(canal: str | None) -> str:
     return f'<span class="badge-canal badge-canal-ps">{escape(canal_str.replace("_", " "))}</span>'
 
 
+def _formatar_paciente_exibicao(doc: dict) -> str:
+    """Formata o nome do paciente para exibição, considerando o status da esteira."""
+    status = str(doc.get("status") or doc.get("status_processamento") or "").strip().lower()
+    nome = (doc.get("paciente_nome") or "").strip()
+
+    if status in {"falhou", "erro"}:
+        if not nome or nome in {"Aguardando identificação", "Identificado", "-"}:
+            return "-"
+        return nome
+
+    if status in {"na_fila", "processando", "pendente", "iniciado"}:
+        if not nome or nome in {"Aguardando identificação", "Identificado", "-"}:
+            return "Em andamento..."
+        return nome
+
+    if not nome or nome in {"Aguardando identificação", "Identificado"}:
+        return "-"
+    return nome
+
+
 def _aguarda_revisao_humana(doc: dict) -> bool:
     """Indica se o documento ainda precisa de intervenção na fila de revisão."""
     status_processamento = str(doc.get("status_processamento") or "").strip().lower()
@@ -108,6 +128,8 @@ def exibir_modal_detalhes(doc_info: dict) -> None:
                 doc_info["justificativa_roteamento"] = decisao.get("justificativa_roteamento")
 
         classe_badge, rotulo_status = _formatar_badge_status(doc_info.get("status", "na_fila"))
+        nome_pac_modal = _formatar_paciente_exibicao(doc_info)
+        cpf_modal = doc_info.get('paciente_cpf', '-') if doc_info.get("status") != "falhou" else "-"
 
         st.markdown(
             f"""
@@ -124,8 +146,8 @@ def exibir_modal_detalhes(doc_info: dict) -> None:
                     </div>
                 </div>
                 <div style="margin-top:12px; display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; font-size:0.84rem;">
-                    <div><span style="color:#64748B;">Paciente:</span> <strong>{escape(str(doc_info.get('paciente_nome', '-')))}</strong></div>
-                    <div><span style="color:#64748B;">CPF:</span> <strong>{escape(str(doc_info.get('paciente_cpf', '-')))}</strong></div>
+                    <div><span style="color:#64748B;">Paciente:</span> <strong>{escape(str(nome_pac_modal))}</strong></div>
+                    <div><span style="color:#64748B;">CPF:</span> <strong>{escape(str(cpf_modal))}</strong></div>
                     <div><span style="color:#64748B;">Data de Envio:</span> <strong>{escape(str(doc_info.get('data_hora', '-')))}</strong></div>
                     <div><span style="color:#64748B;">Canal:</span> <strong>{escape(str(doc_info.get('canal_origem', '-')))}</strong></div>
                 </div>
@@ -299,7 +321,7 @@ def render() -> None:
                 "documento_id": doc_id,
                 "arquivo": doc_id,
                 "nome_original": item.get("nome_original") or item.get("arquivo") or doc_id,
-                "paciente_nome": item.get("paciente_nome") or "Aguardando identificação",
+                "paciente_nome": item.get("paciente_nome") or "",
                 "paciente_cpf": item.get("paciente_cpf") or "-",
                 "data_hora": item.get("data_envio") or "-",
                 "data_iso": item.get("data_envio") or "",
@@ -350,7 +372,7 @@ def render() -> None:
                 "documento_id": doc_id,
                 "arquivo": doc_id,
                 "nome_original": doc.get("arquivo") or doc_id,
-                "paciente_nome": doc.get("paciente_nome") or "Identificado",
+                "paciente_nome": doc.get("paciente_nome") or "",
                 "paciente_cpf": doc.get("paciente_cpf") or "-",
                 "data_hora": data_formatada,
                 "data_iso": criado_em or "",
@@ -552,7 +574,12 @@ def render() -> None:
                     classe_badge, rotulo_status = _formatar_badge_status(status_chave)
                     canal = doc.get("canal_origem", "Interno")
                     cpf_txt = doc.get("paciente_cpf", "-")
-                    cpf_html = f"<br><span style='font-size:0.75rem; color:#64748B;'>CPF: {escape(cpf_txt)}</span>" if cpf_txt and cpf_txt != "-" else ""
+                    nome_pac_exibicao = _formatar_paciente_exibicao(doc)
+                    cpf_html = (
+                        f"<br><span style='font-size:0.75rem; color:#64748B;'>CPF: {escape(cpf_txt)}</span>"
+                        if cpf_txt and cpf_txt != "-" and status_chave != "falhou" and nome_pac_exibicao not in {"-", "Em andamento..."}
+                        else ""
+                    )
 
                     with c_arq:
                         st.markdown(
@@ -561,7 +588,7 @@ def render() -> None:
                         )
                     with c_pac:
                         st.markdown(
-                            f"<div style='line-height:1.25;'><span class='analise-celula-truncada' style='font-size:0.86rem; font-weight:600; color:#1E293B;' title='{escape(doc['paciente_nome'])}'>{escape(doc['paciente_nome'])}</span>{cpf_html}</div>",
+                            f"<div style='line-height:1.25;'><span class='analise-celula-truncada' style='font-size:0.86rem; font-weight:600; color:#1E293B;' title='{escape(nome_pac_exibicao)}'>{escape(nome_pac_exibicao)}</span>{cpf_html}</div>",
                             unsafe_allow_html=True,
                         )
                     with c_estado:

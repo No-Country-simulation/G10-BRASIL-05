@@ -5,6 +5,8 @@ import streamlit as st
 ESTADO_EMERGENCIA = "emergencia"
 ESTADO_PERIGO = "perigo"
 ESTADO_ESTAVEL = "estavel"
+ESTADO_EM_ANDAMENTO = "em_andamento"
+ESTADO_NENHUM = "nenhum"
 
 CHAVE_ALERTAS_CIENTES = "alertas_clinicos_cientes"
 
@@ -12,16 +14,23 @@ CHAVE_ALERTAS_CIENTES = "alertas_clinicos_cientes"
 def classificar_estado_clinico(doc: dict) -> tuple[str, str, str]:
     """Retorna (chave_estado, rotulo, classe_css).
 
-    - emergencia: Estado crítico emergencial (risco iminente à vida, IAM, politrauma).
-    - perigo: Estado de perigo / atenção (casos moderados, dor aguda, conflito medicamentoso, alergia).
-    - estavel: Casos de rotina ou preventivos sem alterações críticas.
+    - emergencia: Estado critico emergencial (risco iminente a vida, IAM, politrauma).
+    - perigo: Estado de perigo / atencao (casos moderados, dor aguda, conflito medicamentoso, alergia).
+    - estavel: Casos de rotina ou preventivos sem alteracoes criticas.
+    - em_andamento: Em processamento pela IA ou na fila.
+    - nenhum: Documento com falha ou sem classificacao clinica.
     """
+    status = str(doc.get("status") or doc.get("status_processamento") or "").strip().lower()
+
+    # Falha no processamento: nao ha estado clinico valido
+    if status in {"falhou", "erro"} or doc.get("erro"):
+        return ESTADO_NENHUM, "-", ""
+
     pri = str(doc.get("nivel_prioridade") or "").upper()
     dest = str(doc.get("destino_principal") or "")
     motivo = str(
         doc.get("motivo_revisao")
         or doc.get("justificativa_roteamento")
-        or doc.get("erro")
         or ""
     ).lower()
 
@@ -47,12 +56,24 @@ def classificar_estado_clinico(doc: dict) -> tuple[str, str, str]:
     ):
         return ESTADO_PERIGO, "PERIGO", "badge-estado-perigo"
 
+    # Se estiver processando ou na fila e nao possuir prioridade definida pela IA ainda
+    if status in {"na_fila", "processando", "pendente", "iniciado"} and not pri:
+        return ESTADO_EM_ANDAMENTO, "Em andamento", "badge-estado-andamento"
+
+    # Se nao houver informacoes clinicas ou prioridade
+    if not pri and not dest and not motivo:
+        return ESTADO_NENHUM, "-", ""
+
     return ESTADO_ESTAVEL, "ESTÁVEL", "badge-estado-estavel"
 
 
 def obter_badge_estado_html(doc: dict) -> str:
-    """Retorna o snippet HTML da badge de estado clínico para tabelas e modais."""
-    _, rotulo, classe_css = classificar_estado_clinico(doc)
+    """Retorna o snippet HTML da badge de estado clinico para tabelas e modais."""
+    chave, rotulo, classe_css = classificar_estado_clinico(doc)
+    if chave == ESTADO_NENHUM or not rotulo or rotulo == "-":
+        return '<span style="color:#94A3B8; font-size:0.85rem;">-</span>'
+    if chave == ESTADO_EM_ANDAMENTO:
+        return f'<span class="badge-estado {classe_css}">{escape(rotulo)}</span>'
     return f'<span class="badge-estado {classe_css}">{escape(rotulo)}</span>'
 
 
