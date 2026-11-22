@@ -23,15 +23,35 @@
         const args = event.data.args || {};
         try {
           if (args.action === "read") {
-            const token = sessionStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY);
-            sendComponentValue(token);
+            let token = null;
+            try { token = sessionStorage.getItem(STORAGE_KEY); } catch (_e) {}
+            if (!token) {
+              try { token = localStorage.getItem(STORAGE_KEY); } catch (_e) {}
+            }
+            if (!token) {
+              try { token = window.parent.sessionStorage.getItem(STORAGE_KEY); } catch (_e) {}
+            }
+            if (!token) {
+              try { token = window.parent.localStorage.getItem(STORAGE_KEY); } catch (_e) {}
+            }
+            sendComponentValue(token || null);
           } else if (args.action === "write" && typeof args.token === "string") {
             try { sessionStorage.setItem(STORAGE_KEY, args.token); } catch (_e) {}
             try { localStorage.setItem(STORAGE_KEY, args.token); } catch (_e) {}
+            try { window.parent.sessionStorage.setItem(STORAGE_KEY, args.token); } catch (_e) {}
+            try { window.parent.localStorage.setItem(STORAGE_KEY, args.token); } catch (_e) {}
             sendComponentValue(true);
           } else if (args.action === "clear") {
             try { sessionStorage.removeItem(STORAGE_KEY); } catch (_e) {}
             try { localStorage.removeItem(STORAGE_KEY); } catch (_e) {}
+            try { window.parent.sessionStorage.removeItem(STORAGE_KEY); } catch (_e) {}
+            try { window.parent.localStorage.removeItem(STORAGE_KEY); } catch (_e) {}
+            try {
+              document.cookie = `${STORAGE_KEY}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;`;
+            } catch (_e) {}
+            try {
+              window.parent.document.cookie = `${STORAGE_KEY}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;`;
+            } catch (_e) {}
             sendComponentValue(true);
           } else {
             sendComponentValue(null);

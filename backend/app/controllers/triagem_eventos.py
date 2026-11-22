@@ -22,6 +22,7 @@ def _formatar_evento(evento: dict) -> str:
 async def stream_eventos_triagem(
     request: Request,
     lote_id: str | None = Query(default=None),
+    token: str | None = Query(default=None),
     usuario: UsuarioSistemaModel = Depends(
         exigir_papeis_cookie("ADMIN_GERAL", "DIRETOR", "MEDICO", "ENFERMEIRO")
     ),

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import streamlit as st
 import streamlit.components.v1 as components
 
 
@@ -15,9 +16,6 @@ def obter_token_persistido() -> str | None:
     return valor if isinstance(valor, str) and valor else None
 
 
-import streamlit as st
-
-
 def salvar_token_persistido(token: str) -> None:
     if st.session_state.get("_token_browser_salvo") == token:
         return
@@ -31,5 +29,16 @@ def salvar_token_persistido(token: str) -> None:
 
 
 def limpar_token_persistido() -> None:
-    st.session_state.pop("_token_browser_salvo", None)
-    _browser_session_storage(action="clear", default=None, key="mediflow-token-clear")
+    tentativa = 1
+    if hasattr(st, "session_state"):
+        st.session_state.pop("_token_browser_salvo", None)
+        tentativa = st.session_state.get("_limpar_token_counter", 0) + 1
+        st.session_state["_limpar_token_counter"] = tentativa
+    try:
+        _browser_session_storage(
+            action="clear",
+            default=None,
+            key=f"mediflow-token-clear-{tentativa}",
+        )
+    except Exception:
+        pass

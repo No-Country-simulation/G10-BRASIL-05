@@ -20,9 +20,11 @@ def escutar_eventos_triagem(url: str, chave: str) -> dict | None:
     return evento if isinstance(evento, dict) else None
 
 
-def obter_url_stream_triagem() -> str:
+def obter_url_stream_triagem(token: str | None = None) -> str:
     """Monta uma URL acessível pelo navegador, inclusive no Docker Compose local."""
     caminho = "/api/v1/triagem/eventos/stream"
+    if token:
+        caminho = f"{caminho}?token={token}"
     base = obter_url_api_browser()
     return f"{base}{caminho}" if base else caminho
 

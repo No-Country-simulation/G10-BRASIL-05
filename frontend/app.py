@@ -71,18 +71,12 @@ if st.session_state.get("cookie_sessao_migracao_pendente"):
         st.session_state.pop("cookie_sessao_migracao_pendente", None)
         st.warning("A sessão atual foi restaurada, mas não foi possível atualizar a proteção do cookie.")
 
-# Finaliza o cookie HttpOnly após o logout solicitado na interface.
+# Finaliza a sessão no cliente e cookie após o logout solicitado na interface.
 if st.session_state.get("logout_efetuado"):
-    tentativa_logout = st.session_state.get("logout_cookie_tentativa", 0)
-    resultado_logout = sincronizar_cookie_sessao("limpar", tentativa=tentativa_logout)
-    if resultado_logout and resultado_logout.get("ok"):
-        st.session_state.pop("logout_efetuado", None)
-        st.session_state.pop("logout_cookie_tentativa", None)
-    elif resultado_logout and not resultado_logout.get("ok"):
-        st.warning("Não foi possível remover o cookie da sessão. Verifique a conexão e tente novamente.")
-        if st.button("Tentar sair novamente", key="tentar_limpar_cookie_sessao"):
-            st.session_state["logout_cookie_tentativa"] = tentativa_logout + 1
-            st.rerun()
+    limpar_token_persistido()
+    sincronizar_cookie_sessao("limpar", tentativa=st.session_state.get("logout_cookie_tentativa", 0))
+    st.session_state.pop("logout_efetuado", None)
+    st.session_state.pop("logout_cookie_tentativa", None)
 
 if esta_autenticado(st.session_state) and not validar_sessao_api(st.session_state):
     st.info("Sua sessão expirou ou não pôde ser validada. Entre novamente.")

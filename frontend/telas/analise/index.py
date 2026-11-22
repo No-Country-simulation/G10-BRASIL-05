@@ -22,7 +22,7 @@ from components.visualizador_documento import (
     _renderizar_folha_textual,
     _renderizar_visualizador_pdf,
 )
-from services.autenticacao import esta_autenticado
+from services.autenticacao import esta_autenticado, obter_token_jwt
 from services.triagem_event_stream import escutar_eventos_triagem, obter_url_stream_triagem
 from telas.analise.dados import corresponde_filtro
 from utils.formatadores import formatar_data_hora_brasil
@@ -237,41 +237,10 @@ def exibir_modal_detalhes(doc_info: dict) -> None:
         st.error(f"Erro ao exibir detalhes do documento: {erro}")
 
 
-def render() -> None:
-    if not esta_autenticado(st.session_state):
-        st.switch_page("app.py")
-        st.stop()
+def _renderizar_conteudo_analise(ativo: bool) -> None:
+    trabalhos_sessao = st.session_state.get("trabalhos_triagem", [])
 
-    aplicar_css(Path(__file__).with_name("style.css"))
-
-    # Cabeçalho da Página
-    st.title("Análise de Documentos")
-    st.caption("Acompanhamento do processamento, extração clínica e status em tempo real da esteira inteligente.")
-
-    # Chave de estado para itens enviados nesta sessão ou recentes
-    if "trabalhos_triagem" not in st.session_state:
-        st.session_state["trabalhos_triagem"] = []
-
-    trabalhos_sessao = st.session_state["trabalhos_triagem"]
-    existem_trabalhos_ativos = any(
-        item.get("status") in {"na_fila", "processando"}
-        for item in trabalhos_sessao
-    )
-    if existem_trabalhos_ativos:
-        try:
-            url_stream = obter_url_stream_triagem()
-            evento = escutar_eventos_triagem(
-                url_stream,
-                chave=f"stream_triagem_{st.session_state.get('usuario_ativo_id', 'usuario')}",
-            )
-            if evento and evento.get("id"):
-                chave_ultimo_evento = "ultimo_evento_sse_triagem"
-                if st.session_state.get(chave_ultimo_evento) != evento["id"]:
-                    st.session_state[chave_ultimo_evento] = evento["id"]
-        except Exception:
-            pass
-
-    # Atualiza o estado ao abrir a página
+    # Atualiza o estado dos trabalhos da sessão
     for item in trabalhos_sessao:
         if item.get("status") in {"na_fila", "processando"}:
             try:
@@ -313,6 +282,17 @@ def render() -> None:
         docs_api = listar_documentos() or []
     except Exception:
         docs_api = []
+
+    ativos_sessao = any(item.get("status") in {"na_fila", "processando"} for item in trabalhos_sessao)
+    ativos_api = any(
+        (doc.get("status_processamento") or "").lower() in {"na_fila", "pendente", "processando", "iniciado"}
+        for doc in docs_api
+    )
+    ainda_tem_ativos = ativos_sessao or ativos_api
+
+    # Se estava no modo ativo com run_every e tudo concluiu, força rerun geral para interromper o timer
+    if ativo and not ainda_tem_ativos:
+        st.rerun()
 
     ids_vistos = set()
     todos_documentos = []
@@ -455,64 +435,12 @@ def render() -> None:
 
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 
-    # Painel de Filtros e Busca em Container Nativo
-    def limpar_filtros_analise():
-        st.session_state["filtro_termo_analise"] = ""
-        st.session_state["sel_status_analise"] = "Todos"
-        st.session_state["sel_canal_analise"] = "Todos"
-        st.session_state["sel_ord_analise"] = "Mais recentes primeiro"
-
-    with st.container(border=True):
-        termo_busca = st.text_input(
-            "Buscar na análise",
-            placeholder="Buscar por paciente, arquivo, CPF, identificador (DOC-...) ou canal...",
-            key="filtro_termo_analise",
-        ).strip().lower()
-
-        f_status, f_canal, f_ord = st.columns(3)
-
-        with f_status:
-            opcoes_status = ["Todos", "Concluído", "Processando", "Na fila", "Falhou"]
-            filtro_status = st.selectbox(
-                "Status",
-                opcoes_status,
-                key="sel_status_analise",
-            )
-
-        with f_canal:
-            opcoes_canal = ["Todos", "WhatsApp", "Interno"]
-            filtro_canal = st.selectbox(
-                "Canal de Origem",
-                opcoes_canal,
-                key="sel_canal_analise",
-            )
-
-        with f_ord:
-            filtro_ord = st.selectbox(
-                "Ordenar por",
-                ["Mais recentes primeiro", "Mais antigos primeiro"],
-                key="sel_ord_analise",
-            )
-
-        tem_filtros_ativos = bool(
-            termo_busca
-            or st.session_state.get("sel_status_analise", "Todos") != "Todos"
-            or st.session_state.get("sel_canal_analise", "Todos") != "Todos"
-        )
-        col_espaco, col_btn_limpar, col_btn_buscar = st.columns([3.6, 1.2, 1.2], vertical_alignment="center")
-        with col_btn_limpar:
-            st.button(
-                "Limpar filtros",
-                icon=":material/filter_alt_off:",
-                use_container_width=True,
-                disabled=not tem_filtros_ativos,
-                on_click=limpar_filtros_analise,
-            )
-        with col_btn_buscar:
-            if st.button("Buscar", icon=":material/search:", type="primary", use_container_width=True):
-                st.rerun()
-
     # Aplica os filtros
+    termo_busca = st.session_state.get("filtro_termo_analise", "").strip().lower()
+    filtro_status = st.session_state.get("sel_status_analise", "Todos")
+    filtro_canal = st.session_state.get("sel_canal_analise", "Todos")
+    filtro_ord = st.session_state.get("sel_ord_analise", "Mais recentes primeiro")
+
     documentos_filtrados = [
         documento
         for documento in todos_documentos
@@ -656,3 +584,123 @@ def render() -> None:
                         '<div style="height:1px; background:#F2F4F7; margin:4px 0 6px 0;"></div>',
                         unsafe_allow_html=True,
                     )
+
+
+@st.fragment(run_every=2)
+def _painel_analise_ativo() -> None:
+    _renderizar_conteudo_analise(ativo=True)
+
+
+@st.fragment
+def _painel_analise_estatico() -> None:
+    _renderizar_conteudo_analise(ativo=False)
+
+
+def render() -> None:
+    if not esta_autenticado(st.session_state):
+        st.switch_page("app.py")
+        st.stop()
+
+    aplicar_css(Path(__file__).with_name("style.css"))
+
+    # Cabeçalho da Página
+    st.title("Análise de Documentos")
+    st.caption("Acompanhamento do processamento, extração clínica e status em tempo real da esteira inteligente.")
+
+    # Chave de estado para itens enviados nesta sessão ou recentes
+    if "trabalhos_triagem" not in st.session_state:
+        st.session_state["trabalhos_triagem"] = []
+
+    # Detecção robusta de trabalhos ativos
+    docs_api_inicial = []
+    try:
+        docs_api_inicial = listar_documentos() or []
+    except Exception:
+        docs_api_inicial = []
+
+    trabalhos_sessao = st.session_state.get("trabalhos_triagem", [])
+    ativos_sessao = any(item.get("status") in {"na_fila", "processando"} for item in trabalhos_sessao)
+    ativos_api = any(
+        (doc.get("status_processamento") or "").lower() in {"na_fila", "pendente", "processando", "iniciado"}
+        for doc in docs_api_inicial
+    )
+    existem_trabalhos_ativos = ativos_sessao or ativos_api
+
+    if existem_trabalhos_ativos:
+        try:
+            token_jwt = obter_token_jwt(st.session_state)
+            url_stream = obter_url_stream_triagem(token=token_jwt)
+            evento = escutar_eventos_triagem(
+                url_stream,
+                chave=f"stream_triagem_{st.session_state.get('usuario_ativo_id', 'usuario')}",
+            )
+            if evento and evento.get("id"):
+                chave_ultimo_evento = "ultimo_evento_sse_triagem"
+                if st.session_state.get(chave_ultimo_evento) != evento["id"]:
+                    st.session_state[chave_ultimo_evento] = evento["id"]
+        except Exception:
+            pass
+
+    # Painel de Filtros e Busca em Container Nativo
+    def limpar_filtros_analise():
+        st.session_state["filtro_termo_analise"] = ""
+        st.session_state["sel_status_analise"] = "Todos"
+        st.session_state["sel_canal_analise"] = "Todos"
+        st.session_state["sel_ord_analise"] = "Mais recentes primeiro"
+
+    with st.container(border=True):
+        st.text_input(
+            "Buscar na análise",
+            placeholder="Buscar por paciente, arquivo, CPF, identificador (DOC-...) ou canal...",
+            key="filtro_termo_analise",
+        )
+
+        f_status, f_canal, f_ord = st.columns(3)
+
+        with f_status:
+            opcoes_status = ["Todos", "Concluído", "Processando", "Na fila", "Falhou"]
+            st.selectbox(
+                "Status",
+                opcoes_status,
+                key="sel_status_analise",
+            )
+
+        with f_canal:
+            opcoes_canal = ["Todos", "WhatsApp", "Interno"]
+            st.selectbox(
+                "Canal de Origem",
+                opcoes_canal,
+                key="sel_canal_analise",
+            )
+
+        with f_ord:
+            st.selectbox(
+                "Ordenar por",
+                ["Mais recentes primeiro", "Mais antigos primeiro"],
+                key="sel_ord_analise",
+            )
+
+        termo_busca = st.session_state.get("filtro_termo_analise", "").strip().lower()
+        tem_filtros_ativos = bool(
+            termo_busca
+            or st.session_state.get("sel_status_analise", "Todos") != "Todos"
+            or st.session_state.get("sel_canal_analise", "Todos") != "Todos"
+        )
+        col_espaco, col_btn_limpar, col_btn_buscar = st.columns([3.6, 1.2, 1.2], vertical_alignment="center")
+        with col_btn_limpar:
+            st.button(
+                "Limpar filtros",
+                icon=":material/filter_alt_off:",
+                use_container_width=True,
+                disabled=not tem_filtros_ativos,
+                on_click=limpar_filtros_analise,
+            )
+        with col_btn_buscar:
+            if st.button("Buscar", icon=":material/search:", type="primary", use_container_width=True):
+                st.rerun()
+
+    # Painel dinâmico ou estático com fragmentos nativos do Streamlit
+    if existem_trabalhos_ativos:
+        _painel_analise_ativo()
+    else:
+        _painel_analise_estatico()

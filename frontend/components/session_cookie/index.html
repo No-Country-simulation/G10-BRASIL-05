@@ -17,13 +17,43 @@
         return url.toString();
       }
 
+      function limparTudoNoCliente() {
+        const chaves = ["mediflow_access_token"];
+        for (const chave of chaves) {
+          try { sessionStorage.removeItem(chave); } catch (_e) {}
+          try { localStorage.removeItem(chave); } catch (_e) {}
+          try { window.parent.sessionStorage.removeItem(chave); } catch (_e) {}
+          try { window.parent.localStorage.removeItem(chave); } catch (_e) {}
+        }
+        try {
+          document.cookie = "mediflow_access_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+        } catch (_e) {}
+        try {
+          window.parent.document.cookie = "mediflow_access_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+        } catch (_e) {}
+      }
+
       async function sincronizar(args) {
         const assinatura = `${args.action}:${args.attempt}:${args.token || ""}`;
         if (window.__mediflowCookieRequest === assinatura) return;
         window.__mediflowCookieRequest = assinatura;
 
+        if (args.action === "limpar") {
+          limparTudoNoCliente();
+          try {
+            await fetch(urlDaApi(args.api_base, "/api/v1/auth/logout"), {
+              method: "POST",
+              credentials: "include",
+            });
+          } catch (_error) {
+            // Ignora falhas de CORS/mixed content/rede
+          }
+          sendComponentValue({ ok: true });
+          return;
+        }
+
         const definindo = args.action === "definir";
-        const caminho = definindo ? "/api/v1/auth/session-cookie" : "/api/v1/auth/logout";
+        const caminho = "/api/v1/auth/session-cookie";
         const headers = definindo ? { Authorization: `Bearer ${args.token}` } : {};
         try {
           const resposta = await fetch(urlDaApi(args.api_base, caminho), {
