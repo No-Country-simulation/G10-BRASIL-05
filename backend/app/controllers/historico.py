@@ -99,3 +99,30 @@ def obter_documento(
     return _resultado_persistido(doc)
 
 
+def desativar_alerta_documento(
+    documento_id: str,
+    db: Session = Depends(get_db),
+    usuario=Depends(exigir_papeis("ADMIN_GERAL", "DIRETOR", "MEDICO", "ENFERMEIRO")),
+):
+    """Permite à equipe clínica desativar o alerta de emergência médica de um paciente."""
+    repo = DatabaseRepository(db)
+    doc = repo.buscar_por_documento_id(documento_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento não encontrado.")
+
+    doc.nivel_prioridade = "ROTINA"
+    if doc.destino_principal == "Fila_Emergencia_Medica":
+        doc.destino_principal = "Fluxo_Padrao"
+        repo.vincular_destino(doc)
+
+    db.commit()
+    db.refresh(doc)
+    return {
+        "mensagem": "Alerta de emergência desativado com sucesso.",
+        "documento_id": documento_id,
+        "nivel_prioridade": doc.nivel_prioridade,
+        "destino_principal": doc.destino_principal,
+    }
+
+
+

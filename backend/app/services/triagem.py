@@ -464,9 +464,28 @@ class TriagemService:
                     doc_atualizado.especialidade = resultado_grafo.get("especialidade") or doc_atualizado.especialidade
                     doc_atualizado.nivel_prioridade = resultado_grafo.get("nivel_prioridade") or doc_atualizado.nivel_prioridade
                     doc_atualizado.score_confianca = resultado_grafo.get("score_confianca_classificacao") or doc_atualizado.score_confianca
-                    doc_atualizado.destino_principal = resultado_grafo.get("destino_principal") or doc_atualizado.destino_principal or "FLUXO_PADRAO"
+                    
+                    # Decisão do revisor humano tem prevalência máxima
+                    if payload.destino_principal:
+                        doc_atualizado.destino_principal = payload.destino_principal
+                    elif payload.fila_encaminhamento == "Rotina":
+                        doc_atualizado.destino_principal = "Fluxo_Padrao"
+                    elif payload.fila_encaminhamento == "Urgente":
+                        doc_atualizado.destino_principal = "Fila_Emergencia_Medica"
+                    else:
+                        doc_atualizado.destino_principal = resultado_grafo.get("destino_principal") or doc_atualizado.destino_principal or "FLUXO_PADRAO"
+
+                    if payload.nivel_prioridade:
+                        doc_atualizado.nivel_prioridade = payload.nivel_prioridade
+                    elif payload.fila_encaminhamento == "Rotina":
+                        doc_atualizado.nivel_prioridade = "ROTINA"
+                    elif payload.fila_encaminhamento == "Urgente":
+                        doc_atualizado.nivel_prioridade = "URGENTE"
+                    else:
+                        doc_atualizado.nivel_prioridade = resultado_grafo.get("nivel_prioridade") or doc_atualizado.nivel_prioridade
+
                     self.db_repo.vincular_destino(doc_atualizado)
-                    doc_atualizado.justificativa_roteamento = resultado_grafo.get("justificativa_roteamento") or payload.justificativa
+                    doc_atualizado.justificativa_roteamento = payload.justificativa or resultado_grafo.get("justificativa_roteamento") or "Revisão humana concluída."
                     if resultado_grafo.get("dados_extraidos"):
                         doc_atualizado.dados_extraidos = resultado_grafo["dados_extraidos"]
                     doc_atualizado.motivo_revisao = None
@@ -474,6 +493,10 @@ class TriagemService:
                     doc_atualizado.evidencias_campos = resultado_grafo.get("evidencias_campos")
 
                     if resultado_grafo.get("status") == "roteado":
+                        eh_urgente_final = bool(resultado_grafo.get("is_urgente"))
+                        if doc_atualizado.destino_principal != "Fila_Emergencia_Medica" and doc_atualizado.nivel_prioridade != "EMERGENCIA":
+                            eh_urgente_final = False
+
                         resultado_oci = self.storage_repo.salvar_triagem_json(
                             documento_id=documento_id,
                             dados_resultado={
@@ -488,7 +511,7 @@ class TriagemService:
                                 "destino_principal": doc_atualizado.destino_principal,
                                 "justificativa_roteamento": doc_atualizado.justificativa_roteamento,
                             },
-                            is_urgente=bool(resultado_grafo.get("is_urgente")),
+                            is_urgente=eh_urgente_final,
                             requer_auditoria=False,
                         )
                         doc_atualizado.bucket_oci = resultado_oci["bucket"]

@@ -9,6 +9,34 @@ ESTADO_EM_ANDAMENTO = "em_andamento"
 ESTADO_NENHUM = "nenhum"
 
 CHAVE_ALERTAS_CIENTES = "alertas_clinicos_cientes"
+CHAVE_ALERTAS_DESATIVADOS = "alertas_clinicos_desativados"
+
+
+def desativar_alerta_clinico(doc_id: str | None) -> None:
+    """Desativa o alerta clínico para o documento na sessão e tenta sincronizar com o backend."""
+    if not doc_id:
+        return
+    if hasattr(st, "session_state"):
+        if CHAVE_ALERTAS_DESATIVADOS not in st.session_state:
+            st.session_state[CHAVE_ALERTAS_DESATIVADOS] = set()
+        st.session_state[CHAVE_ALERTAS_DESATIVADOS].add(doc_id)
+
+        if CHAVE_ALERTAS_CIENTES not in st.session_state:
+            st.session_state[CHAVE_ALERTAS_CIENTES] = set()
+        st.session_state[CHAVE_ALERTAS_CIENTES].add(doc_id)
+
+    try:
+        from api.cliente_http import desativar_alerta_api
+        desativar_alerta_api(doc_id)
+    except Exception:
+        pass
+
+
+def alerta_esta_desativado(doc_id: str | None) -> bool:
+    """Verifica se o alerta do documento já foi desativado/dispensado pelo usuário."""
+    if not doc_id or not hasattr(st, "session_state"):
+        return False
+    return doc_id in st.session_state.get(CHAVE_ALERTAS_DESATIVADOS, set())
 
 
 def classificar_estado_clinico(doc: dict) -> tuple[str, str, str]:
@@ -26,6 +54,10 @@ def classificar_estado_clinico(doc: dict) -> tuple[str, str, str]:
     if status in {"falhou", "erro"} or doc.get("erro"):
         return ESTADO_NENHUM, "-", ""
 
+    doc_id = doc.get("documento_id")
+    if alerta_esta_desativado(doc_id):
+        return ESTADO_ESTAVEL, "ESTÁVEL", "badge-estado-estavel"
+
     pri = str(doc.get("nivel_prioridade") or "").upper()
     dest = str(doc.get("destino_principal") or "")
     motivo = str(
@@ -36,7 +68,7 @@ def classificar_estado_clinico(doc: dict) -> tuple[str, str, str]:
 
     if (
         "EMERGENCIA" in pri
-        or "Fila_Emergencia_Medica" in dest
+        or ("Fila_Emergencia_Medica" in dest and pri != "ROTINA")
         or "iam" in motivo
         or "infarto" in motivo
         or "parada" in motivo
@@ -167,9 +199,7 @@ def modal_alerta_clinico_popup(doc: dict, chave_estado: str):
                 redirecionar_para_atendimento_paciente(doc)
         with c2:
             if st.button("Dispensar alerta", use_container_width=True, key=f"btn_dispensar_modal_{doc_id}"):
-                if CHAVE_ALERTAS_CIENTES not in st.session_state:
-                    st.session_state[CHAVE_ALERTAS_CIENTES] = set()
-                st.session_state[CHAVE_ALERTAS_CIENTES].add(doc_id)
+                desativar_alerta_clinico(doc_id)
                 st.rerun()
 
     elif chave_estado == ESTADO_PERIGO:
@@ -209,9 +239,7 @@ def modal_alerta_clinico_popup(doc: dict, chave_estado: str):
                 redirecionar_para_atendimento_paciente(doc)
         with c2:
             if st.button("Dispensar alerta", use_container_width=True, key=f"btn_dispensar_modal_{doc_id}"):
-                if CHAVE_ALERTAS_CIENTES not in st.session_state:
-                    st.session_state[CHAVE_ALERTAS_CIENTES] = set()
-                st.session_state[CHAVE_ALERTAS_CIENTES].add(doc_id)
+                desativar_alerta_clinico(doc_id)
                 st.rerun()
 
 
@@ -240,6 +268,7 @@ def ha_interacao_ou_modal_ativo() -> bool:
                 "btn_voltar",
                 "btn_verificar",
                 "btn_dispensar",
+                "btn_desativar",
                 "dl_",
             )):
                 return True
@@ -255,11 +284,12 @@ def verificar_e_disparar_modal_alerta(documentos: list[dict]) -> None:
         st.session_state[CHAVE_ALERTAS_CIENTES] = set()
 
     cientes = st.session_state[CHAVE_ALERTAS_CIENTES]
+    desativados = st.session_state.get(CHAVE_ALERTAS_DESATIVADOS, set())
 
     # Prioriza casos de emergencia primeiro, depois casos de perigo
     for doc in documentos:
         doc_id = doc.get("documento_id")
-        if not doc_id or doc_id in cientes:
+        if not doc_id or doc_id in cientes or doc_id in desativados:
             continue
         chave, _, _ = classificar_estado_clinico(doc)
         if chave == ESTADO_EMERGENCIA:
@@ -268,7 +298,7 @@ def verificar_e_disparar_modal_alerta(documentos: list[dict]) -> None:
 
     for doc in documentos:
         doc_id = doc.get("documento_id")
-        if not doc_id or doc_id in cientes:
+        if not doc_id or doc_id in cientes or doc_id in desativados:
             continue
         chave, _, _ = classificar_estado_clinico(doc)
         if chave == ESTADO_PERIGO:
@@ -278,10 +308,14 @@ def verificar_e_disparar_modal_alerta(documentos: list[dict]) -> None:
 
 def exibir_alerta_global_se_necessario(documentos: list[dict]) -> None:
     """Verifica uma lista de documentos e renderiza alertas no topo da tela se houver casos críticos."""
+    desativados = st.session_state.get(CHAVE_ALERTAS_DESATIVADOS, set()) if hasattr(st, "session_state") else set()
     criticos = []
     perigos = []
 
     for doc in documentos:
+        doc_id = doc.get("documento_id")
+        if doc_id and doc_id in desativados:
+            continue
         chave, _, _ = classificar_estado_clinico(doc)
         if chave == ESTADO_EMERGENCIA and doc.get("status") in {"na_fila", "processando", "concluido", "esperando_auditar"}:
             criticos.append(doc)
@@ -293,7 +327,7 @@ def exibir_alerta_global_se_necessario(documentos: list[dict]) -> None:
             doc.get("paciente_nome") or doc.get("documento_id") for doc in criticos[:3]
         )
         sufixo = f" e outros {len(criticos) - 3}" if len(criticos) > 3 else ""
-        col_banner, col_btn = st.columns([5, 1])
+        col_banner, col_b1, col_b2 = st.columns([4, 1.2, 1.2])
         with col_banner:
             st.markdown(
                 f"""
@@ -307,17 +341,23 @@ def exibir_alerta_global_se_necessario(documentos: list[dict]) -> None:
                 """,
                 unsafe_allow_html=True,
             )
-        with col_btn:
+        with col_b1:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             if st.button("Verificar paciente", type="primary", use_container_width=True, key="btn_banner_emergencia"):
                 redirecionar_para_atendimento_paciente(criticos[0])
+        with col_b2:
+            st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+            if st.button("Desativar alerta", type="secondary", use_container_width=True, key="btn_banner_desativar_emergencia"):
+                for c in criticos:
+                    desativar_alerta_clinico(c.get("documento_id"))
+                st.rerun()
 
     if perigos and not criticos:
         pacientes_txt = ", ".join(
             doc.get("paciente_nome") or doc.get("documento_id") for doc in perigos[:3]
         )
         sufixo = f" e outros {len(perigos) - 3}" if len(perigos) > 3 else ""
-        col_banner, col_btn = st.columns([5, 1])
+        col_banner, col_b1, col_b2 = st.columns([4, 1.2, 1.2])
         with col_banner:
             st.markdown(
                 f"""
@@ -331,10 +371,39 @@ def exibir_alerta_global_se_necessario(documentos: list[dict]) -> None:
                 """,
                 unsafe_allow_html=True,
             )
-        with col_btn:
+        with col_b1:
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             if st.button("Verificar paciente", type="primary", use_container_width=True, key="btn_banner_perigo"):
                 redirecionar_para_atendimento_paciente(perigos[0])
+        with col_b2:
+            st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+            if st.button("Desativar alerta", type="secondary", use_container_width=True, key="btn_banner_desativar_perigo"):
+                for p in perigos:
+                    desativar_alerta_clinico(p.get("documento_id"))
+                st.rerun()
+
+
+def renderizar_acao_desativar_alerta(doc: dict) -> None:
+    """Renderiza opção para desativar o alerta dentro da visualização de detalhes do paciente."""
+    doc_id = doc.get("documento_id")
+    if not doc_id:
+        return
+    if alerta_esta_desativado(doc_id):
+        st.info("ℹ️ Alerta de emergência desativado pela equipe clínica.", icon=":material/check_circle:")
+        return
+
+    chave, _, _ = classificar_estado_clinico(doc)
+    dest = str(doc.get("destino_principal") or "")
+    pri = str(doc.get("nivel_prioridade") or "").upper()
+    if chave in {ESTADO_EMERGENCIA, ESTADO_PERIGO} or "Emergencia" in dest or pri in {"EMERGENCIA", "URGENTE"}:
+        col_txt, col_btn = st.columns([3, 1.2])
+        with col_txt:
+            st.caption("Caso este paciente já tenha sido atendido ou triado, desative o alerta para limpar a esteira:")
+        with col_btn:
+            if st.button("🔔 Desativar Alerta", key=f"btn_desativar_detalhe_{doc_id}", type="secondary", use_container_width=True):
+                desativar_alerta_clinico(doc_id)
+                st.success("Alerta desativado com sucesso!")
+                st.rerun()
 
 
 def exibir_alerta_individual(doc: dict) -> None:

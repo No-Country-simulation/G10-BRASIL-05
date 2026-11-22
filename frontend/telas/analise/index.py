@@ -29,6 +29,7 @@ from utils.alertas_clinicos import (
     exibir_alerta_global_se_necessario,
     exibir_alerta_individual,
     obter_badge_estado_html,
+    renderizar_acao_desativar_alerta,
     verificar_e_disparar_modal_alerta,
 )
 
@@ -155,6 +156,8 @@ def exibir_modal_detalhes(doc_info: dict) -> None:
             """,
             unsafe_allow_html=True,
         )
+
+        renderizar_acao_desativar_alerta(doc_info)
 
         aba_clinica, aba_documento = st.tabs(["Resultado Clínico", "Documento Original"])
 

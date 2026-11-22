@@ -127,6 +127,9 @@ class DecisaoAuditoriaRequest(BaseModel):
     auditor_nome: str = Field(..., json_schema_extra={"example": "Dr. Roberto Silva"})
     justificativa: str = Field(..., json_schema_extra={"example": "Dados conferidos e aprovados clinicamente."})
     dados_corrigidos: Optional[DadosExtraidosClinicos] = None
+    fila_encaminhamento: Optional[str] = None
+    destino_principal: Optional[str] = None
+    nivel_prioridade: Optional[str] = None
 
     @model_validator(mode="after")
     def validar_consistencia_decisao(self):

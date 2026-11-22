@@ -31,6 +31,7 @@ from utils.alertas_clinicos import (
     exibir_alerta_global_se_necessario,
     exibir_alerta_individual,
     obter_badge_estado_html,
+    renderizar_acao_desativar_alerta,
     verificar_e_disparar_modal_alerta,
 )
 from utils.historico import (
@@ -118,6 +119,8 @@ def exibir_modal_detalhes_historico(doc_resumo: dict):
         """,
         unsafe_allow_html=True,
     )
+
+    renderizar_acao_desativar_alerta(doc_resumo)
 
     aba_clinica, aba_documento, aba_tecnica = st.tabs(
         [

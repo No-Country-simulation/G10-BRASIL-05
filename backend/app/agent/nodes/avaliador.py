@@ -8,17 +8,41 @@ def node_avaliacao(state: GraphState) -> GraphState:
     """Nó 4: Avaliação de consistência, score ponderado 15/20/15/50 e motor de regras (Excalidraw)."""
     texto = (state.get("documento_texto") or "").lower()
     diag = (state.get("diagnostico_principal") or "").lower()
+    pri_classificada = str(state.get("nivel_prioridade") or "").upper()
+    decisao_humana = state.get("decisao_humana") or {}
 
     inconsistencias: List[str] = []
 
     # 1. Detecção de Urgência Médica
     termo_urgencia_encontrado = None
-    for termo in TERMOS_URGENCIA_CRITICA:
-        if termo in texto or termo in diag:
-            termo_urgencia_encontrado = termo
-            break
 
-    is_urgente = termo_urgencia_encontrado is not None
+    # Se já houve decisão humana de rotina, respeitar a decisão médica
+    if decisao_humana.get("fila_encaminhamento") == "Rotina" or decisao_humana.get("nivel_prioridade") == "ROTINA":
+        is_urgente = False
+    else:
+        # Busca primeiro no diagnóstico clínico identificado
+        for termo in TERMOS_URGENCIA_CRITICA:
+            if termo in diag:
+                termo_urgencia_encontrado = termo
+                break
+
+        # Se não houver termo crítico no diagnóstico e o modelo classificou como ROTINA, não força emergência
+        if not termo_urgencia_encontrado and pri_classificada != "ROTINA":
+            for termo in TERMOS_URGENCIA_CRITICA:
+                if termo in texto:
+                    idx = texto.find(termo)
+                    trecho_anterior = texto[max(0, idx - 120):idx]
+                    termos_exclusao = (
+                        "valores de referência", "referência", "referencia",
+                        "indicações", "indicacoes", "prevenção", "prevencao",
+                        "afastado", "afastada", "sem sinais", "ausência de",
+                        "ausencia de", "não há", "nao ha", "negativo para"
+                    )
+                    if not any(exc in trecho_anterior for exc in termos_exclusao):
+                        termo_urgencia_encontrado = termo
+                        break
+
+        is_urgente = termo_urgencia_encontrado is not None
     motivo_urgencia = (
         f"Achado crítico de emergência médica detectado: '{termo_urgencia_encontrado}'."
         if is_urgente
