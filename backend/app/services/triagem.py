@@ -87,14 +87,25 @@ class TriagemService:
         score_confianca = float(resultado_grafo.get("score_confianca_classificacao") or 0.0)
         is_urgente = bool(resultado_grafo.get("is_urgente", False))
         requer_auditoria = execucao_pausada or bool(resultado_grafo.get("requer_auditoria_humana", False))
-        destino_principal = resultado_grafo.get("destino_principal") or (
-            "Auditoria_Humana" if requer_auditoria else "Fluxo_Padrao"
+        eh_medico_ilegivel = (
+            (avaliacao_escopo or {}).get("escopo") == "medico"
+            and (avaliacao_escopo or {}).get("legibilidade") != "legivel"
+        ) or (
+            (avaliacao_escopo or {}).get("legibilidade") == "ilegivel"
         )
-        justificativa = (
-            resultado_grafo.get("justificativa_roteamento")
-            or resultado_grafo.get("motivo_revisao")
-            or "Processamento concluído."
-        )
+        if eh_medico_ilegivel:
+            requer_auditoria = True
+            destino_principal = "Auditoria_Humana"
+            justificativa = "Documento médico com caligrafia ilegível — requer transcrição por auditor humano"
+        else:
+            destino_principal = resultado_grafo.get("destino_principal") or (
+                "Auditoria_Humana" if requer_auditoria else "Fluxo_Padrao"
+            )
+            justificativa = (
+                resultado_grafo.get("justificativa_roteamento")
+                or resultado_grafo.get("motivo_revisao")
+                or "Processamento concluído."
+            )
 
         # Dados clínicos extraídos pelo grafo
         paciente_dict = resultado_grafo.get("paciente") or {}
@@ -176,7 +187,7 @@ class TriagemService:
                 score_confianca=classificacao.score_confianca_classificacao,
                 destino_principal=destino_principal,
                 requer_auditoria_humana=requer_auditoria,
-                status_processamento="em_auditoria" if requer_auditoria else "processado",
+                status_processamento="EM_REVISAO_HUMANA" if requer_auditoria else "processado",
                 justificativa_roteamento=justificativa,
                 dados_extraidos=dados_extraidos.model_dump(),
                 bucket_oci=armazenamento_oci.bucket,
@@ -188,7 +199,11 @@ class TriagemService:
                 legibilidade_documento=(avaliacao_escopo or {}).get("legibilidade"),
                 evidencias_escopo=(avaliacao_escopo or {}).get("evidencias"),
                 justificativa_escopo=(avaliacao_escopo or {}).get("justificativa"),
-                motivo_revisao=resultado_grafo.get("motivo_revisao") or justificativa if requer_auditoria else None,
+                motivo_revisao=(
+                    "Documento médico com caligrafia ilegível — requer transcrição por auditor humano"
+                    if eh_medico_ilegivel
+                    else (resultado_grafo.get("motivo_revisao") or justificativa if requer_auditoria else None)
+                ),
                 etapa_revisao=resultado_grafo.get("etapa_revisao"),
                 caminho_fonte=(referencia_fonte if referencia_fonte != "texto_informado" else None),
                 whatsapp_numero=requisicao.whatsapp_numero,

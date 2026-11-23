@@ -27,7 +27,7 @@ def node_filtro_elegibilidade(state: GraphState) -> GraphState:
         "justificativa_elegibilidade": resultado.justificativa,
         "etapa_revisao": None,
         "motivo_revisao": (
-            resultado.justificativa
+            "Documento médico com caligrafia ilegível — requer transcrição por auditor humano"
             if resultado.escopo == "medico" and resultado.legibilidade != "legivel"
             else None
         ),

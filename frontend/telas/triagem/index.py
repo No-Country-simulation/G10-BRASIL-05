@@ -85,9 +85,21 @@ def render() -> None:
             elif acao == "analisar_texto":
                 texto = resultado.get("texto", "").strip()
                 if texto:
+                    canal_origem_texto = "Interno"
+                    if texto.startswith("{"):
+                        try:
+                            import json
+                            dados_json = json.loads(texto)
+                            if isinstance(dados_json, dict) and "documento_texto" in dados_json:
+                                texto = str(dados_json["documento_texto"])
+                                if dados_json.get("canal_origem"):
+                                    canal_origem_texto = str(dados_json["canal_origem"])
+                        except Exception:
+                            pass
                     info_envio = {
                         "tipo": "texto",
                         "texto": texto,
+                        "canal_origem": canal_origem_texto,
                         "total": 1,
                     }
 
@@ -155,7 +167,19 @@ def render() -> None:
                                     erro_msg = res.get("erro", "Não foi possível enfileirar o arquivo.")
                             sucesso = len(novos_trabalhos) > 0
                         else:
-                            requisicao = montar_requisicao(None, dados_envio["texto"])
+                            texto_envio = dados_envio["texto"]
+                            canal_origem = dados_envio.get("canal_origem") or "Interno"
+                            if texto_envio.startswith("{"):
+                                try:
+                                    import json
+                                    dados_json = json.loads(texto_envio)
+                                    if isinstance(dados_json, dict) and "documento_texto" in dados_json:
+                                        texto_envio = str(dados_json["documento_texto"])
+                                        if dados_json.get("canal_origem"):
+                                            canal_origem = str(dados_json["canal_origem"])
+                                except Exception:
+                                    pass
+                            requisicao = montar_requisicao(None, texto_envio, canal_origem=canal_origem)
                             resposta = enfileirar_texto_documento(requisicao)
                             doc_id = resposta["documento_id"]
                             novos_trabalhos.append({
@@ -167,7 +191,7 @@ def render() -> None:
                                 "data_envio": agora_formatado,
                                 "data_iso": agora_iso,
                                 "status": "na_fila",
-                                "canal_origem": "Interno",
+                                "canal_origem": canal_origem,
                                 "lote_id": resposta.get("lote_id"),
                             })
                             sucesso = True
