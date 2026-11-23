@@ -53,6 +53,9 @@ class TriagemService:
             )
         self.db_repo.db.rollback()
 
+        if not referencia_fonte and requisicao.tipo_arquivo.lower() in {"texto", "json"}:
+            referencia_fonte = "texto_informado"
+
         # 1. Execução do Agente Autônomo LangGraph (StateGraph)
         estado_inicial = {
             "documento_id": requisicao.documento_id,
@@ -87,11 +90,15 @@ class TriagemService:
         score_confianca = float(resultado_grafo.get("score_confianca_classificacao") or 0.0)
         is_urgente = bool(resultado_grafo.get("is_urgente", False))
         requer_auditoria = execucao_pausada or bool(resultado_grafo.get("requer_auditoria_humana", False))
+        if not avaliacao_escopo:
+            avaliacao_escopo = resultado_grafo.get("avaliacao_escopo")
+
+        caminho_arquivo = referencia_fonte if referencia_fonte != "texto_informado" else None
         eh_medico_ilegivel = (
-            (avaliacao_escopo or {}).get("escopo") == "medico"
-            and (avaliacao_escopo or {}).get("legibilidade") != "legivel"
-        ) or (
-            (avaliacao_escopo or {}).get("legibilidade") == "ilegivel"
+            bool(avaliacao_escopo)
+            and (avaliacao_escopo.get("escopo") == "medico" or avaliacao_escopo.get("legibilidade") == "ilegivel")
+            and avaliacao_escopo.get("legibilidade") in {"ilegivel"}
+            and bool(caminho_arquivo or (referencia_fonte and referencia_fonte != "texto_informado"))
         )
         if eh_medico_ilegivel:
             requer_auditoria = True

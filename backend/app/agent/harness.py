@@ -85,13 +85,13 @@ def _validar_evidencias(
             evidencias_validas.append(evidencia)
 
     termo_clinico_encontrado = None
-    if resultado.escopo == "medico":
-        for termo in TERMOS_CLINICOS_EVIDENTES:
-            if termo in palavras_texto_set or re.search(rf"\b{re.escape(termo)}\b", texto_normalizado):
-                termo_clinico_encontrado = termo
-                break
+    termos_fortes = {"tomografia", "laudo", "receita", "atestado", "pulmonar", "tromboembolismo", "diagnostico", "diagnóstico"}
+    for termo in TERMOS_CLINICOS_EVIDENTES:
+        if termo in palavras_texto_set or re.search(rf"\b{re.escape(termo)}\b", texto_normalizado):
+            termo_clinico_encontrado = termo
+            break
 
-    if resultado.escopo == "medico" and termo_clinico_encontrado:
+    if (resultado.escopo == "medico" or (resultado.escopo == "incerto" and (evidencias_validas or any(t in palavras_texto_set for t in termos_fortes)))) and termo_clinico_encontrado and not permitir_evidencia_visual:
         if not any(item.fonte == "texto" for item in evidencias_validas):
             evidencias_validas.append(
                 EvidenciaEscopo(
@@ -101,10 +101,10 @@ def _validar_evidencias(
                     observacao=f"Termo clínico evidente identificado no documento: '{termo_clinico_encontrado}'.",
                 )
             )
-        return resultado.model_copy(update={"escopo": "medico", "evidencias": evidencias_validas})
+        return resultado.model_copy(update={"escopo": "medico", "legibilidade": "legivel", "evidencias": evidencias_validas})
 
     requer_evidencia = resultado.escopo in {"medico", "nao_medico"}
-    precisa_sinal_visual = resultado.escopo == "medico" and resultado.legibilidade != "legivel"
+    precisa_sinal_visual = resultado.escopo == "medico" and resultado.legibilidade != "legivel" and permitir_evidencia_visual
     if requer_evidencia and not evidencias_validas:
         return _RESULTADO_INDETERMINADO.model_copy(deep=True)
     if precisa_sinal_visual and not any(item.fonte == "visual" for item in evidencias_validas):

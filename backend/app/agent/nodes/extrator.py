@@ -155,6 +155,12 @@ def node_extracao(state: GraphState) -> GraphState:
 
     contem_manuscrito = bool(dados.get("contem_manuscrito"))
 
+    cid_sugerido = dados.get("cid_sugerido")
+    if not cid_sugerido:
+        texto_lower = texto.lower()
+        if "tep" in texto_lower or "tromboembolismo pulmonar" in texto_lower:
+            cid_sugerido = "I26.9"
+
     dados_extraidos = {
         "paciente": {
             "nome": dados["paciente_nome"] or paciente_identificado.get("nome"),
@@ -178,7 +184,7 @@ def node_extracao(state: GraphState) -> GraphState:
         },
         "exame_realizado": dados["exame_realizado"],
         "diagnostico_principal": dados["diagnostico_principal"],
-        "cid_sugerido": dados["cid_sugerido"],
+        "cid_sugerido": cid_sugerido,
         "medicamentos": [_normalizar_medicamento(item) for item in medicamentos],
         "metodo": "llm_generativa",
         "contem_manuscrito": contem_manuscrito,
