@@ -1,5 +1,6 @@
 """Execução de um documento isolado por trabalho da fila Redis."""
 
+import json
 from pathlib import Path
 import re
 
@@ -133,8 +134,29 @@ def processar_documento_enfileirado(
             tipo_arquivo = extensao
             avaliacao_visual = None
             metadados_documento = extrair_metadados_documento(texto).model_dump(mode="json") if texto else {}
+
+        texto_limpo = (texto or "").strip()
+        if texto_limpo.startswith("{"):
+            try:
+                dados_json = json.loads(texto_limpo)
+                if isinstance(dados_json, dict) and "documento_texto" in dados_json:
+                    texto = str(dados_json["documento_texto"])
+                    if dados_json.get("canal_origem"):
+                        canal_origem = str(dados_json["canal_origem"])
+                    metadados_documento = extrair_metadados_documento(texto).model_dump(mode="json") if texto else {}
+            except Exception:
+                pass
+
+        eh_medico_ou_ilegivel = False
+        if avaliacao_visual:
+            if avaliacao_visual.escopo == "medico" or avaliacao_visual.legibilidade == "ilegivel":
+                eh_medico_ou_ilegivel = True
+
         if not texto.strip():
-            raise HTTPException(status_code=422, detail="O documento está vazio.")
+            if eh_medico_ou_ilegivel:
+                texto = "[DOCUMENTO MÉDICO COM CALIGRAFIA ILEGÍVEL OU BAIXA NITIDEZ - ENCAMINHADO PARA AUDITORIA HUMANA]"
+            else:
+                raise HTTPException(status_code=422, detail="O documento está vazio.")
         campos_rotulados = extrair_campos_rotulados(texto)
         avaliacao = priorizar_revisao_medica_ilegivel(
             avaliacao_visual or avaliar_escopo(texto)

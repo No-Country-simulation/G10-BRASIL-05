@@ -14,6 +14,27 @@ MARCADOR_MEDICO_LEGIVEL = "[[HARNESS:MEDICO_LEGIVEL]]"
 MARCADOR_NAO_MEDICO = "[[HARNESS:NAO_MEDICO]]"
 MARCADOR_ESCOPO_INDETERMINADO = "[[HARNESS:ESCOPO_INDETERMINADO]]"
 
+TERMOS_CLINICOS_EVIDENTES = (
+    "crm",
+    "hospital",
+    "laudo",
+    "paciente",
+    "exame",
+    "tomografia",
+    "receita",
+    "atestado",
+    "diagnostico",
+    "diagnóstico",
+    "pulmonar",
+    "posologia",
+    "conduta",
+    "medico",
+    "médico",
+    "clinica",
+    "clínica",
+    "terapia",
+)
+
 _RESULTADO_INDETERMINADO = ResultadoEscopoDocumento(
     escopo="incerto",
     legibilidade="indeterminada",
@@ -33,7 +54,8 @@ def _extrair_json(resposta: str) -> dict:
 
 
 def _normalizar_trecho(texto: str) -> str:
-    return re.sub(r"\s+", " ", (texto or "")).strip().casefold()
+    texto_limpo = re.sub(r"[^\w\s]", " ", (texto or ""))
+    return re.sub(r"\s+", " ", texto_limpo).strip().casefold()
 
 
 def _validar_evidencias(
@@ -42,14 +64,44 @@ def _validar_evidencias(
     permitir_evidencia_visual: bool,
 ) -> ResultadoEscopoDocumento:
     texto_normalizado = _normalizar_trecho(texto_fonte)
+    palavras_texto_set = set(texto_normalizado.split())
     evidencias_validas = []
     for evidencia in resultado.evidencias:
         if evidencia.fonte == "texto":
             citacao = _normalizar_trecho(evidencia.citacao or "")
-            if citacao and citacao in texto_normalizado:
+            if not citacao:
+                continue
+            if citacao in texto_normalizado:
                 evidencias_validas.append(evidencia)
+            else:
+                palavras_citacao = [p for p in citacao.split() if len(p) >= 3] or citacao.split()
+                if palavras_citacao:
+                    palavras_encontradas = sum(
+                        1 for p in palavras_citacao if p in palavras_texto_set or p in texto_normalizado
+                    )
+                    if (palavras_encontradas / len(palavras_citacao)) >= 0.6:
+                        evidencias_validas.append(evidencia)
         elif permitir_evidencia_visual and (evidencia.observacao or "").strip():
             evidencias_validas.append(evidencia)
+
+    termo_clinico_encontrado = None
+    if resultado.escopo == "medico":
+        for termo in TERMOS_CLINICOS_EVIDENTES:
+            if termo in palavras_texto_set or re.search(rf"\b{re.escape(termo)}\b", texto_normalizado):
+                termo_clinico_encontrado = termo
+                break
+
+    if resultado.escopo == "medico" and termo_clinico_encontrado:
+        if not any(item.fonte == "texto" for item in evidencias_validas):
+            evidencias_validas.append(
+                EvidenciaEscopo(
+                    fonte="texto",
+                    categoria="conteudo_clinico",
+                    citacao=termo_clinico_encontrado,
+                    observacao=f"Termo clínico evidente identificado no documento: '{termo_clinico_encontrado}'.",
+                )
+            )
+        return resultado.model_copy(update={"escopo": "medico", "evidencias": evidencias_validas})
 
     requer_evidencia = resultado.escopo in {"medico", "nao_medico"}
     precisa_sinal_visual = resultado.escopo == "medico" and resultado.legibilidade != "legivel"
@@ -131,7 +183,9 @@ def normalizar_inspecao_visual(resposta: str) -> tuple[str, ResultadoEscopoDocum
         permitir_evidencia_visual=True,
     )
     if resultado.escopo == "medico" and resultado.legibilidade != "legivel":
-        texto = ""
+        texto = texto.strip()
+        if not texto:
+            texto = "[DOCUMENTO MÉDICO COM CALIGRAFIA ILEGÍVEL OU BAIXA NITIDEZ - ENCAMINHADO PARA AUDITORIA HUMANA]"
     return texto.strip(), resultado
 
 
@@ -187,8 +241,13 @@ def priorizar_revisao_medica_ilegivel(
             "escopo": "medico",
             "legibilidade": "ilegivel",
             "justificativa": (
-                "Há estrutura visual compatível com documento médico, mas o conteúdo está ilegível; "
-                "encaminhado para revisão humana."
+                "Documento médico com caligrafia ilegível — requer transcrição por auditor humano"
+            ),
+        })
+    if resultado.escopo == "medico" and resultado.legibilidade != "legivel":
+        return resultado.model_copy(update={
+            "justificativa": (
+                "Documento médico com caligrafia ilegível — requer transcrição por auditor humano"
             ),
         })
     return resultado

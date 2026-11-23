@@ -24,13 +24,20 @@ def node_qualidade_documento(state: GraphState) -> GraphState:
     if marcadores:
         motivos.append("A origem informa ausência de texto nativo ou legibilidade insuficiente.")
     if state.get("legibilidade_documento") != "legivel":
-        motivos.append("O gate de escopo não confirmou legibilidade suficiente para a triagem automática.")
+        motivos.append("Documento médico com caligrafia ilegível — requer transcrição por auditor humano")
     if tipo_arquivo not in {"texto", "json"} and not state.get("referencia_fonte"):
         motivos.append(
             "A fonte original não está vinculada para conferência humana."
         )
 
     adequado = not motivos
+    motivo_revisao = None
+    if not adequado:
+        if state.get("legibilidade_documento") != "legivel" or "caligrafia ilegível" in texto.lower():
+            motivo_revisao = "Documento médico com caligrafia ilegível — requer transcrição por auditor humano"
+        else:
+            motivo_revisao = "; ".join(motivos)
+
     qualidade = {
         "status": "adequada" if adequado else "insuficiente",
         "texto_caracteres": len(texto),
@@ -41,7 +48,7 @@ def node_qualidade_documento(state: GraphState) -> GraphState:
     return {
         **state,
         "qualidade_documento": qualidade,
-        "motivo_revisao": None if adequado else "; ".join(motivos),
+        "motivo_revisao": motivo_revisao,
         "etapa_revisao": None if adequado else "qualidade",
         "requer_auditoria_humana": not adequado,
         "status": "qualidade_verificada",
