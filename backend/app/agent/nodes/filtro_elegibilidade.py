@@ -19,16 +19,25 @@ def node_filtro_elegibilidade(state: GraphState) -> GraphState:
         resultado = ResultadoEscopoDocumento.model_validate(avaliacao_salva)
     else:
         resultado = avaliar_escopo(state.get("documento_texto") or "")
+
+    eh_imagem = bool(state.get("avaliacao_visual")) or (state.get("tipo_arquivo") or "").lower() in {".png", ".jpg", ".jpeg", "imagem"}
+    legibilidade = resultado.legibilidade
+    if resultado.escopo == "medico" and not eh_imagem:
+        legibilidade = "legivel"
+
+    dados_escopo = resultado.model_dump(mode="json")
+    dados_escopo["legibilidade"] = legibilidade
+
     return {
         **state,
         "elegibilidade": resultado.escopo,
-        "legibilidade_documento": resultado.legibilidade,
-        "avaliacao_escopo": resultado.model_dump(mode="json"),
+        "legibilidade_documento": legibilidade,
+        "avaliacao_escopo": dados_escopo,
         "justificativa_elegibilidade": resultado.justificativa,
         "etapa_revisao": None,
         "motivo_revisao": (
             "Documento médico com caligrafia ilegível — requer transcrição por auditor humano"
-            if resultado.escopo == "medico" and resultado.legibilidade != "legivel"
+            if resultado.escopo == "medico" and legibilidade == "ilegivel" and eh_imagem
             else None
         ),
         "requer_auditoria_humana": False,
