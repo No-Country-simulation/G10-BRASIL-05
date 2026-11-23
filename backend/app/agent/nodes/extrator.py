@@ -19,7 +19,7 @@ def _ler_resposta_json(conteudo: str) -> dict[str, Any]:
     if texto.startswith("```"):
         linhas = texto.splitlines()
         texto = "\n".join(linhas[1:-1])
-    dados = json.loads(texto)
+    dados = json.loads(texto, strict=False)
     if not isinstance(dados, dict):
         raise ValueError("A resposta da LLM precisa ser um objeto JSON.")
     return dados

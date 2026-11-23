@@ -47,7 +47,7 @@ def _extrair_json(resposta: str) -> dict:
     inicio, fim = resposta.find("{"), resposta.rfind("}")
     if inicio < 0 or fim < inicio:
         raise ValueError("A resposta do classificador de escopo não contém JSON.")
-    valor = json.loads(resposta[inicio : fim + 1])
+    valor = json.loads(resposta[inicio : fim + 1], strict=False)
     if not isinstance(valor, dict):
         raise ValueError("A resposta do classificador de escopo não é um objeto JSON.")
     return valor

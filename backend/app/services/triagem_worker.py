@@ -138,7 +138,7 @@ def processar_documento_enfileirado(
         texto_limpo = (texto or "").strip()
         if texto_limpo.startswith("{"):
             try:
-                dados_json = json.loads(texto_limpo)
+                dados_json = json.loads(texto_limpo, strict=False)
                 if isinstance(dados_json, dict) and "documento_texto" in dados_json:
                     texto = str(dados_json["documento_texto"])
                     if dados_json.get("canal_origem"):
@@ -146,6 +146,19 @@ def processar_documento_enfileirado(
                     metadados_documento = extrair_metadados_documento(texto).model_dump(mode="json") if texto else {}
             except Exception:
                 pass
+
+            if texto == texto_limpo and '"documento_texto"' in texto_limpo:
+                import re
+                match_texto = re.search(r'"documento_texto"\s*:\s*"((?:[^"\\]|\\.)*)"', texto_limpo, re.DOTALL)
+                if match_texto:
+                    try:
+                        texto = match_texto.group(1).encode("utf-8").decode("unicode_escape").strip()
+                    except Exception:
+                        texto = match_texto.group(1).strip()
+                    match_canal = re.search(r'"canal_origem"\s*:\s*"([^"]+)"', texto_limpo)
+                    if match_canal:
+                        canal_origem = match_canal.group(1).strip()
+                    metadados_documento = extrair_metadados_documento(texto).model_dump(mode="json") if texto else {}
 
         eh_medico_ou_ilegivel = False
         if avaliacao_visual:

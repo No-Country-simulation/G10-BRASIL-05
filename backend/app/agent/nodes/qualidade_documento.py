@@ -28,7 +28,11 @@ def node_qualidade_documento(state: GraphState) -> GraphState:
     if eh_imagem and state.get("legibilidade_documento") == "ilegivel":
         motivos.append("Documento médico com caligrafia ilegível — requer transcrição por auditor humano")
 
-    eh_texto_puro = (state.get("tipo_arquivo") or "").lower() in {"texto", "json"} or state.get("referencia_fonte") == "texto_informado"
+    eh_texto_puro = (
+        (state.get("tipo_arquivo") or "").lower() in {"texto", "json"}
+        or state.get("referencia_fonte") == "texto_informado"
+        or (not eh_imagem and len(texto) >= 40)
+    )
     if not eh_texto_puro and not state.get("referencia_fonte"):
         motivos.append(
             "A fonte original não está vinculada para conferência humana."

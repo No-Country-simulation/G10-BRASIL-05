@@ -53,7 +53,7 @@ class TriagemService:
             )
         self.db_repo.db.rollback()
 
-        if not referencia_fonte and requisicao.tipo_arquivo.lower() in {"texto", "json"}:
+        if not referencia_fonte and (requisicao.tipo_arquivo.lower() in {"texto", "json"} or len(requisicao.documento_texto or "") >= 40):
             referencia_fonte = "texto_informado"
 
         # 1. Execução do Agente Autônomo LangGraph (StateGraph)
