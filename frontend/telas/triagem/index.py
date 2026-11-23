@@ -89,13 +89,24 @@ def render() -> None:
                     if texto.startswith("{"):
                         try:
                             import json
-                            dados_json = json.loads(texto)
+                            dados_json = json.loads(texto, strict=False)
                             if isinstance(dados_json, dict) and "documento_texto" in dados_json:
                                 texto = str(dados_json["documento_texto"])
                                 if dados_json.get("canal_origem"):
                                     canal_origem_texto = str(dados_json["canal_origem"])
                         except Exception:
                             pass
+                        if '"documento_texto"' in texto:
+                            import re
+                            match_texto = re.search(r'"documento_texto"\s*:\s*"((?:[^"\\]|\\.)*)"', texto, re.DOTALL)
+                            if match_texto:
+                                try:
+                                    texto = match_texto.group(1).encode("utf-8").decode("unicode_escape").strip()
+                                except Exception:
+                                    texto = match_texto.group(1).strip()
+                                match_canal = re.search(r'"canal_origem"\s*:\s*"([^"]+)"', texto)
+                                if match_canal:
+                                    canal_origem_texto = match_canal.group(1).strip()
                     info_envio = {
                         "tipo": "texto",
                         "texto": texto,
@@ -172,13 +183,24 @@ def render() -> None:
                             if texto_envio.startswith("{"):
                                 try:
                                     import json
-                                    dados_json = json.loads(texto_envio)
+                                    dados_json = json.loads(texto_envio, strict=False)
                                     if isinstance(dados_json, dict) and "documento_texto" in dados_json:
                                         texto_envio = str(dados_json["documento_texto"])
                                         if dados_json.get("canal_origem"):
                                             canal_origem = str(dados_json["canal_origem"])
                                 except Exception:
                                     pass
+                                if '"documento_texto"' in texto_envio:
+                                    import re
+                                    match_texto = re.search(r'"documento_texto"\s*:\s*"((?:[^"\\]|\\.)*)"', texto_envio, re.DOTALL)
+                                    if match_texto:
+                                        try:
+                                            texto_envio = match_texto.group(1).encode("utf-8").decode("unicode_escape").strip()
+                                        except Exception:
+                                            texto_envio = match_texto.group(1).strip()
+                                        match_canal = re.search(r'"canal_origem"\s*:\s*"([^"]+)"', texto_envio)
+                                        if match_canal:
+                                            canal_origem = match_canal.group(1).strip()
                             requisicao = montar_requisicao(None, texto_envio, canal_origem=canal_origem)
                             resposta = enfileirar_texto_documento(requisicao)
                             doc_id = resposta["documento_id"]

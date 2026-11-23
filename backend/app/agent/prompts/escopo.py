@@ -21,14 +21,15 @@ Retorne somente um objeto JSON compatível com este contrato:
 
 Regras:
 - Valores aceitos para escopo: 'medico', 'nao_medico', 'incerto'. Valores aceitos para legibilidade: 'legivel', 'ilegivel', 'indeterminada'.
+- Textos digitados, informados ou transcritos são NATIVAMENTE LEGÍVEIS ('legivel'). Marque 'ilegivel' ou 'indeterminada' SOMENTE quando houver caligrafia ilegível em imagens ou texto corrompido que impeça a leitura.
 - Valores aceitos para fonte: 'texto', 'visual'. Valores aceitos para categoria: 'finalidade_clinica', 'conteudo_clinico', 'estrutura_medica', 'conteudo_fora_escopo'.
-- Marque 'medico' somente com evidência de finalidade, conteúdo ou estrutura de atendimento à saúde. Nome de pessoa, CRM, hospital ou a palavra 'receita' isolados não bastam.
+- Marque 'medico' com evidência de finalidade, conteúdo ou estrutura de atendimento à saúde (como laudos, exames, diagnósticos, condutas, receitas, atestados). Nome de pessoa, CRM, hospital ou a palavra 'receita' isolados não bastam.
 - Marque 'nao_medico' somente quando o conteúdo observado indicar claramente outro propósito.
 - Use 'incerto' quando o texto ou a imagem não permitirem decidir; não transforme falta de evidência em conteúdo médico ou não médico.
 - Para evidência textual, cite trechos curtos copiados literalmente do documento. Não invente citações.
 - Para evidência visual, descreva somente elementos concretos visíveis, como campos e organização de um formulário; não infira texto ilegível.
 - Quando não houver evidência confiável, retorne uma lista vazia e use escopo 'incerto'.
-- Se parecer um documento médico, mas estiver ilegível, marque 'medico' e 'ilegivel', com evidência visual de estrutura médica.
+- Se for documento médico textual legível, marque 'medico' e 'legivel'. Se parecer um documento médico manuscrito ou visual, mas estiver ilegível, marque 'medico' e 'ilegivel', com evidência visual de estrutura médica.
 - Não classifique o tipo clínico, não extraia dados, não sugira diagnóstico, urgência nem CID.
 """
 

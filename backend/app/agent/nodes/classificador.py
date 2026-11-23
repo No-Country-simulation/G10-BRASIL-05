@@ -21,7 +21,7 @@ def _extrair_json(resposta: str) -> dict[str, Any]:
     inicio, fim = resposta.find("{"), resposta.rfind("}")
     if inicio == -1 or fim < inicio:
         raise ValueError("Resposta da LLM não contém um objeto JSON.")
-    dados = json.loads(resposta[inicio : fim + 1])
+    dados = json.loads(resposta[inicio : fim + 1], strict=False)
     return ClassificacaoDocumento.model_validate(dados).model_dump(mode="json")
 
 
